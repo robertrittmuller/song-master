@@ -1,6 +1,7 @@
 ---
 description: Plans song lyrics structure based on user input.
 mode: subagent
+model: openrouter/openrouter/polaris-alpha
 temperature: 0.1
 tools:
   write: false

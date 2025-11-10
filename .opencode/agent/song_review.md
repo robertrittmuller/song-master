@@ -1,6 +1,7 @@
 ---
 description: Reviews song lyrics for quality, structure, and likeablity.
 mode: subagent
+model: openrouter/moonshotai/kimi-k2-thinking
 temperature: 0.1
 tools:
   write: false

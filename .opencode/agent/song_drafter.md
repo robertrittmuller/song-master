@@ -1,6 +1,7 @@
 ---
 description: Plans song lyrics structure based on user input.
 mode: subagent
+model: openrouter/openrouter/polaris-alpha
 temperature: 0.3
 tools:
   write: false
@@ -27,4 +28,9 @@ Consider the following:
 - Reference the /styles and /tags folders for appropriate musical styles, genres, and section tags to enhance the draft.
 - Focus on creating engaging, memorable lyrics that could stand out on the radio without being overly simplistic or cliché.
 
-Output your draft as a basic song structure plus lyrics using the tags provided.
+Data and Resources:
+
+- Any .txt or .json files in the /styles folder can be referenced for what styles Suno supports.
+- A list of possible section choices for the lyrics can be found in the /tags folder as multiple .txt files.
+
+Output your draft as a basic song structure plus lyrics using the structure provided.
