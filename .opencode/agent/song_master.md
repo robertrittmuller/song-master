@@ -1,7 +1,7 @@
 ---
 description: Generates song lyrics for Suno AI.
 mode: primary
-model: openrouter/z-ai/glm-4.6
+model: openrouter/z-ai/glm-4.6:exacto
 temperature: 0.1
 tools:
   write: true
@@ -38,6 +38,7 @@ You can use the following tools to help you create amazing lyrics based on the u
 
 - song_drafter - Used to generate the basic song structure and initial draft of the lyrics using the Suno tags provided. Results of the draft are the foundation used when building the final lyrics after going through the review process. This is already run first.
 - song_review - Gives you creative feedback on your lyrics. Incorporate review feedback for up to three review passes into the generated output, allowing additional cycles if quality issues persist. Review each song of an album individually, incorporating the suggestions where appropriate.
+- song_critic - Provides harsh, constructive criticism to push lyrics to the highest quality. Use this for an additional layer of scrutiny after initial reviews, focusing on originality, depth, and potential for greatness.
 - song_preflight - Used as the final check before completion, it validates that the song is compliant with Suno AI structure and requirements, including emotional arc consistency and lyrical flow. Any recommended changes should be made and then checked again before completing the request. This is always run last.
 
 Final output should always be in markdown, and use the following structure:

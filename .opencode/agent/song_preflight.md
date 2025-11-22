@@ -1,7 +1,7 @@
 ---
 description: Plans song lyrics structure based on user input.
 mode: subagent
-model: openrouter/google/gemini-2.5-flash
+model: openrouter/z-ai/glm-4.6
 temperature: 0.1
 tools:
   write: false
