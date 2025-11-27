@@ -32,3 +32,4 @@ tqdm
 langchain
 langchain_openai
 langchain_community
+langgraph

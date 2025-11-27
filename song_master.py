@@ -5,10 +5,11 @@ import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional, TypedDict
 from concurrent.futures import ThreadPoolExecutor
 
 from dotenv import load_dotenv
+from langgraph.graph import END, StateGraph
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import OpenAI
 from litellm import completion
@@ -248,6 +249,12 @@ def build_prompts():
         "- Return only JSON with keys: description (string), suno_styles (list of strings), suno_exclude_styles (list of strings), target_audience (string), commercial_potential (string).\n"
         "- Do not include explanations or markdown."
     )
+    preflight_triage_template = (
+        "You are a strict validator. Given preflight feedback text, output JSON with keys:\n"
+        '- "pass" (boolean), true only if the text clearly signals no action needed.\n'
+        '- "issues" (array of short actionable strings). Empty if pass is true.\n'
+        "Be concise. No markdown, no prose—JSON only."
+    )
     scoring_template = (
         "You are a songwriting judge scoring the lyrics for production readiness.\n"
         "- Score from 0-10 (float) considering structure, imagery, singability, theme coherence, and avoidance of clichés.\n"
@@ -340,6 +347,15 @@ Persona Styles:
 """,
     )
 
+    preflight_triage_prompt = PromptTemplate(
+        input_variables=["preflight_output"],
+        template=f"""{preflight_triage_template}
+
+Preflight Feedback:
+{{preflight_output}}
+""",
+    )
+
     song_score_prompt = PromptTemplate(
         input_variables=["lyrics"],
         template=f"""{scoring_template}
@@ -357,6 +373,7 @@ Lyrics:
         song_revision_prompt,
         song_score_prompt,
         metadata_prompt,
+        preflight_triage_prompt,
     )
 
 
@@ -421,7 +438,25 @@ def critique_song(prompt_template: PromptTemplate, revision_prompt: PromptTempla
 
 def preflight_song(prompt_template: PromptTemplate, lyrics: str, styles: Dict[str, str], tags: Dict[str, str], use_local: bool) -> None:
     formatted_prompt = prompt_template.format(lyrics=lyrics, styles=str(styles), tags=str(tags))
-    get_llm(use_local).invoke(formatted_prompt)
+    return get_llm(use_local).invoke(formatted_prompt)
+
+
+def triage_preflight(prompt_template: PromptTemplate, preflight_output: str, use_local: bool):
+    fallback = {"pass": False, "issues": ["Preflight feedback could not be parsed. Review manually."]}
+    if not preflight_output:
+        return fallback
+    formatted = prompt_template.format(preflight_output=preflight_output)
+    try:
+        raw = get_llm(use_local).invoke(formatted)
+        parsed = json.loads(raw)
+        passed = bool(parsed.get("pass", False))
+        issues = parsed.get("issues", [])
+        if isinstance(issues, str):
+            issues = [issues]
+        issues = [issue for issue in issues if issue]
+        return {"pass": passed, "issues": issues}
+    except Exception:
+        return fallback
 
 
 def extract_title(lyrics: str, provided_title: Optional[str]) -> str:
@@ -541,6 +576,26 @@ class SongResources:
     default_params: Dict[str, Optional[str]]
 
 
+class SongState(TypedDict, total=False):
+    user_input: str
+    song_name: Optional[str]
+    persona: Optional[str]
+    persona_name: Optional[str]
+    use_local: bool
+    resources: SongResources
+    lyrics: str
+    feedback: str
+    score: float
+    round: int
+    max_rounds: int
+    score_threshold: float
+    preflight_passed: bool
+    preflight_issues: List[str]
+    metadata: Dict[str, Any]
+    filename: Optional[str]
+    album_art: Optional[str]
+
+
 def load_resources(persona_name: Optional[str]) -> SongResources:
     styles = read_styles()
     tags = read_tags()
@@ -576,77 +631,146 @@ def progress_steps(use_local: bool):
 
 
 def generate_song(user_input: str, use_local: bool = False, song_name: Optional[str] = None, persona: Optional[str] = None):
-    drafter_prompt, review_prompt, critic_prompt, preflight_prompt, revision_prompt, scoring_prompt, metadata_prompt = build_prompts()
-    steps = progress_steps(use_local)
+    (
+        drafter_prompt,
+        review_prompt,
+        critic_prompt,
+        preflight_prompt,
+        revision_prompt,
+        scoring_prompt,
+        metadata_prompt,
+        preflight_triage_prompt,
+    ) = build_prompts()
 
-    with tqdm(total=len(steps), desc="Creating your song", unit="step") as progress:
-        progress.set_description(steps[0])
-        time.sleep(0.2)
-        persona_name = parse_persona(user_input, persona)
-        progress.update(1)
+    persona_name = parse_persona(user_input, persona)
+    resources = load_resources(persona_name)
+    max_rounds = int(os.getenv("REVIEW_MAX_ROUNDS", "3"))
+    score_threshold = float(os.getenv("REVIEW_SCORE_THRESHOLD", "8.0"))
 
-        progress.set_description(steps[1])
-        time.sleep(0.2)
-        resources = load_resources(persona_name)
-        progress.update(1)
+    initial_state: SongState = {
+        "user_input": user_input,
+        "song_name": song_name,
+        "persona": persona,
+        "persona_name": persona_name,
+        "use_local": use_local,
+        "resources": resources,
+        "lyrics": "",
+        "feedback": "",
+        "score": 0.0,
+        "round": 0,
+        "max_rounds": max_rounds,
+        "score_threshold": score_threshold,
+        "preflight_passed": False,
+        "preflight_issues": [],
+        "metadata": {},
+        "filename": None,
+        "album_art": None,
+    }
 
-        progress.set_description(steps[2])
-        enhanced_input = enhance_user_input(user_input, song_name)
+    def draft_node(state: SongState):
+        enhanced_input = enhance_user_input(state["user_input"], state.get("song_name"))
         lyrics = draft_song(
             prompt_template=drafter_prompt,
             enhanced_input=enhanced_input,
-            styles=resources.styles,
-            tags=resources.tags,
-            persona_styles=resources.persona_styles,
-            default_params=resources.default_params,
-            use_local=use_local,
+            styles=state["resources"].styles,
+            tags=state["resources"].tags,
+            persona_styles=state["resources"].persona_styles,
+            default_params=state["resources"].default_params,
+            use_local=state["use_local"],
         )
-        progress.write("✓ Draft generated.")
-        progress.update(1)
+        tqdm.write("✓ Draft generated.")
+        return {"lyrics": lyrics}
 
-        progress.set_description(steps[3])
-        lyrics = review_song(review_prompt, revision_prompt, scoring_prompt, lyrics, use_local)
-        progress.write("✓ Reviews completed, lyrics revised, and scored")
-        progress.update(1)
+    def review_node(state: SongState):
+        feedback = run_parallel_reviews(review_prompt, state["lyrics"], state["use_local"])
+        revised_lyrics = revise_lyrics(revision_prompt, state["lyrics"], feedback, state["use_local"])
+        score = score_lyrics(scoring_prompt, revised_lyrics, state["use_local"])
+        tqdm.write(f"✓ Review round {state['round'] + 1}: score {score:.2f}")
+        return {"lyrics": revised_lyrics, "feedback": feedback, "score": score, "round": state["round"] + 1}
 
-        progress.set_description(steps[4])
-        lyrics = critique_song(critic_prompt, revision_prompt, lyrics, use_local)
-        progress.write("✓ Critic feedback applied and lyrics revised")
-        progress.update(1)
+    def review_router(state: SongState):
+        if state["score"] < state["score_threshold"] and state["round"] < state["max_rounds"]:
+            return "keep_reviewing"
+        return "go_critic"
 
-        progress.set_description(steps[5])
-        preflight_song(preflight_prompt, lyrics, resources.styles, resources.tags, use_local)
-        progress.write("✓ Preflight checks completed")
-        progress.update(1)
+    def critic_node(state: SongState):
+        revised = critique_song(critic_prompt, revision_prompt, state["lyrics"], state["use_local"])
+        tqdm.write("✓ Critic feedback applied.")
+        return {"lyrics": revised}
 
-        progress.set_description(steps[6])
+    def preflight_node(state: SongState):
+        raw = preflight_song(preflight_prompt, state["lyrics"], state["resources"].styles, state["resources"].tags, state["use_local"])
+        triaged = triage_preflight(preflight_triage_prompt, raw, state["use_local"])
+        passed = bool(triaged.get("pass", False))
+        issues = triaged.get("issues", [])
+        if passed:
+            tqdm.write("✓ Preflight passed.")
+        else:
+            tqdm.write(f"! Preflight flagged {len(issues)} issue(s).")
+        return {"preflight_passed": passed, "preflight_issues": issues}
+
+    def preflight_router(state: SongState):
+        if not state["preflight_passed"] and state["round"] < state["max_rounds"]:
+            return "needs_fix"
+        return "ready_for_metadata"
+
+    def targeted_revise_node(state: SongState):
+        issues = state.get("preflight_issues", [])
+        feedback = "Fix these preflight issues:\n" + "\n".join(f"- {issue}" for issue in issues)
+        revised = revise_lyrics(revision_prompt, state["lyrics"], feedback, state["use_local"])
+        tqdm.write("✓ Applied targeted fixes from preflight.")
+        return {"lyrics": revised, "feedback": feedback, "round": state["round"] + 1}
+
+    def metadata_node(state: SongState):
         metadata = generate_metadata_summary(
             metadata_prompt,
-            lyrics,
-            user_input,
-            resources.default_params,
-            resources.persona_styles,
-            use_local,
+            state["lyrics"],
+            state["user_input"],
+            state["resources"].default_params,
+            state["resources"].persona_styles,
+            state["use_local"],
         )
-        progress.write("✓ Metadata summary generated")
-        progress.update(1)
+        tqdm.write("✓ Metadata summary generated.")
+        return {"metadata": metadata}
 
-        progress.set_description(steps[7])
-        title = extract_title(lyrics, song_name)
-        if use_local:
-            progress.write("✓ Album artwork skipped (local mode)")
-        else:
-            artwork_path = generate_album_art(title, user_input)
-            progress.write(f"✓ Album artwork generated: {artwork_path}")
-        progress.update(1)
+    def album_art_node(state: SongState):
+        if state["use_local"]:
+            tqdm.write("✓ Album artwork skipped (local mode).")
+            return {"album_art": None}
+        title = extract_title(state["lyrics"], state.get("song_name"))
+        artwork_path = generate_album_art(title, state["user_input"])
+        tqdm.write(f"✓ Album artwork generated: {artwork_path}")
+        return {"album_art": artwork_path}
 
-        progress.set_description(steps[8])
-        filename = save_song(title, user_input, lyrics, resources.default_params, metadata)
-        progress.write(f"✓ Song saved to {filename}")
-        progress.update(1)
+    def save_node(state: SongState):
+        title = extract_title(state["lyrics"], state.get("song_name"))
+        filename = save_song(title, state["user_input"], state["lyrics"], state["resources"].default_params, state["metadata"])
+        tqdm.write(f"✓ Song saved to {filename}")
+        return {"filename": filename}
 
-        progress.set_description("Song creation complete!")
-        time.sleep(0.2)
+    graph = StateGraph(SongState)
+    graph.add_node("draft", draft_node)
+    graph.add_node("review", review_node)
+    graph.add_node("critic", critic_node)
+    graph.add_node("preflight", preflight_node)
+    graph.add_node("targeted_revise", targeted_revise_node)
+    graph.add_node("metadata", metadata_node)
+    graph.add_node("album_art", album_art_node)
+    graph.add_node("save", save_node)
+
+    graph.set_entry_point("draft")
+    graph.add_edge("draft", "review")
+    graph.add_conditional_edges("review", review_router, {"keep_reviewing": "review", "go_critic": "critic"})
+    graph.add_edge("critic", "preflight")
+    graph.add_conditional_edges("preflight", preflight_router, {"needs_fix": "targeted_revise", "ready_for_metadata": "metadata"})
+    graph.add_edge("targeted_revise", "review")
+    graph.add_edge("metadata", "album_art")
+    graph.add_edge("album_art", "save")
+    graph.add_edge("save", END)
+
+    app = graph.compile()
+    with tqdm(total=None, desc="Creating your song (agentic)", unit="step") as _:
+        app.invoke(initial_state)
 
 
 if __name__ == "__main__":
