@@ -31,19 +31,19 @@ Song Master is a Python script that leverages AI models (both local and OpenRout
 flowchart TD
     A[CLI prompt/name/persona] --> B[Load styles, tags, persona tokens, defaults]
     B --> C[Build prompts and enhance input]
-    C --> D[Draft song (LLM)]
-    D --> E[Parallel reviews (3), merge feedback]
+    C --> D[Draft song]
+    D --> E[Parallel reviews x3]
     E --> F[Revise and score]
-    F -->|score < threshold and round < max| E
+    F -->|below threshold and rounds left| E
     F --> G[Critic revision]
-    G --> H[Preflight checks vs styles/tags]
-    H -->|issues and round < max| I[Targeted fixes from issue list]
+    G --> H[Preflight checks]
+    H -->|issues and rounds left| I[Targeted fixes]
     I --> E
-    H --> J[Metadata summary JSON]
-    J --> K{Local mode?}
+    H --> J[Metadata summary]
+    J --> K{Local mode}
     K -->|yes| L[Skip cover art]
     K -->|no| M[Generate cover art]
-    L --> N[Save markdown + metadata]
+    L --> N[Save song and metadata]
     M --> N
 ```
 
