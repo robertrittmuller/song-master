@@ -1,9 +1,10 @@
 import json
 import os
-import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, TypedDict
+
+from tools.create_album_art import generate_album_art_image
 
 
 def read_styles() -> Dict[str, str]:
@@ -128,14 +129,18 @@ def extract_title(lyrics: str, provided_title: Optional[str]) -> str:
 
 
 def generate_album_art(title: str, user_input: str) -> str:
-    """Generate album artwork using external script."""
+    """Generate album artwork using integrated function."""
     artwork_prompt = (
         f"Album cover for song '{title}' with theme {user_input}. "
         "Do not include any text, lettering, or typography on the image."
     )
     output_file = f"songs/{title.replace(' ', '_')}_cover.jpg"
     os.makedirs("songs", exist_ok=True)
-    subprocess.run(["python", "tools/create_album_art.py", artwork_prompt, output_file], check=False)
+    try:
+        generate_album_art_image(artwork_prompt, output_file)
+    except Exception as e:
+        print(f"Warning: Failed to generate album art: {e}")
+        return None
     return output_file
 
 

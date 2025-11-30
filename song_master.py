@@ -35,7 +35,6 @@ from helpers import (
     load_prompt_from_file,
     load_resources,
     parse_persona,
-    progress_steps,
     save_song,
 )
 
