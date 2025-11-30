@@ -30,14 +30,14 @@ Song Master is a Python script that leverages AI models (both local and OpenRout
 ```mermaid
 flowchart TD
     A[CLI prompt/name/persona] --> B[Load styles, tags, persona tokens, defaults]
-    B --> C[Build prompts + enhance input]
+    B --> C[Build prompts and enhance input]
     C --> D[Draft song (LLM)]
-    D --> E[Parallel reviews (3) -> merge feedback]
-    E --> F[Revise + score]
-    F -->|score<threshold & round<max| E
+    D --> E[Parallel reviews (3), merge feedback]
+    E --> F[Revise and score]
+    F -->|score < threshold and round < max| E
     F --> G[Critic revision]
     G --> H[Preflight checks vs styles/tags]
-    H -->|issues & round<max| I[Targeted fixes from issue list]
+    H -->|issues and round < max| I[Targeted fixes from issue list]
     I --> E
     H --> J[Metadata summary JSON]
     J --> K{Local mode?}
