@@ -5,7 +5,8 @@
   },
   	// Container environment variables
 	"containerEnv": {
-		"ARTN_API_KEY": "${localEnv:ARTN_API_KEY}",
-    "ARTN_API_BASE": "${localEnv:ARTN_API_BASE}"
+		"OPENROUTER_API_KEY": "${localEnv:OPENROUTER_API_KEY}",
+    "LMSTUDIO_API_KEY": "${localEnv:LMSTUDIO_API_KEY}",
+    "LMSTUDIO_API_BASE": "${localEnv:LMSTUDIO_API_BASE}"
 	}
 }
