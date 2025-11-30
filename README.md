@@ -96,7 +96,7 @@ Generate some lyrics for a song that's all about testing ideas. Make it in the s
 The local model generates a more narrative-focused song with detailed storytelling:
 
 **Audio Sample:**
-<audio controls>
+<audio muted controls>
   <source src="examples/local/Testing%20Ideas%20(Local).mp3" type="audio/mpeg">
   <source src="examples/local/Testing Ideas (Local).mp3" type="audio/mpeg">
   Your browser does not support the audio element.
