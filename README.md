@@ -96,11 +96,11 @@ Generate some lyrics for a song that's all about testing ideas. Make it in the s
 The local model generates a more narrative-focused song with detailed storytelling:
 
 **Audio Sample:**
-<audio controls muted>
+<video controls="" autoplay="" name="media">
   <source src="examples/local/Testing_Ideas_Local.mp3" type="audio/mp3">
   Your browser does not support the audio element.
   <a href="examples/local/Testing_Ideas_Local.mp3">Download the audio file</a>
-</audio>
+</video>
 
 ```markdown
 ## Testing Ideas
