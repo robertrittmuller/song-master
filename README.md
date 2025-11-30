@@ -309,12 +309,6 @@ Lift your voice high — we're breakin' the silence
 Breakin' the silence — keep shoutin' through the years!
 ```
 
-### Cover Art Output
-
-The script also generates cover art for the songs using Nano Banana on OpenRouter. Here's an example of the cover art created for the "Testing Ideas" song:
-
-![Testing Ideas Cover Art](examples/openrouter/Testing_Ideas_cover.jpg)
-
 ## Key Differences Between Models
 
 | Aspect | Local Model (Qwen3 30B A3B 2507) | OpenRouter Model (GPT-5.1 CHAT) |
@@ -324,6 +318,13 @@ The script also generates cover art for the songs using Nano Banana on OpenRoute
 | **Content** | Storytelling with personal elements | Direct and energetic messaging |
 | **Formatting** | Standard formatting | Detailed style annotations |
 | **Exclude Styles** | Specific exclusions (melodic hooks, catchy chorus) | No exclusions |
+
+### Cover Art Output
+
+The script also generates cover art for the songs using Nano Banana on OpenRouter. Here's an example of the cover art created for the "Testing Ideas" song:
+
+![Testing Ideas Cover Art](examples/openrouter/Testing_Ideas_cover.jpg)
+
 
 ## Configuration
 
