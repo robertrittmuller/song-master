@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -192,8 +193,8 @@ def read_tags() -> Dict[str, str]:
 
 
 def read_persona(persona_name: str) -> str:
-    persona_file = f"personas/{persona_name.lower().replace(' ', '_')}.md"
-    if not os.path.exists(persona_file):
+    persona_file = resolve_persona_file(persona_name)
+    if not persona_file:
         return ""
 
     with open(persona_file, "r") as file:
@@ -204,6 +205,39 @@ def read_persona(persona_name: str) -> str:
     start = content.find("Persona styles") + len("Persona styles")
     end = content.find("\n\n", start)
     return content[start:end].strip()
+
+
+def resolve_persona_file(persona_input: str) -> Optional[str]:
+    """
+    Resolve a persona input to an existing markdown file.
+    Supports:
+    - direct paths (absolute or relative, with optional ~ expansion)
+    - persona slugs/names that map to personas/<name>.md
+    """
+    if not persona_input:
+        return None
+
+    expanded = os.path.expanduser(persona_input)
+    # Direct file path support (absolute or relative)
+    if os.path.isfile(expanded):
+        return expanded
+    # If it looks like a path but doesn't exist, don't try to slugify
+    if os.path.isabs(expanded) or os.sep in persona_input:
+        return None
+    # Fallback to personas directory by slugifying name
+    persona_file = f"personas/{persona_input.lower().replace(' ', '_')}.md"
+    if os.path.isfile(persona_file):
+        return persona_file
+    return None
+
+
+def load_prompt_from_file(prompt_path: str) -> str:
+    expanded = os.path.expanduser(prompt_path)
+    if not os.path.isfile(expanded):
+        raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
+    with open(expanded, "r") as file:
+        return file.read().strip()
+
 
 def read_prompt(prompt_name: str) -> str:
     prompt_file = f"prompts/{prompt_name}.txt"
@@ -478,6 +512,37 @@ def generate_album_art(title: str, user_input: str) -> str:
     os.makedirs("songs", exist_ok=True)
     subprocess.run(["python", "tools/create_album_art.py", artwork_prompt, output_file], check=False)
     return output_file
+
+
+def extract_song_details_for_art(song_path: str) -> tuple[str, str]:
+    expanded = os.path.expanduser(song_path)
+    if not os.path.isfile(expanded):
+        raise FileNotFoundError(f"Song file not found: {song_path}")
+
+    with open(expanded, "r") as file:
+        content = file.read()
+
+    title = None
+    for line in content.splitlines():
+        if line.startswith("## "):
+            title = line[3:].strip()
+            break
+    if not title:
+        raise ValueError(f"Could not extract song title from {song_path}")
+
+    user_prompt = ""
+    marker = "- **User Prompt**:"
+    if marker in content:
+        start = content.index(marker) + len(marker)
+        # Stop at the lyrics header or next heading; collapse whitespace for a clean prompt
+        end = content.find("### Song Lyrics", start)
+        if end == -1:
+            end = content.find("\n##", start)
+        if end == -1:
+            end = len(content)
+        user_prompt = " ".join(content[start:end].strip().split())
+
+    return title, user_prompt
 
 
 def parse_persona_styles_list(persona_styles: str):
@@ -775,10 +840,48 @@ def generate_song(user_input: str, use_local: bool = False, song_name: Optional[
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate a song using AI")
-    parser.add_argument("prompt", help="The song description or request")
+    parser.add_argument("prompt", nargs="?", help="The song description or request")
+    parser.add_argument(
+        "--prompt-file",
+        type=str,
+        default=None,
+        help="Path to a .txt file containing the song description or request",
+    )
     parser.add_argument("--local", action="store_true", help="Use local LM Studio LLM and disable image generation")
     parser.add_argument("--name", type=str, default=None, help="Optional song name/title")
-    parser.add_argument("--persona", type=str, default=None, help='Specify the persona to use (e.g., "antidote", "bleached_to_perfection")')
+    parser.add_argument(
+        "--persona",
+        type=str,
+        default=None,
+        help='Specify the persona by name (e.g., "antidote") or by path to a persona .md file',
+    )
+    parser.add_argument(
+        "--regen-cover",
+        type=str,
+        default=None,
+        help="Path to an existing song markdown file to regenerate album art and exit",
+    )
 
     args = parser.parse_args()
-    generate_song(args.prompt, args.local, args.name, args.persona)
+
+    if args.regen_cover:
+        try:
+            title, user_prompt = extract_song_details_for_art(args.regen_cover)
+        except (FileNotFoundError, ValueError) as regen_err:
+            parser.error(str(regen_err))
+            sys.exit(2)
+        artwork_path = generate_album_art(title, user_prompt or "Use the song metadata to inspire the cover art.")
+        print(f"Album art regenerated: {artwork_path}")
+        sys.exit(0)
+
+    try:
+        prompt_text = load_prompt_from_file(args.prompt_file) if args.prompt_file else args.prompt
+    except FileNotFoundError as prompt_err:
+        parser.error(str(prompt_err))
+        sys.exit(2)
+
+    if not prompt_text:
+        parser.error("You must provide a prompt as an argument or via --prompt-file")
+        sys.exit(2)
+
+    generate_song(prompt_text, args.local, args.name, args.persona)
