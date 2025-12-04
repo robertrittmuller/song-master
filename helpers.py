@@ -186,27 +186,68 @@ def parse_persona_styles_list(persona_styles: str):
 
 
 def strip_style_tags(lyrics: str) -> str:
-    """Remove style tags like [Verse 1], [Chorus], etc. from lyrics while preserving the actual lyrics content."""
+    """Remove style tags while preserving song structure headers like [Verse 1], [Chorus], etc."""
     import re
     
     # Split into lines and process each line
     lines = lyrics.split('\n')
     clean_lines = []
     
+    # Define structural headers to preserve (extract just the header part)
+    structural_patterns = [
+        r'\[Verse\s*\d*\]',
+        r'\[Pre-Chorus\]',
+        r'\[Chorus\]',
+        r'\[Bridge\]',
+        r'\[Outro\]',
+        r'\[Intro\]',
+        r'\[Final Chorus\]',
+        r'\[Guitar Solo\]',
+        r'\[Instrumental\]'
+    ]
+    
     for line in lines:
+        stripped_line = line.strip()
+        
+        # Check if this line contains a structural header
+        structural_header = None
+        for pattern in structural_patterns:
+            match = re.search(pattern, stripped_line, re.IGNORECASE)
+            if match:
+                structural_header = match.group(0)
+                break
+        
+        if structural_header:
+            # Add just the clean structural header
+            clean_lines.append(structural_header)
+            continue
+        
         # Remove lines that are purely style tags (in brackets)
-        if re.match(r'^\[.*\]$', line.strip()):
+        if re.match(r'^\[.*\]$', stripped_line):
             continue
         
         # Remove inline style tags but keep the content
-        # This handles cases like "[Chorus] Feel the rush..." -> "Feel the rush..."
-        line = re.sub(r'^\[.*?\]\s*', '', line.strip())
+        # This handles cases like "[Female Vocal] Feel the rush..." -> "Feel the rush..."
+        line = re.sub(r'^\[.*?\]\s*', '', stripped_line)
         
         # Only add non-empty lines
         if line.strip():
             clean_lines.append(line)
     
-    return '\n'.join(clean_lines)
+    # Add spacing between sections for better readability
+    result_lines = []
+    for i, line in enumerate(clean_lines):
+        result_lines.append(line)
+        # Add empty line after structural headers
+        if i < len(clean_lines) - 1:
+            for pattern in structural_patterns:
+                if re.match(pattern, line, re.IGNORECASE):
+                    # Check if next line is not already empty
+                    if clean_lines[i + 1].strip():
+                        result_lines.append('')
+                    break
+    
+    return '\n'.join(result_lines)
 
 
 def save_song(title: str, user_input: str, lyrics: str, default_params: Dict[str, Optional[str]], metadata: Dict[str, object]) -> str:
