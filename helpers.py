@@ -185,6 +185,30 @@ def parse_persona_styles_list(persona_styles: str):
     return [token for token in raw_tokens if token]
 
 
+def strip_style_tags(lyrics: str) -> str:
+    """Remove style tags like [Verse 1], [Chorus], etc. from lyrics while preserving the actual lyrics content."""
+    import re
+    
+    # Split into lines and process each line
+    lines = lyrics.split('\n')
+    clean_lines = []
+    
+    for line in lines:
+        # Remove lines that are purely style tags (in brackets)
+        if re.match(r'^\[.*\]$', line.strip()):
+            continue
+        
+        # Remove inline style tags but keep the content
+        # This handles cases like "[Chorus] Feel the rush..." -> "Feel the rush..."
+        line = re.sub(r'^\[.*?\]\s*', '', line.strip())
+        
+        # Only add non-empty lines
+        if line.strip():
+            clean_lines.append(line)
+    
+    return '\n'.join(clean_lines)
+
+
 def save_song(title: str, user_input: str, lyrics: str, default_params: Dict[str, Optional[str]], metadata: Dict[str, object]) -> str:
     """Save the generated song to a markdown file with metadata."""
     description = metadata.get("description", "Short description of the song's theme and style.")
@@ -195,6 +219,9 @@ def save_song(title: str, user_input: str, lyrics: str, default_params: Dict[str
     target_audience = metadata.get("target_audience", "Suggested demographic")
     commercial_potential = metadata.get("commercial_potential", "Assessment")
 
+    # Generate clean lyrics without style tags
+    clean_lyrics = strip_style_tags(lyrics)
+    
     final_md = f"""
 ## {title}
 ### {description}
@@ -214,6 +241,9 @@ def save_song(title: str, user_input: str, lyrics: str, default_params: Dict[str
 
 ### Song Lyrics:
 {lyrics}
+
+### Clean Lyrics (No Style Tags):
+{clean_lyrics}
 """
     os.makedirs("songs", exist_ok=True)
     date = datetime.now().strftime("%Y%m%d")
