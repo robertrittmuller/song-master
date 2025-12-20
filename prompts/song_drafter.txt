@@ -26,7 +26,7 @@ Consider the following:
 - Experiment with unconventional rhyme schemes or rhythmic patterns if they fit the song's theme.
 - Draw inspiration from diverse musical traditions and eras while maintaining originality.
 - Consider genre fusion possibilities that intelligently combine disparate styles.
-- Place any style/section tags ONLY inside square brackets at section headers (e.g., "[Verse 1] [style: dream pop]"). Never leave style commands outside brackets and never include them in the singable lyric lines.
+- CRITICAL: Place any style/section tags ONLY inside square brackets at section headers (e.g., "[Verse 1] [style: dream pop] [Instruments: synth, pad] [Vocal Style: ethereal]"). Placing tags on the same line as the bracketed section name ensures they are correctly parsed and applied by the system.
 - Do not emit words like "Style:", "Genre:", or tag names as part of the sung lyrics. Keep tag metadata separate and bracketed.
 - Put musical directions (solos, drops, breakdowns, repeats, key changes, tempo cues) only in square brackets as non-sung stage directions (e.g., "[Guitar Solo — bendy, bluesy]"). Do not let these appear as lyric lines or in parentheses/quotes.
 - Begin your output with a `## Song Title` line containing a short, catchy title (no quotes), followed by the song structure and lyrics.

@@ -112,10 +112,19 @@ def parse_persona(user_input: str, cli_persona: Optional[str]) -> Optional[str]:
     return user_input[start:].strip() if end == -1 else user_input[start:end].strip()
 
 
-def enhance_user_input(user_input: str, song_name: Optional[str]) -> str:
-    if not song_name:
-        return user_input
-    return f"Song Title: {song_name}\n\n{user_input}"
+def enhance_user_input(user_input: str, song_name: Optional[str], style: Optional[str] = None) -> str:
+    """Enhance the user's initial request by adding explicit song title if provided and style if selected."""
+    parts = []
+    
+    if song_name:
+        parts.append(f"Song Title: {song_name}")
+    
+    parts.append(user_input)
+    
+    if style:
+        parts.append(f"The song's main style will be {style}")
+    
+    return "\n".join(parts)
 
 
 def extract_title(lyrics: str, provided_title: Optional[str]) -> str:
@@ -307,6 +316,7 @@ class SongState(TypedDict, total=False):
     song_name: Optional[str]
     persona: Optional[str]
     persona_name: Optional[str]
+    style: Optional[str]
     use_local: bool
     resources: SongResources
     lyrics: str

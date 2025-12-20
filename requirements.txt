@@ -3,6 +3,7 @@ uvicorn[standard]
 jinja2
 httpx
 pydantic
+pydantic-settings
 python-dotenv
 sqlalchemy
 aiosqlite

@@ -6,6 +6,18 @@ A powerful (yet easy to use) script for generating song lyrics using AI models, 
 
 Song Master is a Python script that leverages AI models (both local and OpenRouter) to generate complete song lyrics with proper formatting, style tags, and metadata for Suno AI. It includes pre-flight checks, song drafting, and review processes to ensure high-quality output.
 
+## Web GUI (FastAPI + React)
+
+An initial web experience now lives alongside the CLI. The backend is a FastAPI app that mirrors the CLI pipeline, and the frontend is a Vite + React TypeScript UI shaped by the wireframes in `docs/`.
+
+Quick start:
+- Backend: `uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000`
+- Frontend: `cd frontend && npm install && npm run dev` (set `VITE_API_BASE` if the API is not on `http://localhost:8000`)
+- API docs: `http://localhost:8000/docs`
+- CLI generation now delegates to the backend API, so start the FastAPI server first (set `SONG_MASTER_API_BASE` in `.env` or pass `--api-base` to override).
+
+Data is stored in `backend/data/song_master.db`. Personas/styles are read from the existing repo assets so the web app matches the CLI outputs.
+
 ## Table of Contents
 
 - [Features](#features)
