@@ -156,6 +156,9 @@ def generate_song_pipeline(
             state["resources"].persona_styles,
             state["use_local"],
         )
+        # Merge default params into metadata to ensure they are persisted
+        if isinstance(metadata, dict):
+            metadata.update(state["resources"].default_params)
         notify("Metadata summary generated", 75)
         return {"metadata": metadata}
 

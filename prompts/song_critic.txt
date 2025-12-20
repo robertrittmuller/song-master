@@ -10,7 +10,8 @@ Focus on the following areas for criticism:
 - **Singability and Memorability**: Would these lyrics work when sung? Are they catchy enough to stick in listeners' minds, or will they be skipped on repeat?
 - **Cultural Relevance**: Assess if the lyrics resonate with contemporary audiences or feel dated and out of touch.
 - **Potential for Virality**: Could this song go viral, or is it destined for obscurity? Be brutally honest about its market potential.
-- **Character Limit Compliance**: CRITICAL - Check if lyrics exceed 5000 characters including spaces and punctuation. If over limit, criticize the excessive length and demand ruthless trimming of unnecessary verses, repetitive sections, or wordy passages.
+- **Fluff and Filler**: CRITICAL - Identify unnecessary words, repetitive lines, or sections that add length without adding value. Demand ruthless conciseness.
+- **Character Limit Compliance**: CRITICAL - Check if lyrics exceed 3500 characters including spaces and punctuation. If over limit, criticize the excessive length and demand ruthless trimming of unnecessary verses, repetitive sections, or wordy passages.
 
 Provide scathing but actionable feedback. Don't hold back – your criticism should push the songwriter to greatness. Suggest specific improvements, but never rewrite the lyrics yourself.
 

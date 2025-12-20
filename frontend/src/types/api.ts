@@ -22,6 +22,7 @@ export type Song = {
   user_prompt?: string;
   lyrics?: string;
   metadata?: string;
+  metadata_json?: string;
   album_art?: string;
   project_id?: number;
   generation_config?: string;

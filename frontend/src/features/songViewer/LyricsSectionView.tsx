@@ -186,6 +186,7 @@ function getSectionColor(type: string): string {
 
 export function LyricsSectionView({ lyrics }: Props) {
     const [showTags, setShowTags] = useState(true);
+    const [showClean, setShowClean] = useState(false);
     const [copied, setCopied] = useState(false);
     const sections = parseLyrics(lyrics);
 
@@ -244,74 +245,92 @@ export function LyricsSectionView({ lyrics }: Props) {
                 >
                     {showTags ? "Hide Tags" : "Show Tags"}
                 </button>
+                <button
+                    className="btn ghost"
+                    style={{
+                        fontSize: 12,
+                        padding: "4px 12px",
+                        background: showClean ? "rgba(255,255,255,0.1)" : "transparent"
+                    }}
+                    onClick={() => setShowClean(!showClean)}
+                >
+                    {showClean ? "Lyrics Only View" : "Lyrics Only View"}
+                </button>
             </div>
 
-            {sections.map((section, index) => (
-                <div
-                    key={index}
-                    className="glass"
-                    style={{
-                        borderLeft: `4px solid transparent`,
-                        borderImage: getSectionColor(section.type),
-                        borderImageSlice: 1
-                    }}
-                >
+            {sections.map((section, index) => {
+                if (showClean && section.type.toLowerCase().includes("intro") && !section.content.trim()) {
+                    return null;
+                }
+
+                return (
                     <div
+                        key={index}
+                        className="glass"
                         style={{
-                            background: getSectionColor(section.type),
-                            WebkitBackgroundClip: "text",
-                            WebkitTextFillColor: "transparent",
-                            backgroundClip: "text",
-                            fontWeight: 700,
-                            fontSize: 18,
-                            marginBottom: 8
+                            borderLeft: `4px solid transparent`,
+                            borderImage: getSectionColor(section.type),
+                            borderImageSlice: 1,
+                            opacity: showClean && (section.type.toLowerCase().includes("solo") || section.type.toLowerCase().includes("instrumental")) ? 0.6 : 1
                         }}
                     >
-                        {section.type}
-                    </div>
-
-                    {showTags && (section.tags.length > 0 || section.styles.length > 0) && (
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-                            {section.tags.map((tag, tagIndex) => (
-                                <span
-                                    key={`tag-${tagIndex}`}
-                                    className="tag"
-                                    style={{
-                                        background: "rgba(14, 165, 233, 0.15)",
-                                        color: "#8bd7ff",
-                                        border: "1px solid rgba(14, 165, 233, 0.3)"
-                                    }}
-                                >
-                                    {tag}
-                                </span>
-                            ))}
-                            {section.styles.map((style, styleIndex) => (
-                                <span
-                                    key={`style-${styleIndex}`}
-                                    className="tag"
-                                    style={{
-                                        background: "rgba(139, 92, 246, 0.15)",
-                                        color: "#c4b5fd",
-                                        border: "1px solid rgba(139, 92, 246, 0.3)"
-                                    }}
-                                >
-                                    {style}
-                                </span>
-                            ))}
+                        <div
+                            style={{
+                                background: getSectionColor(section.type),
+                                WebkitBackgroundClip: "text",
+                                WebkitTextFillColor: "transparent",
+                                backgroundClip: "text",
+                                fontWeight: 700,
+                                fontSize: 18,
+                                marginBottom: 8
+                            }}
+                        >
+                            {section.type}
                         </div>
-                    )}
 
-                    <div
-                        style={{
-                            whiteSpace: "pre-wrap",
-                            color: "var(--gray-100)",
-                            lineHeight: 1.6
-                        }}
-                    >
-                        {section.content}
+                        {showTags && !showClean && (section.tags.length > 0 || section.styles.length > 0) && (
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                                {section.tags.map((tag, tagIndex) => (
+                                    <span
+                                        key={`tag-${tagIndex}`}
+                                        className="tag"
+                                        style={{
+                                            background: "rgba(14, 165, 233, 0.15)",
+                                            color: "#8bd7ff",
+                                            border: "1px solid rgba(14, 165, 233, 0.3)"
+                                        }}
+                                    >
+                                        {tag}
+                                    </span>
+                                ))}
+                                {section.styles.map((style, styleIndex) => (
+                                    <span
+                                        key={`style-${styleIndex}`}
+                                        className="tag"
+                                        style={{
+                                            background: "rgba(139, 92, 246, 0.15)",
+                                            color: "#c4b5fd",
+                                            border: "1px solid rgba(139, 92, 246, 0.3)"
+                                        }}
+                                    >
+                                        {style}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+
+                        <div
+                            style={{
+                                whiteSpace: "pre-wrap",
+                                color: "var(--gray-100)",
+                                lineHeight: 1.6
+                            }}
+                        >
+                            {section.content}
+                        </div>
                     </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 }

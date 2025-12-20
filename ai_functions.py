@@ -193,7 +193,7 @@ def build_prompts():
         "- Keep the structure (sections, order, and counts) unless the feedback explicitly asks to change it.\n"
         "- Improve clarity, imagery, and singability per the feedback.\n"
         "- Keep the title and metadata untouched.\n"
-        "- CRITICAL: Ensure total lyrics remain under 5000 characters including spaces and punctuation. If feedback suggests additions that would exceed the limit, prioritize condensing existing content or removing less essential sections.\n"
+        "- CRITICAL: Ensure total lyrics remain under 2500 characters including spaces and punctuation. If feedback suggests additions that would exceed the limit, prioritize condensing existing content or removing less essential sections.\n"
         "- Return only the revised lyrics, no commentary."
     )
 

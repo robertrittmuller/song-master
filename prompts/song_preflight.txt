@@ -12,6 +12,6 @@ You need to validate the following:
 - Check for rhyme scheme variety and syllable count balance across verses.
 - Songs should have at least two full verses.
 - No where in the output should a specific artist's name be mentioned.
-- **CRITICAL: Verify that total lyrics are under 5000 characters including spaces and punctuation. If over the limit, this is a critical failure that must be fixed before proceeding.**
+- **CRITICAL: Verify that total lyrics are under 3500 characters including spaces and punctuation. If over the limit, this is a critical failure that must be fixed before proceeding.**
 
 Your output should be in the form of actionable changes or confirmation that the song is good to go.

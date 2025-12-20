@@ -5,7 +5,8 @@ Important rules:
 - Do not read, reference, or use any existing songs (.md files) in the /songs folder. Create entirely original content based only on the user input and available resources.
 - Never copy or quote from existing commercial songs or other sources. Ensure complete originality.
 - Ensure that any lyric styles or other metadata are correctly enclosed in [] and never leak as inline text. If style/genre/tag cues appear, place them inside brackets on the section header line only.
-- **CRITICAL: Keep total lyrics under 5000 characters including spaces and punctuation. This is a hard limit - do not exceed it.**
+- **CRITICAL: Keep total lyrics under 3500 characters including spaces and punctuation. This is a hard limit - do not exceed it.**
+- **CONCISENESS: Every word must earn its place. Prefer short, punchy lines over long, flowing ones. Avoid filler words and unnecessary repetition.**
 
 Consider the following:
 
@@ -23,6 +24,7 @@ Consider the following:
 - Prioritize internal rhymes, assonance, and alliteration to enhance lyrical flow and memorability.
 - Balance poetic depth with accessibility; avoid overly complex metaphors that might confuse listeners.
 - Incorporate sensory details and emotional layers to make lyrics more immersive and relatable.
+- **MUSICALITY: Ensure the lyrics have "room to breathe". Don't crowd every beat with syllables; allow for pauses, instrumental pauses, and rhythmic variety.**
 - Experiment with unconventional rhyme schemes or rhythmic patterns if they fit the song's theme.
 - Draw inspiration from diverse musical traditions and eras while maintaining originality.
 - Consider genre fusion possibilities that intelligently combine disparate styles.
