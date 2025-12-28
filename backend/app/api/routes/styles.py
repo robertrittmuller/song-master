@@ -12,7 +12,8 @@ def load_styles() -> List[str]:
     styles_path = Path(__file__).parent.parent.parent.parent.parent / "styles" / "styles.json"
     with open(styles_path, "r") as f:
         data = json.load(f)
-        return data.get("core_styles", [])
+        styles = data.get("core_styles", [])
+        return sorted(styles)
 
 
 @router.get("", response_model=List[str])
