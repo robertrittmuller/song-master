@@ -6,7 +6,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Card } from "../components/ui/Card";
 import { LiveProgress } from "../features/progress/LiveProgress";
 import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
-import { deleteSong, fetchSong, regenerateAlbumArt } from "../services/api";
+import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong } from "../services/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -22,6 +22,11 @@ export function SongDetailPage() {
     enabled: Number.isFinite(songId)
   });
 
+  const { data: albums = [] } = useQuery({
+    queryKey: ["albums"],
+    queryFn: fetchAlbums
+  });
+
   const deleteMutation = useMutation({
     mutationFn: deleteSong,
     onSuccess: () => {
@@ -34,6 +39,14 @@ export function SongDetailPage() {
     mutationFn: regenerateAlbumArt,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["song", songId] });
+    }
+  });
+
+  const updateSongMutation = useMutation({
+    mutationFn: (payload: { album_id: number | null }) => updateSong(songId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["song", songId] });
+      queryClient.invalidateQueries({ queryKey: ["songs"] });
     }
   });
 
@@ -126,10 +139,33 @@ export function SongDetailPage() {
             </button>
           </div>
         </div>
-        <div className="glass" style={{ marginTop: 16, padding: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gray-500)", marginBottom: 4, textTransform: "uppercase" }}>User Prompt</div>
-          <p style={{ color: "var(--gray-200)", margin: 0, fontSize: 14, lineHeight: 1.5 }}>{song.user_prompt}</p>
+
+        <div style={{ display: "flex", gap: 20, marginTop: 16, alignItems: "center" }}>
+          <div className="glass" style={{ flex: 1, padding: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gray-500)", marginBottom: 4, textTransform: "uppercase" }}>User Prompt</div>
+            <p style={{ color: "var(--gray-200)", margin: 0, fontSize: 14, lineHeight: 1.5 }}>{song.user_prompt}</p>
+          </div>
+
+          <div className="glass" style={{ width: 240, padding: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gray-500)", marginBottom: 4, textTransform: "uppercase" }}>Album</div>
+            <select
+              className="input"
+              style={{ padding: "6px 10px", fontSize: 13 }}
+              value={song.album_id || ""}
+              onChange={(e) => {
+                const val = e.target.value ? Number(e.target.value) : null;
+                updateSongMutation.mutate({ album_id: val });
+              }}
+              disabled={updateSongMutation.isPending}
+            >
+              <option value="">No Album</option>
+              {albums.map((album) => (
+                <option key={album.id} value={album.id}>{album.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
+
         {song.status !== "completed" && Number.isFinite(songId) && <LiveProgress songId={songId} />}
       </Card>
 

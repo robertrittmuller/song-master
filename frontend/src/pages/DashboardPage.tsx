@@ -4,12 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Card } from "../components/ui/Card";
 import { SongGrid } from "../features/library/SongGrid";
-import { ProjectList } from "../features/library/ProjectList";
+import { AlbumList } from "../features/library/AlbumList";
 import { SearchBar } from "../features/library/SearchBar";
 import { FilterPanel } from "../features/library/FilterPanel";
 import { SortControls } from "../features/library/SortControls";
 import { fetchSongs, fetchPersonas } from "../services/api";
-import type { Song } from "../types/api";
 
 type SortOption = "newest" | "oldest" | "a-z" | "z-a";
 type ViewMode = "grid" | "list";
@@ -90,7 +89,7 @@ export function DashboardPage() {
       </div>
 
       <Card title="Albums">
-        <ProjectList />
+        <AlbumList />
       </Card>
 
       {/* Search, Filter, Sort Controls */}

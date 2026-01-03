@@ -40,7 +40,7 @@ Data is stored in `backend/data/song_master.db`. Personas/styles are read from t
   - [Environment Variables](#environment-variables)
   - [Custom Styles](#custom-styles)
 - [Technical Deep Dive: Agentic Songwriting Flow](#technical-deep-dive-agentic-songwriting-flow)
-- [Project Structure](#project-structure)
+- [Album Structure](#album-structure)
 - [Contributing](#contributing)
 - [License](#license)
 - [Support](#support)
@@ -417,7 +417,7 @@ flowchart TD
 ```
 
 
-## Project Structure
+## Album Structure
 
 ```
 song-master/
@@ -447,7 +447,7 @@ song-master/
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This album is licensed under the MIT License - see the LICENSE file for details.
 
 ## Support
 

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.db.deps import get_db
 from backend.app.models import GenerationSession, Song
-from backend.app.schemas import SongCreate, SongDetail, SongRead, SongStatus
+from backend.app.schemas import SongCreate, SongDetail, SongRead, SongStatus, SongUpdate
 from backend.app.services.song_generator import generation_manager
 
 router = APIRouter(prefix="/api/songs", tags=["songs"])
@@ -65,7 +65,7 @@ async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> Son
         persona=payload.persona,
         style=payload.style,
         use_local=payload.use_local,
-        project_id=payload.project_id,
+        album_id=payload.album_id,
         status="pending",
         generation_config=None if not payload.generation_config else str(payload.generation_config),
     )
@@ -74,24 +74,42 @@ async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> Son
     db.refresh(song)
     generation_manager.start_generation(song.id, payload)
     return song
+
+
+@router.patch("/{song_id}", response_model=SongDetail)
+def update_song(
+    song_id: int, payload: SongUpdate, db: Session = Depends(get_db)
+) -> SongDetail:
+    """Update song metadata (e.g., move to an album)."""
+    song = db.get(Song, song_id)
+    if not song:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+
+    update_data = payload.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(song, key, value)
+
+    db.add(song)
+    db.commit()
+    db.refresh(song)
+    return song
+
+
 @router.post("/{song_id}/regenerate-art", response_model=SongDetail)
 async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> SongDetail:
     """Trigger album art regeneration for an existing song."""
     song = db.get(Song, song_id)
     if not song:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
-    
-    # We need the local file path if we want to extract details, 
-    # but the pipeline helper 'regenerate_album_art' expects a path to the .md file.
-    # Alternatively, we can just use the database fields directly.
-    from helpers import generate_album_art, extract_title
-    
+
+    from helpers import extract_title, generate_album_art
+
     title = extract_title(song.lyrics or "", song.title)
     artwork_path = generate_album_art(title, song.user_prompt)
-    
+
     if artwork_path:
         song.album_art = artwork_path
         db.commit()
         db.refresh(song)
-    
+
     return song

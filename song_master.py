@@ -35,14 +35,14 @@ def build_api_base(cli_value: Optional[str]) -> str:
 
 
 def start_backend_generation(
-    api_base: str, prompt: str, use_local: bool, song_name: Optional[str], persona: Optional[str], project_id: Optional[int] = None
+    api_base: str, prompt: str, use_local: bool, song_name: Optional[str], persona: Optional[str], album_id: Optional[int] = None
 ) -> Dict[str, Any]:
     payload: Dict[str, Any] = {
         "user_prompt": prompt,
         "title": song_name,
         "persona": persona,
         "use_local": use_local,
-        "project_id": project_id,
+        "album_id": album_id,
     }
     response = requests.post(f"{api_base}/api/songs/generate", json=payload, timeout=30)
     response.raise_for_status()

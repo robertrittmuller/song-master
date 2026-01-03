@@ -2,16 +2,16 @@
 
 ## Overview
 
-The database schema is designed to support a multi-user song generation platform with project management, real-time progress tracking, and comprehensive metadata storage. The schema uses SQLite with JSON support for flexible metadata storage.
+The database schema is designed to support a multi-user song generation platform with album management, real-time progress tracking, and comprehensive metadata storage. The schema uses SQLite with JSON support for flexible metadata storage.
 
 ## Entity Relationship Diagram
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐     ┌──────────────┐
-│    Users    │────▶│   Projects   │────▶│    Songs    │────▶│  SongFiles   │
+│    Users    │────▶│   Albums   │────▶│    Songs    │────▶│  SongFiles   │
 │             │     │              │     │             │     │              │
 │ - id        │     │ - id         │     │ - id        │     │ - id         │
-│ - username  │     │ - user_id    │     │ - project_id│     │ - song_id    │
+│ - username  │     │ - user_id    │     │ - album_id│     │ - song_id    │
 │ - email     │     │ - name       │     │ - title     │     │ - file_type  │
 │ - password  │     │ - description│     │ - user_prompt│    │ - file_path  │
 │ - created   │     │ - settings   │     │ - persona   │     │ - file_size  │
@@ -62,14 +62,14 @@ CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_created ON users(created_at);
 ```
 
-### 2. Projects Table
+### 2. Albums Table
 ```sql
-CREATE TABLE projects (
+CREATE TABLE albums (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    settings JSON, -- Project-specific settings and preferences
+    settings JSON, -- Album-specific settings and preferences
     is_public BOOLEAN DEFAULT FALSE,
     tags TEXT, -- JSON array of tags
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -78,16 +78,16 @@ CREATE TABLE projects (
 );
 
 -- Indexes
-CREATE INDEX idx_projects_user_id ON projects(user_id);
-CREATE INDEX idx_projects_created ON projects(created_at);
-CREATE INDEX idx_projects_public ON projects(is_public);
+CREATE INDEX idx_albums_user_id ON albums(user_id);
+CREATE INDEX idx_albums_created ON albums(created_at);
+CREATE INDEX idx_albums_public ON albums(is_public);
 ```
 
 ### 3. Songs Table
 ```sql
 CREATE TABLE songs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id INTEGER NOT NULL,
+    album_id INTEGER NOT NULL,
     title VARCHAR(255) NOT NULL,
     user_prompt TEXT NOT NULL,
     persona VARCHAR(100),
@@ -103,11 +103,11 @@ CREATE TABLE songs (
     generation_completed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE
 );
 
 -- Indexes
-CREATE INDEX idx_songs_project_id ON songs(project_id);
+CREATE INDEX idx_songs_album_id ON songs(album_id);
 CREATE INDEX idx_songs_status ON songs(status);
 CREATE INDEX idx_songs_score ON songs(score);
 CREATE INDEX idx_songs_created ON songs(created_at);
@@ -250,14 +250,14 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    projects = relationship("Project", back_populates="user", cascade="all, delete-orphan")
+    albums = relationship("Album", back_populates="user", cascade="all, delete-orphan")
     settings = relationship("UserSetting", back_populates="user", cascade="all, delete-orphan")
 ```
 
-### 2. Project Model
+### 2. Album Model
 ```python
-class Project(Base):
-    __tablename__ = "projects"
+class Album(Base):
+    __tablename__ = "albums"
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -270,8 +270,8 @@ class Project(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    user = relationship("User", back_populates="projects")
-    songs = relationship("Song", back_populates="project", cascade="all, delete-orphan")
+    user = relationship("User", back_populates="albums")
+    songs = relationship("Song", back_populates="album", cascade="all, delete-orphan")
 ```
 
 ### 3. Song Model
@@ -280,7 +280,7 @@ class Song(Base):
     __tablename__ = "songs"
     
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    album_id = Column(Integer, ForeignKey("albums.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(255), nullable=False)
     user_prompt = Column(Text, nullable=False)
     persona = Column(String(100))
@@ -298,7 +298,7 @@ class Song(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    project = relationship("Project", back_populates="songs")
+    album = relationship("Album", back_populates="songs")
     files = relationship("SongFile", back_populates="song", cascade="all, delete-orphan")
     generation_session = relationship("GenerationSession", back_populates="song", uselist=False)
 ```
@@ -425,12 +425,12 @@ INSERT INTO system_settings (key, value, category, description, is_public) VALUE
 INSERT INTO users (username, email, password_hash, first_name, last_name) VALUES
 ('demo_user', 'demo@example.com', '$2b$12$...', 'Demo', 'User');
 
--- Create a sample project
-INSERT INTO projects (user_id, name, description, settings) VALUES
-(1, 'My First Project', 'A demo project for testing', '{"theme": "dark", "auto_save": true}');
+-- Create a sample album
+INSERT INTO albums (user_id, name, description, settings) VALUES
+(1, 'My First Album', 'A demo album for testing', '{"theme": "dark", "auto_save": true}');
 
 -- Create sample songs
-INSERT INTO songs (project_id, title, user_prompt, persona, status, score) VALUES
+INSERT INTO songs (album_id, title, user_prompt, persona, status, score) VALUES
 (1, 'Summer Dreams', 'An upbeat pop song about summer love', 'antidote', 'completed', 85),
 (1, 'Midnight Drive', 'A rock song about late night adventures', 'bleached_to_perfection', 'completed', 92);
 
@@ -447,8 +447,8 @@ INSERT INTO user_settings (user_id, key, value, category) VALUES
 ### 1. Indexes Strategy
 ```sql
 -- Composite indexes for common query patterns
-CREATE INDEX idx_songs_project_status ON songs(project_id, status);
-CREATE INDEX idx_songs_user_created ON songs(project_id, created_at DESC);
+CREATE INDEX idx_songs_album_status ON songs(album_id, status);
+CREATE INDEX idx_songs_user_created ON songs(album_id, created_at DESC);
 CREATE INDEX idx_songs_status_score ON songs(status, score DESC);
 
 -- Full-text search indexes (if using SQLite FTS5)
@@ -467,11 +467,11 @@ END;
 
 ### 2. Query Optimization Examples
 
-#### Get user's songs with project info
+#### Get user's songs with album info
 ```sql
-SELECT s.*, p.name as project_name 
+SELECT s.*, p.name as album_name 
 FROM songs s 
-JOIN projects p ON s.project_id = p.id 
+JOIN albums p ON s.album_id = p.id 
 WHERE p.user_id = ? 
 ORDER BY s.created_at DESC 
 LIMIT 20 OFFSET ?;
@@ -488,10 +488,10 @@ LIMIT 1;
 
 #### Search songs by title and content
 ```sql
-SELECT s.*, p.name as project_name 
+SELECT s.*, p.name as album_name 
 FROM songs_fts f 
 JOIN songs s ON f.rowid = s.id 
-JOIN projects p ON s.project_id = p.id 
+JOIN albums p ON s.album_id = p.id 
 WHERE songs_fts MATCH ? 
 AND p.user_id = ? 
 ORDER BY rank;
@@ -548,17 +548,17 @@ find "$BACKUP_DIR" -name "song_master_*.db.gz" -mtime +30 -delete
 def export_user_data(user_id: int) -> dict:
     """Export all user data for GDPR compliance"""
     user = db.query(User).filter(User.id == user_id).first()
-    projects = db.query(Project).filter(Project.user_id == user_id).all()
+    albums = db.query(Album).filter(Album.user_id == user_id).all()
     
     export_data = {
         'user': user.__dict__,
-        'projects': [p.__dict__ for p in projects],
+        'albums': [p.__dict__ for p in albums],
         'songs': [],
         'settings': []
     }
     
-    for project in projects:
-        songs = db.query(Song).filter(Song.project_id == project.id).all()
+    for album in albums:
+        songs = db.query(Song).filter(Song.album_id == album.id).all()
         export_data['songs'].extend([s.__dict__ for s in songs])
         
         settings = db.query(UserSetting).filter(UserSetting.user_id == user_id).all()

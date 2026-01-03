@@ -91,13 +91,18 @@ class SongGenerationManager:
             final_state = await loop.run_in_executor(
                 None,
                 lambda: generate_song_pipeline(
-                    payload.user_prompt,
-                    payload.use_local,
-                    payload.title,
-                    payload.persona,
-                    payload.style,
-                    payload.generate_album_art,
-                    add_log,
+                    user_input=payload.user_prompt,
+                    use_local=payload.use_local,
+                    song_name=payload.title,
+                    persona=payload.persona,
+                    style=payload.style,
+                    generate_album_art=payload.generate_album_art,
+                    genre=payload.genre,
+                    tempo=payload.tempo,
+                    key=payload.key,
+                    instruments=payload.instruments,
+                    mood=payload.mood,
+                    progress_callback=add_log,
                 ),
             )
 

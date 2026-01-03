@@ -76,7 +76,7 @@
 │  │  songwriting assistance. Create songs in minutes, not hours.        │   │
 │  │                                                                     │   │
 │  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐     │   │
-│  │  │   Quick Start   │  │   View Projects │  │   Learn More    │     │   │
+│  │  │   Quick Start   │  │   View Albums │  │   Learn More    │     │   │
 │  │  │                 │  │                 │  │                 │     │   │
 │  │  │  Start creating │  │  Browse your    │  │  See how it     │     │   │
 │  │  │  your first     │  │  existing       │  │  works          │     │   │
@@ -102,7 +102,7 @@
 │  │  🎵 AI-Powered Lyrics    🎨 Album Art Generation    📊 Progress     │   │
 │  │     Generation              & Metadata              Tracking         │   │
 │  │                                                                     │   │
-│  │  🎭 Persona-Based Styles  ⚙️  Customizable Settings   📁 Project     │   │
+│  │  🎭 Persona-Based Styles  ⚙️  Customizable Settings   📁 Album     │   │
 │  │     & Themes               & Preferences            Management       │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -285,17 +285,17 @@
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 5. Dashboard/Projects Page
+### 5. Dashboard/Albums Page
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  ← Back to Dashboard    Song Master    ⚙️ Settings    👤 Profile    [Logout] │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                        Your Projects                                 │   │
+│  │                        Your Albums                                 │   │
 │  │                                                                     │   │
 │  │  ┌─────────────────────────────────────────────────────────────────┐ │   │
-│  │  │ 🔍 Search songs...                    [+ New Project]           │ │   │
+│  │  │ 🔍 Search songs...                    [+ New Album]           │ │   │
 │  │  └─────────────────────────────────────────────────────────────────┘ │   │
 │  │                                                                     │   │
 │  │  Filter: [All ▼] [Sort: Date ▼] [View: Grid ▼]                     │   │
@@ -407,7 +407,7 @@ App
 │   ├── Sidebar
 │   │   ├── MainNav
 │   │   ├── QuickActions
-│   │   └── ProjectSwitcher
+│   │   └── AlbumSwitcher
 │   └── Footer
 │       ├── Links
 │       ├── Version
@@ -423,7 +423,7 @@ Pages
 │   ├── RecentSongs
 │   └── CallToAction
 ├── DashboardPage
-│   ├── ProjectGrid
+│   ├── AlbumGrid
 │   ├── QuickActions
 │   ├── RecentActivity
 │   └── StatsOverview
@@ -471,8 +471,8 @@ Features
 │   ├── AlbumArtViewer
 │   ├── ScoreDisplay
 │   └── CleanLyricsToggle
-├── ProjectManagement
-│   ├── ProjectGrid
+├── AlbumManagement
+│   ├── AlbumGrid
 │   ├── SongCard
 │   ├── SearchFilter
 │   ├── SortControls
@@ -535,12 +535,12 @@ User Input → Form Validation → Generation Start → Progress Tracking → Re
   Settings       File Upload      Queue           Progress Bar    New Song
 ```
 
-### 2. Project Management Flow
+### 2. Album Management Flow
 ```
-Dashboard → Project Selection → Song Library → Song Actions → Export/Share
+Dashboard → Album Selection → Song Library → Song Actions → Export/Share
     ↓            ↓                ↓              ↓              ↓
-View All    Open Project      Browse Songs    View/Edit     Download
-Projects    Create New        Search/Filter   Delete        Share Link
+View All    Open Album      Browse Songs    View/Edit     Download
+Albums    Create New        Search/Filter   Delete        Share Link
 Stats       Manage Settings   Sort/Organize   Regenerate    Archive
 ```
 

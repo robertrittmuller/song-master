@@ -1,12 +1,19 @@
 from backend.app.schemas.personas import Persona
-from backend.app.schemas.projects import ProjectCreate, ProjectRead
+from backend.app.schemas.albums import AlbumCreate, AlbumRead
 from backend.app.schemas.settings import GenerationDefaults, SettingsResponse
-from backend.app.schemas.songs import GenerationLog, SongCreate, SongDetail, SongRead, SongStatus
+from backend.app.schemas.songs import (
+    GenerationLog,
+    SongCreate,
+    SongDetail,
+    SongRead,
+    SongStatus,
+    SongUpdate,
+)
 
 __all__ = [
     "Persona",
-    "ProjectCreate",
-    "ProjectRead",
+    "AlbumCreate",
+    "AlbumRead",
     "GenerationDefaults",
     "SettingsResponse",
     "GenerationLog",
@@ -14,4 +21,5 @@ __all__ = [
     "SongDetail",
     "SongRead",
     "SongStatus",
+    "SongUpdate",
 ]

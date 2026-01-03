@@ -8,7 +8,7 @@ type Props = {
     label?: string;
 };
 
-export function StyleSelector({ value, onChange, label = "Core Style" }: Props) {
+export function StyleSelector({ value, onChange, label = "Core Style & Genre" }: Props) {
     const { data: styles = [], isLoading } = useQuery({
         queryKey: ["styles"],
         queryFn: fetchStyles

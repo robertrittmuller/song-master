@@ -11,7 +11,7 @@ class Song(Base):
     __tablename__ = "songs"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
+    album_id = Column(Integer, ForeignKey("albums.id", ondelete="SET NULL"), nullable=True)
     title = Column(String(255), nullable=False)
     user_prompt = Column(Text, nullable=False)
     persona = Column(String(100))
@@ -30,7 +30,7 @@ class Song(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    project = relationship("Project", back_populates="songs")
+    album = relationship("Album", back_populates="songs")
     files = relationship(
         "SongFile",
         back_populates="song",

@@ -10,12 +10,23 @@ class SongCreate(BaseModel):
     title: Optional[str] = Field(default=None, description="Optional custom title")
     persona: Optional[str] = Field(default=None, description="Persona slug or name")
     style: Optional[str] = Field(default=None, description="Core style for the song")
+    genre: Optional[str] = Field(default=None, description="Detailed genre for the song")
+    tempo: Optional[str] = Field(default=None, description="Tempo in BPM")
+    key: Optional[str] = Field(default=None, description="Musical key")
+    instruments: Optional[str] = Field(default=None, description="Instruments to include")
+    mood: Optional[str] = Field(default=None, description="Mood of the song")
     use_local: bool = Field(default=False, description="Whether to use local LLM mode")
-    project_id: Optional[int] = Field(default=None, description="Associated project ID")
+    album_id: Optional[int] = Field(default=None, description="Associated album ID")
     generation_config: Optional[dict[str, Any]] = Field(
         default=None, description="Advanced generation parameters"
     )
     generate_album_art: bool = Field(default=True, description="Whether to generate album art")
+
+
+class SongUpdate(BaseModel):
+    title: Optional[str] = None
+    album_id: Optional[int] = None
+    score: Optional[int] = None
 
 
 class SongRead(BaseModel):
@@ -38,7 +49,7 @@ class SongDetail(SongRead):
     lyrics: Optional[str]
     metadata: Optional[str] = Field(default=None, alias="metadata_json")
     album_art: Optional[str] = None
-    project_id: Optional[int] = None
+    album_id: Optional[int] = None
     generation_config: Optional[str] = None
     clean_lyrics: Optional[str] = None
     error_message: Optional[str] = None

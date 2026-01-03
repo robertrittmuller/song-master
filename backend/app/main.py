@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from backend.app.api.routes import health, personas, projects, settings as settings_routes, songs, styles
+from backend.app.api.routes import health, personas, albums, settings as settings_routes, songs, styles, instruments
 from backend.app.core.config import get_settings
 from backend.app.db.database import init_db
 from backend.app.websocket import progress as progress_ws
@@ -35,13 +35,13 @@ async def on_shutdown() -> None:
 
 
 app.include_router(health.router)
-app.include_router(projects.router)
+app.include_router(albums.router)
 app.include_router(songs.router)
 app.include_router(personas.router)
 app.include_router(settings_routes.router)
 app.include_router(styles.router)
+app.include_router(instruments.router)
 app.include_router(progress_ws.router)
 
 # Mount static files for album art and other song assets
 app.mount("/songs", StaticFiles(directory="songs"), name="songs")
-

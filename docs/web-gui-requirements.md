@@ -1,6 +1,6 @@
 # Song Master Web GUI - Requirements Specification
 
-## Project Overview
+## Album Overview
 Create a visually stunning and functional web-based GUI for the Song Master Python CLI tool, enabling users to generate AI-powered songs through an intuitive web interface.
 
 ## Current CLI Architecture Analysis
@@ -29,7 +29,7 @@ Create a visually stunning and functional web-based GUI for the Song Master Pyth
 #### 1.1 Landing Page
 - Clean, modern design with song generation preview
 - Quick start guide and feature highlights
-- Access to existing projects
+- Access to existing albums
 - Settings and configuration access
 
 #### 1.2 Song Generation Workflow
@@ -71,9 +71,9 @@ Create a visually stunning and functional web-based GUI for the Song Master Pyth
   - JSON data export
   - Album art download
 
-### 2. Project Management
+### 2. Album Management
 
-#### 2.1 Project Dashboard
+#### 2.1 Album Dashboard
 - Grid/list view of all generated songs
 - Search and filter capabilities
 - Sorting by date, name, genre, score
@@ -175,8 +175,8 @@ GET  /api/tags - List available tags
 GET  /api/settings - Get user settings
 PUT  /api/settings - Update settings
 
-GET  /api/projects - List user projects
-POST /api/projects - Create new project
+GET  /api/albums - List user albums
+POST /api/albums - Create new album
 ```
 
 #### 1.2 WebSocket Endpoints
@@ -187,8 +187,8 @@ WS /ws/notifications - System notifications
 
 #### 1.3 Database Schema
 ```sql
--- Projects table
-CREATE TABLE projects (
+-- Albums table
+CREATE TABLE albums (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
@@ -199,7 +199,7 @@ CREATE TABLE projects (
 -- Songs table
 CREATE TABLE songs (
     id INTEGER PRIMARY KEY,
-    project_id INTEGER,
+    album_id INTEGER,
     title TEXT NOT NULL,
     user_prompt TEXT,
     lyrics TEXT,
@@ -207,7 +207,7 @@ CREATE TABLE songs (
     score REAL,
     status TEXT,
     created_at TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES projects (id)
+    FOREIGN KEY (album_id) REFERENCES albums (id)
 );
 
 -- Song files table
@@ -239,7 +239,7 @@ App
 │   ├── Navigation
 │   └── Footer
 ├── Dashboard
-│   ├── ProjectGrid
+│   ├── AlbumGrid
 │   ├── QuickActions
 │   └── RecentSongs
 ├── SongGeneration
@@ -251,8 +251,8 @@ App
 │   ├── MetadataPanel
 │   ├── AlbumArt
 │   └── ExportOptions
-├── ProjectManager
-│   ├── ProjectList
+├── AlbumManager
+│   ├── AlbumList
 │   ├── SongLibrary
 │   └── SearchFilters
 ├── Settings
@@ -267,9 +267,9 @@ App
 ```
 
 #### 2.2 State Management
-- **Global State**: User settings, current project, notifications
+- **Global State**: User settings, current album, notifications
 - **Component State**: Form data, UI preferences, loading states
-- **Server State**: Songs, projects, personas, styles (React Query)
+- **Server State**: Songs, albums, personas, styles (React Query)
 
 ### 3. Real-time Features
 
@@ -320,8 +320,8 @@ App
 - Progress tracking implementation
 - Basic results display
 
-### Phase 3: Project Management
-- Project dashboard
+### Phase 3: Album Management
+- Album dashboard
 - Song library and organization
 - File management system
 - Export functionality

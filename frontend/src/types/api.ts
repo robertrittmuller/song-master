@@ -4,11 +4,12 @@ export type Persona = {
   styles?: string;
 };
 
-export type Project = {
+export type Album = {
   id: number;
   name: string;
   description?: string;
   created_at: string;
+  songs: Song[];
 };
 
 export type Song = {
@@ -24,7 +25,7 @@ export type Song = {
   metadata?: string;
   metadata_json?: string;
   album_art?: string;
-  project_id?: number;
+  album_id?: number | null;
   generation_config?: string;
 };
 

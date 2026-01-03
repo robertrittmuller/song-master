@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import type { Persona, Project, Settings, Song, SongStatus } from "../types/api";
+import type { Persona, Album, Settings, Song, SongStatus } from "../types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -24,13 +24,23 @@ export async function fetchStyles(): Promise<string[]> {
   return data;
 }
 
-export async function fetchProjects(): Promise<Project[]> {
-  const { data } = await client.get<Project[]>("/api/projects");
+export async function fetchInstruments(): Promise<string[]> {
+  const { data } = await client.get<string[]>("/api/instruments");
   return data;
 }
 
-export async function deleteProject(projectId: number): Promise<void> {
-  await client.delete(`/api/projects/${projectId}`);
+export async function fetchAlbums(): Promise<Album[]> {
+  const { data } = await client.get<Album[]>("/api/albums");
+  return data;
+}
+
+export async function createAlbum(payload: { name: string; description?: string }): Promise<Album> {
+  const { data } = await client.post<Album>("/api/albums", payload);
+  return data;
+}
+
+export async function deleteAlbum(albumId: number): Promise<void> {
+  await client.delete(`/api/albums/${albumId}`);
 }
 
 export async function fetchSongs(): Promise<Song[]> {
@@ -52,11 +62,21 @@ export async function createSong(payload: {
   title?: string;
   persona?: string;
   style?: string;
+  genre?: string;
+  tempo?: string;
+  key?: string;
+  instruments?: string;
+  mood?: string;
   use_local?: boolean;
-  project_id?: number;
+  album_id?: number;
   generate_album_art?: boolean;
 }) {
   const { data } = await client.post<Song>("/api/songs/generate", payload);
+  return data;
+}
+
+export async function updateSong(songId: number, payload: Partial<Song>): Promise<Song> {
+  const { data } = await client.patch<Song>(`/api/songs/${songId}`, payload);
   return data;
 }
 

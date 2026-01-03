@@ -41,6 +41,11 @@ def generate_song_pipeline(
     persona: Optional[str] = None,
     style: Optional[str] = None,
     generate_album_art: bool = True,
+    genre: Optional[str] = None,
+    tempo: Optional[str] = None,
+    key: Optional[str] = None,
+    instruments: Optional[str] = None,
+    mood: Optional[str] = None,
     progress_callback: Optional[ProgressCallback] = None,
 ) -> SongState:
     """
@@ -68,6 +73,19 @@ def generate_song_pipeline(
 
     persona_name = parse_persona(user_input, persona)
     resources = load_resources(persona_name)
+    
+    # Override default parameters with user selections if provided
+    if genre:
+        resources.default_params["genre"] = genre
+    if tempo:
+        resources.default_params["tempo"] = tempo
+    if key:
+        resources.default_params["key"] = key
+    if instruments:
+        resources.default_params["instruments"] = instruments
+    if mood:
+        resources.default_params["mood"] = mood
+
     max_rounds = int(os.getenv("REVIEW_MAX_ROUNDS", "3"))
     score_threshold = float(os.getenv("REVIEW_SCORE_THRESHOLD", "8.0"))
 

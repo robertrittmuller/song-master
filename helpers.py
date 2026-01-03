@@ -283,10 +283,10 @@ def save_song(title: str, user_input: str, lyrics: str, default_params: Dict[str
 {exclude_line if exclude_line else "None"}
 
 ## Additional Metadata
-- **Emotional Arc**: {default_params['mood']}
+- **Emotional Arc**: {metadata.get("mood", default_params.get("mood", "happy"))}
 - **Target Audience**: {target_audience}
 - **Commercial Potential**: {commercial_potential}
-- **Technical Notes**: BPM: {default_params['tempo']}, Key: {default_params['key']}, Instruments: {default_params['instruments']}
+- **Technical Notes**: BPM: {metadata.get("tempo", default_params.get("tempo", "120"))}, Key: {metadata.get("key", default_params.get("key", "C"))}, Instruments: {metadata.get("instruments", default_params.get("instruments", "guitar,bass,drums"))}
 - **User Prompt**: {user_input}
 
 ### Song Lyrics:
@@ -311,6 +311,38 @@ class SongResources:
     default_params: Dict[str, Optional[str]]
 
 
+def get_instrument_tags() -> List[str]:
+    """Parse tags/default-tags.txt to extract unique instrument tags."""
+    path = os.path.join("tags", "default-tags.txt")
+    if not os.path.exists(path):
+        return []
+
+    instruments = set()
+    with open(path, "r") as f:
+        for line in f:
+            line = line.strip()
+            # Handle [Instruments: ...]
+            if line.startswith("[Instruments:"):
+                content = line[len("[Instruments:"):].strip("[]")
+                # Split by comma and clean up each instrument
+                parts = [p.strip() for p in content.split(",")]
+                for part in parts:
+                    if part:
+                        # Some parts might have additional context like "filtered synth pads"
+                        # We might want to keep them as is or split more. 
+                        # The user wants "selection of tags", so keeping the common ones.
+                        instruments.add(part)
+            # Handle solo tags like [Guitar Solo]
+            elif line.startswith("[") and line.endswith("]") and "Solo" in line:
+                solo_instrument = line[1:-1].replace("Solo", "").strip()
+                if solo_instrument:
+                    instruments.add(solo_instrument)
+
+    # Filter out empty or too long strings
+    valid_instruments = [i for i in instruments if 0 < len(i) < 40]
+    return sorted(list(set(valid_instruments)))
+
+
 class SongState(TypedDict, total=False):
     user_input: str
     song_name: Optional[str]
@@ -331,6 +363,11 @@ class SongState(TypedDict, total=False):
     filename: Optional[str]
     album_art: Optional[str]
     generate_album_art: bool
+    genre: Optional[str]
+    tempo: Optional[str]
+    key: Optional[str]
+    instruments: Optional[str]
+    mood: Optional[str]
 
 
 def load_resources(persona_name: Optional[str]) -> SongResources:

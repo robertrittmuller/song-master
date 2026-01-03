@@ -77,7 +77,7 @@ app/
 │   ├── __init__.py
 │   ├── deps.py            # Dependencies and authentication
 │   ├── songs.py           # Song-related endpoints
-│   ├── projects.py        # Project management endpoints
+│   ├── albums.py        # Album management endpoints
 │   ├── personas.py        # Persona management
 │   ├── styles.py          # Style and tag endpoints
 │   ├── settings.py        # User settings endpoints
@@ -89,12 +89,12 @@ app/
 ├── models/
 │   ├── __init__.py
 │   ├── song.py            # Song data models
-│   ├── project.py         # Project models
+│   ├── album.py         # Album models
 │   └── user.py            # User models
 ├── schemas/
 │   ├── __init__.py
 │   ├── song.py            # Pydantic schemas for API
-│   └── project.py
+│   └── album.py
 ├── services/
 │   ├── __init__.py
 │   ├── song_generator.py  # CLI integration service
@@ -157,7 +157,7 @@ frontend/
 #### State Management Strategy
 
 **1. Server State (React Query)**
-- Songs, projects, personas data
+- Songs, albums, personas data
 - Caching and background updates
 - Optimistic updates
 - Error handling and retry logic
@@ -193,7 +193,7 @@ React App ←→ FastAPI ←→ Song Generation Pipeline
 
 #### Entity Relationship Model
 ```
-Users (1) ←→ (M) Projects (1) ←→ (M) Songs (1) ←→ (M) SongFiles
+Users (1) ←→ (M) Albums (1) ←→ (M) Songs (1) ←→ (M) SongFiles
     ↓              ↓              ↓              ↓
 Settings        Metadata       Lyrics         Album Art
 ```
@@ -212,14 +212,14 @@ CREATE TABLE users (
 );
 ```
 
-**2. Projects Table**
+**2. Albums Table**
 ```sql
-CREATE TABLE projects (
+CREATE TABLE albums (
     id INTEGER PRIMARY KEY,
     user_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
-    settings JSON, -- Project-specific settings
+    settings JSON, -- Album-specific settings
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id)
@@ -230,7 +230,7 @@ CREATE TABLE projects (
 ```sql
 CREATE TABLE songs (
     id INTEGER PRIMARY KEY,
-    project_id INTEGER NOT NULL,
+    album_id INTEGER NOT NULL,
     title TEXT NOT NULL,
     user_prompt TEXT NOT NULL,
     persona TEXT,
@@ -242,7 +242,7 @@ CREATE TABLE songs (
     generation_config JSON, -- Generation parameters
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES projects (id)
+    FOREIGN KEY (album_id) REFERENCES albums (id)
 );
 ```
 
@@ -281,8 +281,8 @@ CREATE TABLE user_settings (
 storage/
 ├── users/
 │   └── {user_id}/
-│       ├── projects/
-│       │   └── {project_id}/
+│       ├── albums/
+│       │   └── {album_id}/
 │       │       ├── songs/
 │       │       │   └── {song_id}/
 │       │       │       ├── lyrics.md
