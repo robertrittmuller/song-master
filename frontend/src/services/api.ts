@@ -54,6 +54,7 @@ export async function createSong(payload: {
   style?: string;
   use_local?: boolean;
   project_id?: number;
+  generate_album_art?: boolean;
 }) {
   const { data } = await client.post<Song>("/api/songs/generate", payload);
   return data;
@@ -66,3 +67,8 @@ export async function fetchSongStatus(songId: number): Promise<SongStatus> {
 
 export const websocketUrl = (songId: number) =>
   (API_BASE.replace("http", "ws") + `/ws/songs/${songId}/progress`).replace("///", "//");
+
+export async function regenerateAlbumArt(songId: number): Promise<Song> {
+  const { data } = await client.post<Song>(`/api/songs/${songId}/regenerate-art`);
+  return data;
+}

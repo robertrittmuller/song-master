@@ -74,3 +74,24 @@ async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> Son
     db.refresh(song)
     generation_manager.start_generation(song.id, payload)
     return song
+@router.post("/{song_id}/regenerate-art", response_model=SongDetail)
+async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> SongDetail:
+    """Trigger album art regeneration for an existing song."""
+    song = db.get(Song, song_id)
+    if not song:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    
+    # We need the local file path if we want to extract details, 
+    # but the pipeline helper 'regenerate_album_art' expects a path to the .md file.
+    # Alternatively, we can just use the database fields directly.
+    from helpers import generate_album_art, extract_title
+    
+    title = extract_title(song.lyrics or "", song.title)
+    artwork_path = generate_album_art(title, song.user_prompt)
+    
+    if artwork_path:
+        song.album_art = artwork_path
+        db.commit()
+        db.refresh(song)
+    
+    return song

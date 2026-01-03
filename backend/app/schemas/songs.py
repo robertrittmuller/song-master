@@ -15,6 +15,7 @@ class SongCreate(BaseModel):
     generation_config: Optional[dict[str, Any]] = Field(
         default=None, description="Advanced generation parameters"
     )
+    generate_album_art: bool = Field(default=True, description="Whether to generate album art")
 
 
 class SongRead(BaseModel):

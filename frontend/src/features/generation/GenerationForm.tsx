@@ -18,6 +18,7 @@ export function GenerationForm() {
   const [persona, setPersona] = useState<string | undefined>(settings?.generation.persona);
   const [style, setStyle] = useState("");
   const [useLocal, setUseLocal] = useState(false);
+  const [generateCoverArt, setGenerateCoverArt] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const mutation = useMutation({
@@ -35,7 +36,8 @@ export function GenerationForm() {
       title: title || undefined,
       persona,
       style: style || undefined,
-      use_local: useLocal
+      use_local: useLocal,
+      generate_album_art: useLocal ? false : generateCoverArt
     });
   };
 
@@ -72,6 +74,26 @@ export function GenerationForm() {
             </span>
           </div>
         </div>
+
+        {!useLocal && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ color: "var(--gray-300)", fontSize: 13, marginBottom: 8 }}>Cover Art</div>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={generateCoverArt}
+                onChange={(e) => setGenerateCoverArt(e.target.checked)}
+                style={{
+                  width: 18,
+                  height: 18,
+                  accentColor: "var(--primary-500)",
+                  cursor: "pointer"
+                }}
+              />
+              <span style={{ color: "var(--gray-300)", fontSize: 14 }}>Generate Cover Art</span>
+            </label>
+          </div>
+        )}
       </Card>
 
       <Card title="Song Details">

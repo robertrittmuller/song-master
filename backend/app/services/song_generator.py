@@ -96,6 +96,7 @@ class SongGenerationManager:
                     payload.title,
                     payload.persona,
                     payload.style,
+                    payload.generate_album_art,
                     add_log,
                 ),
             )

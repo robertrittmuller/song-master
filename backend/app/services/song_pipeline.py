@@ -40,6 +40,7 @@ def generate_song_pipeline(
     song_name: Optional[str] = None,
     persona: Optional[str] = None,
     style: Optional[str] = None,
+    generate_album_art: bool = True,
     progress_callback: Optional[ProgressCallback] = None,
 ) -> SongState:
     """
@@ -89,6 +90,7 @@ def generate_song_pipeline(
         "metadata": {},
         "filename": None,
         "album_art": None,
+        "generate_album_art": generate_album_art,
     }
 
     def draft_node(state: SongState):
@@ -163,9 +165,12 @@ def generate_song_pipeline(
         return {"metadata": metadata}
 
     def album_art_node(state: SongState):
-        """Generate album artwork if not in local mode."""
+        """Generate album artwork if not in local mode and requested."""
         if state["use_local"]:
             notify("Album artwork skipped (local mode)", 80)
+            return {"album_art": None}
+        if not state.get("generate_album_art", True):
+            notify("Album artwork skipped (manually disabled)", 80)
             return {"album_art": None}
         title = extract_title(state["lyrics"], state.get("song_name"))
         artwork_path = generate_album_art(title, state["user_input"])

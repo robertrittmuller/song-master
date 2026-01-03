@@ -6,7 +6,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Card } from "../components/ui/Card";
 import { LiveProgress } from "../features/progress/LiveProgress";
 import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
-import { deleteSong, fetchSong } from "../services/api";
+import { deleteSong, fetchSong, regenerateAlbumArt } from "../services/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -27,6 +27,13 @@ export function SongDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["songs"] });
       navigate("/dashboard");
+    }
+  });
+
+  const regenerateArtMutation = useMutation({
+    mutationFn: regenerateAlbumArt,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["song", songId] });
     }
   });
 
@@ -91,10 +98,24 @@ export function SongDetailPage() {
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <div className="tag">{song.status}</div>
+            {song.status === "completed" && !song.use_local && (
+              <button
+                type="button"
+                className="btn secondary"
+                style={{ padding: "10px 12px" }}
+                disabled={regenerateArtMutation.isPending}
+                onClick={() => {
+                  if (!confirm(`Are you sure you want to (re)generate the cover art for "${song.title}"?`)) return;
+                  regenerateArtMutation.mutate(song.id);
+                }}
+              >
+                {regenerateArtMutation.isPending ? "Generating..." : song.album_art ? "Regenerate Art" : "Generate Art"}
+              </button>
+            )}
             <button
               type="button"
               className="btn secondary"
-              style={{ padding: "10px 12px" }}
+              style={{ padding: "10px 12px", background: "rgba(239, 68, 68, 0.1)", color: "#fca5a5", border: "1px solid rgba(239, 68, 68, 0.2)" }}
               onClick={() => {
                 if (deleteMutation.isPending) return;
                 if (!confirm(`Delete song "${song.title}"? This cannot be undone.`)) return;

@@ -330,6 +330,7 @@ class SongState(TypedDict, total=False):
     metadata: Dict[str, Any]
     filename: Optional[str]
     album_art: Optional[str]
+    generate_album_art: bool
 
 
 def load_resources(persona_name: Optional[str]) -> SongResources:
