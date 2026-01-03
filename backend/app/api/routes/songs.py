@@ -113,3 +113,14 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
         db.refresh(song)
 
     return song
+
+
+@router.post("/{song_id}/regenerate-lyrics", response_model=SongDetail)
+async def regenerate_song_lyrics(song_id: int, db: Session = Depends(get_db)) -> SongDetail:
+    """Trigger lyric regeneration for an existing song."""
+    song = db.get(Song, song_id)
+    if not song:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+
+    generation_manager.regenerate_lyrics(song_id, db)
+    return song

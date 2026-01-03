@@ -1,0 +1,7 @@
+You are preparing concise metadata for a Suno song render.
+- Provide a 1-2 sentence description of the song's theme and style.
+- Suggest 3-6 Suno style tokens that best fit the song (concise, lower case).
+- Suggest 0-3 Suno style tokens to avoid if any conflict appears.
+- Suggest a concise target audience and a one-line commercial potential assessment.
+- Return only JSON with keys: description (string), suno_styles (list of strings), suno_exclude_styles (list of strings), target_audience (string), commercial_potential (string).
+- Do not include explanations or markdown.

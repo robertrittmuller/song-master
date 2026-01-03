@@ -7,7 +7,7 @@ from pydantic.config import ConfigDict
 
 class SongCreate(BaseModel):
     user_prompt: str = Field(..., description="The song description or request")
-    title: Optional[str] = Field(default=None, description="Optional custom title")
+    title: str = Field(..., description="The custom title for the song")
     persona: Optional[str] = Field(default=None, description="Persona slug or name")
     style: Optional[str] = Field(default=None, description="Core style for the song")
     genre: Optional[str] = Field(default=None, description="Detailed genre for the song")

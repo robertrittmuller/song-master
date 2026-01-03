@@ -27,6 +27,40 @@ class SongGenerationManager:
             return
         self.tasks[song_id] = asyncio.create_task(self._run_generation(song_id, payload))
 
+    def regenerate_lyrics(self, song_id: int, db: Session) -> None:
+        if song_id in self.tasks:
+            return
+        
+        song = db.get(Song, song_id)
+        if not song:
+            return
+            
+        # Recover settings from metadata if possible
+        metadata = {}
+        if song.metadata_json:
+            try:
+                metadata = json.loads(song.metadata_json)
+            except Exception:
+                pass
+
+        # Create a payload from existing song data, preserving original settings
+        payload = SongCreate(
+            user_prompt=song.user_prompt,
+            title=song.title,
+            persona=song.persona,
+            style=song.style,
+            genre=metadata.get("genre"),
+            tempo=metadata.get("tempo"),
+            key=metadata.get("key"),
+            instruments=metadata.get("instruments"),
+            mood=metadata.get("mood"),
+            use_local=song.use_local,
+            album_id=song.album_id,
+            generate_album_art=False, # Explicitly disable art regeneration
+        )
+        
+        self.tasks[song_id] = asyncio.create_task(self._run_generation(song_id, payload, is_regeneration=True))
+
     def get_status(self, song_id: int) -> Optional[SongStatus]:
         return self.progress_cache.get(song_id)
 
@@ -43,7 +77,7 @@ class SongGenerationManager:
         self.tasks.clear()
         self.progress_cache.clear()
 
-    async def _run_generation(self, song_id: int, payload: SongCreate) -> None:
+    async def _run_generation(self, song_id: int, payload: SongCreate, is_regeneration: bool = False) -> None:
         session: Session = SessionLocal()
         logs: List[GenerationLog] = []
         log_lock = Lock()
@@ -96,7 +130,7 @@ class SongGenerationManager:
                     song_name=payload.title,
                     persona=payload.persona,
                     style=payload.style,
-                    generate_album_art=payload.generate_album_art,
+                    should_generate_art=payload.generate_album_art,
                     genre=payload.genre,
                     tempo=payload.tempo,
                     key=payload.key,
@@ -115,10 +149,12 @@ class SongGenerationManager:
 
             if song:
                 song.status = "completed"
+                song.title = final_state.get("song_name") or title
                 song.lyrics = lyrics
                 song.clean_lyrics = strip_style_tags(lyrics) if lyrics else None
                 song.metadata_json = json.dumps(metadata) if metadata else None
-                song.album_art = album_art
+                if album_art is not None:
+                    song.album_art = album_art
                 song.generation_completed_at = datetime.utcnow()
                 song.score = int(final_state.get("score", 0)) if isinstance(final_state, dict) else None
             if filename:
@@ -151,8 +187,14 @@ class SongGenerationManager:
             db_gen = session.query(GenerationSession).filter(GenerationSession.song_id == song_id)
             db_gen.delete()
 
-            if song := session.get(Song, song_id):
-                session.delete(song)
+            if not is_regeneration:
+                if song := session.get(Song, song_id):
+                    session.delete(song)
+            else:
+                 if song := session.get(Song, song_id):
+                    song.status = "error"
+                    song.error_message = str(exc)
+            
             session.commit()
 
             self._cache_status(

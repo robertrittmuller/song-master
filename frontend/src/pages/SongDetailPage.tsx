@@ -6,7 +6,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Card } from "../components/ui/Card";
 import { LiveProgress } from "../features/progress/LiveProgress";
 import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
-import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong } from "../services/api";
+import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, regenerateLyrics } from "../services/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -37,6 +37,13 @@ export function SongDetailPage() {
 
   const regenerateArtMutation = useMutation({
     mutationFn: regenerateAlbumArt,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["song", songId] });
+    }
+  });
+
+  const regenerateLyricsMutation = useMutation({
+    mutationFn: regenerateLyrics,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["song", songId] });
     }
@@ -123,6 +130,20 @@ export function SongDetailPage() {
                 }}
               >
                 {regenerateArtMutation.isPending ? "Generating..." : song.album_art ? "Regenerate Art" : "Generate Art"}
+              </button>
+            )}
+            {song.status === "completed" && (
+              <button
+                type="button"
+                className="btn secondary"
+                style={{ padding: "10px 12px" }}
+                disabled={regenerateLyricsMutation.isPending}
+                onClick={() => {
+                  if (!confirm(`Are you sure you want to regenerate the lyrics for "${song.title}"? This will use the original request and keep the current album art.`)) return;
+                  regenerateLyricsMutation.mutate(song.id);
+                }}
+              >
+                {regenerateLyricsMutation.isPending ? "Regenerating..." : "Regenerate Lyrics"}
               </button>
             )}
             <button

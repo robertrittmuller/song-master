@@ -59,7 +59,7 @@ export async function deleteSong(songId: number): Promise<void> {
 
 export async function createSong(payload: {
   user_prompt: string;
-  title?: string;
+  title: string;
   persona?: string;
   style?: string;
   genre?: string;
@@ -90,5 +90,10 @@ export const websocketUrl = (songId: number) =>
 
 export async function regenerateAlbumArt(songId: number): Promise<Song> {
   const { data } = await client.post<Song>(`/api/songs/${songId}/regenerate-art`);
+  return data;
+}
+
+export async function regenerateLyrics(songId: number): Promise<Song> {
+  const { data } = await client.post<Song>(`/api/songs/${songId}/regenerate-lyrics`);
   return data;
 }

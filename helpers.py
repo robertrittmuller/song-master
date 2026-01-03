@@ -130,11 +130,76 @@ def enhance_user_input(user_input: str, song_name: Optional[str], style: Optiona
 def extract_title(lyrics: str, provided_title: Optional[str]) -> str:
     if provided_title:
         return provided_title
-    if "## Song Title" in lyrics:
-        start = lyrics.find("## Song Title") + len("## Song Title")
-        end = lyrics.find("\n", start)
-        return lyrics[start:end].strip()
+    
+    # Check for various title formats
+    title_markers = ["Title:", "Song Title:", "## Song Title"]
+    lines = lyrics.splitlines()
+    for i, line in enumerate(lines):
+        trimmed = line.strip()
+        for marker in title_markers:
+            if trimmed.startswith(marker):
+                # Check if title is on the same line
+                title = trimmed[len(marker):].strip()
+                if title:
+                    return title
+                # Check if title is on the next line
+                if i + 1 < len(lines):
+                    next_line = lines[i+1].strip()
+                    if next_line:
+                        return next_line
+                
+    # Fallback to first non-empty line if it doesn't look like a tag or a marker
+    for line in lines:
+        trimmed = line.strip()
+        if trimmed and not (trimmed.startswith("[") and trimmed.endswith("]")):
+            # Also ignore the markers themselves if they appear as standalone lines
+            if any(trimmed.startswith(marker) for marker in title_markers) and not any(trimmed == marker for marker in title_markers):
+                # This case is handled above, but just in case
+                pass
+            elif not any(trimmed == marker for marker in title_markers):
+                return trimmed[:50]
+            
     return "Unknown Song"
+
+
+def remove_title_from_lyrics(lyrics: str) -> str:
+    """Strip the title block from the beginning of the LLM output."""
+    lines = lyrics.splitlines()
+    if not lines:
+        return lyrics
+        
+    title_markers = ["Title:", "Song Title:", "## Song Title"]
+    new_lines = []
+    skip_next = False
+    found_title = False
+    
+    for i, line in enumerate(lines):
+        if skip_next:
+            skip_next = False
+            continue
+            
+        trimmed = line.strip()
+        if not found_title and trimmed:
+            marker_found = None
+            for marker in title_markers:
+                if trimmed.startswith(marker):
+                    marker_found = marker
+                    break
+            
+            if marker_found:
+                found_title = True
+                # If marker is the whole line, skip the next line too (if it exists)
+                if trimmed == marker_found and i + 1 < len(lines):
+                    skip_next = True
+                continue
+        
+        new_lines.append(line)
+        
+    # Remove leading empty lines
+    while new_lines and not new_lines[0].strip():
+        new_lines.pop(0)
+        
+    return "\n".join(new_lines).strip()
 
 
 def generate_album_art(title: str, user_input: str) -> str:

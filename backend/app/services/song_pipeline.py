@@ -22,6 +22,7 @@ from helpers import (
     enhance_user_input,
     extract_song_details_for_art,
     extract_title,
+    remove_title_from_lyrics,
     generate_album_art,
     load_prompt_from_file,
     load_resources,
@@ -40,7 +41,7 @@ def generate_song_pipeline(
     song_name: Optional[str] = None,
     persona: Optional[str] = None,
     style: Optional[str] = None,
-    generate_album_art: bool = True,
+    should_generate_art: bool = True,
     genre: Optional[str] = None,
     tempo: Optional[str] = None,
     key: Optional[str] = None,
@@ -108,7 +109,7 @@ def generate_song_pipeline(
         "metadata": {},
         "filename": None,
         "album_art": None,
-        "generate_album_art": generate_album_art,
+        "generate_album_art": should_generate_art,
     }
 
     def draft_node(state: SongState):
@@ -125,7 +126,12 @@ def generate_song_pipeline(
             use_local=state["use_local"],
         )
         notify("Draft generated", 25)
-        return {"lyrics": lyrics}
+        
+        # Extract title and clean lyrics
+        title = extract_title(lyrics, state.get("song_name"))
+        clean_lyrics = remove_title_from_lyrics(lyrics)
+        
+        return {"lyrics": clean_lyrics, "song_name": title}
 
     def review_node(state: SongState):
         feedback = run_parallel_reviews(review_prompt, state["lyrics"], state["use_local"])

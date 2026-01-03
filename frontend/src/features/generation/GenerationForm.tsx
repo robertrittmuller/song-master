@@ -50,10 +50,10 @@ export function GenerationForm() {
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || !title.trim()) return;
     mutation.mutate({
       user_prompt: prompt,
-      title: title || undefined,
+      title: title,
       persona,
       style: style || undefined,
       genre: genre || undefined,
@@ -128,11 +128,12 @@ export function GenerationForm() {
       <Card title="Song Details">
         <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))" }}>
           <div className="stack">
-            <label style={{ color: "var(--gray-300)", fontSize: 13 }}>Song Title (optional)</label>
+            <label style={{ color: "var(--gray-300)", fontSize: 13 }}>Song Title</label>
             <input
+              required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="My awesome song"
+              placeholder="Give your song a name"
               style={{
                 padding: "12px 14px",
                 borderRadius: 12,
@@ -280,7 +281,7 @@ export function GenerationForm() {
                 <button
                   type="button"
                   key={p.name}
-                  onClick={() => setPersona(p.name)}
+                  onClick={() => setPersona(prev => prev === p.name ? undefined : p.name)}
                   style={{
                     textAlign: "left",
                     width: "100%",
