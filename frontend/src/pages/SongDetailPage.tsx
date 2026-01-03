@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, Download } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -197,7 +197,37 @@ export function SongDetailPage() {
           </Card>
           <div className="stack" style={{ gap: 16 }}>
             {song.album_art && (
-              <Card title="Album Art">
+              <Card
+                title="Album Art"
+                action={
+                  <button
+                    className="btn ghost"
+                    style={{ padding: "4px 8px", fontSize: 12, height: "auto", minHeight: 0 }}
+                    onClick={async () => {
+                      const imageUrl = `${API_BASE}/${song.album_art}`;
+                      try {
+                        const response = await fetch(imageUrl);
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement("a");
+                        link.href = url;
+                        link.download = `${song.title.replace(/\s+/g, "_")}_art.png`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(url);
+                      } catch (err) {
+                        console.error("Failed to download image:", err);
+                        // Fallback to opening in new tab if fetch fails (e.g. CORS)
+                        window.open(imageUrl, "_blank");
+                      }
+                    }}
+                  >
+                    <Download size={14} style={{ marginRight: 4 }} />
+                    Download
+                  </button>
+                }
+              >
                 <img
                   src={`${API_BASE}/${song.album_art}`}
                   alt={`${song.title} cover art`}
