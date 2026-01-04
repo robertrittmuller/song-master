@@ -12,6 +12,13 @@ export type Album = {
   songs: Song[];
 };
 
+export type SongVersion = {
+  id: number;
+  version_number: number;
+  lyrics: string;
+  created_at: string;
+};
+
 export type Song = {
   id: number;
   title: string;
@@ -29,6 +36,7 @@ export type Song = {
   vocal_gender?: string;
   generation_config?: string;
   error_message?: string;
+  versions?: SongVersion[];
 };
 
 export type SongStatus = {

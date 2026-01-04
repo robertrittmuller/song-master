@@ -171,6 +171,20 @@ async def live_listen_feedback(
 
     # Update song with revised lyrics
     if "revised_lyrics" in result:
+        from backend.app.models import SongVersion
+        
+        # Save previous lyrics to historical versions if they exist
+        if song.lyrics:
+            # Get the current highest version number
+            current_versions = db.query(SongVersion).filter(SongVersion.song_id == song_id).all()
+            next_version = len(current_versions) + 1
+            
+            db.add(SongVersion(
+                song_id=song_id,
+                version_number=next_version,
+                lyrics=song.lyrics
+            ))
+
         song.lyrics = result["revised_lyrics"]
         # We could also store the feedback in the DB if we had a column for it,
         # but for now we just update the lyrics.

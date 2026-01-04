@@ -45,3 +45,9 @@ class Song(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    versions = relationship(
+        "SongVersion",
+        back_populates="song",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )

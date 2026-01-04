@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@types/diff": "^8.0.0",
+    "diff": "^8.0.2"
+  }
+}

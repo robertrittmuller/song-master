@@ -269,14 +269,14 @@ export function LyricsSectionView({ lyrics }: Props) {
                         className="glass"
                         style={{
                             borderLeft: `4px solid transparent`,
-                            borderImage: getSectionColor(section.type),
+                            borderImageSource: getSectionColor(section.type),
                             borderImageSlice: 1,
                             opacity: showClean && (section.type.toLowerCase().includes("solo") || section.type.toLowerCase().includes("instrumental")) ? 0.6 : 1
                         }}
                     >
                         <div
                             style={{
-                                background: getSectionColor(section.type),
+                                backgroundImage: getSectionColor(section.type),
                                 WebkitBackgroundClip: "text",
                                 WebkitTextFillColor: "transparent",
                                 backgroundClip: "text",

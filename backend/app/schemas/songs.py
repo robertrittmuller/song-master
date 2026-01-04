@@ -43,6 +43,15 @@ class SongRead(BaseModel):
     album_art: Optional[str] = None
 
 
+class SongVersionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    version_number: int
+    lyrics: str
+    created_at: datetime
+
+
 class SongDetail(SongRead):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -55,6 +64,7 @@ class SongDetail(SongRead):
     generation_config: Optional[str] = None
     clean_lyrics: Optional[str] = None
     error_message: Optional[str] = None
+    versions: List[SongVersionRead] = []
 
 
 class GenerationLog(BaseModel):

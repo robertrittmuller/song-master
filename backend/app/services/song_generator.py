@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from backend.app.db.database import SessionLocal
-from backend.app.models import GenerationSession, Song, SongFile
+from backend.app.models import GenerationSession, Song, SongFile, SongVersion
 from backend.app.schemas import GenerationLog, SongCreate, SongStatus
 from backend.app.services.song_pipeline import generate_song_pipeline
 from helpers import strip_style_tags
@@ -150,8 +150,20 @@ class SongGenerationManager:
             album_art = final_state.get("album_art") if isinstance(final_state, dict) else None
 
             if song:
+                # Save previous lyrics to historical versions if they exist
+                if song.lyrics:
+                    # Get the current highest version number
+                    current_versions = session.query(SongVersion).filter(SongVersion.song_id == song_id).all()
+                    next_version = len(current_versions) + 1
+                    
+                    session.add(SongVersion(
+                        song_id=song_id,
+                        version_number=next_version,
+                        lyrics=song.lyrics
+                    ))
+
                 song.status = "completed"
-                song.title = final_state.get("song_name") or title
+                song.title = final_state.get("song_name") or song.title
                 song.lyrics = lyrics
                 song.clean_lyrics = strip_style_tags(lyrics) if lyrics else None
                 song.metadata_json = json.dumps(metadata) if metadata else None

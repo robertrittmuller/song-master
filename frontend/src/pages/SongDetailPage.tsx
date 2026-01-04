@@ -6,6 +6,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Card } from "../components/ui/Card";
 import { LiveProgress } from "../features/progress/LiveProgress";
 import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
+import { LyricVersionTabs } from "../features/songViewer/LyricVersionTabs";
+import { LyricDiffView } from "../features/songViewer/LyricDiffView";
 import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, regenerateLyrics, uploadLiveFeedback } from "../services/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
@@ -69,6 +71,9 @@ export function SongDetailPage() {
 
   const [copiedStyles, setCopiedStyles] = useState(false);
   const [copiedExcludeStyles, setCopiedExcludeStyles] = useState(false);
+
+  const [selectedVersionId, setSelectedVersionId] = useState<number | "current">("current");
+  const [isDiffMode, setIsDiffMode] = useState(false);
 
   const handleCopyStyles = async () => {
     if (!metadata?.suno_styles) return;
@@ -198,7 +203,27 @@ export function SongDetailPage() {
       {song.status === "completed" && (
         <div className="grid" style={{ gridTemplateColumns: "2fr 1fr", gap: 16 }}>
           <Card title="Song Lyrics">
-            <LyricsSectionView lyrics={song.lyrics || ""} />
+            {song.versions && song.versions.length > 0 && (
+              <LyricVersionTabs
+                currentLyrics={song.lyrics || ""}
+                versions={song.versions}
+                selectedVersionId={selectedVersionId}
+                onSelectVersion={setSelectedVersionId}
+                isDiffMode={isDiffMode}
+                onToggleDiffMode={setIsDiffMode}
+              />
+            )}
+
+            {selectedVersionId === "current" ? (
+              <LyricsSectionView lyrics={song.lyrics || ""} />
+            ) : isDiffMode ? (
+              <LyricDiffView
+                oldLyrics={song.versions?.find(v => v.id === selectedVersionId)?.lyrics || ""}
+                newLyrics={song.lyrics || ""}
+              />
+            ) : (
+              <LyricsSectionView lyrics={song.versions?.find(v => v.id === selectedVersionId)?.lyrics || ""} />
+            )}
           </Card>
           <div className="stack" style={{ gap: 16 }}>
             {song.album_art && (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
@@ -31,12 +31,14 @@ export function DashboardPage() {
 
   const personaNames = useMemo(() => personas.map((p) => p.name), [personas]);
 
+  // Reset visible count when filters/search/sort change
+  useEffect(() => {
+    setVisibleSongsCount(12);
+  }, [searchQuery, filters, sortBy]);
+
   // Filter and sort songs
   const filteredAndSortedSongs = useMemo(() => {
     let result = [...songs];
-
-    // Reset visible count when filters/search/sort changes
-    setVisibleSongsCount(12);
 
     // Apply search
     if (searchQuery) {
