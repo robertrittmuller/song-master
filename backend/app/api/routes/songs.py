@@ -186,6 +186,7 @@ async def live_listen_feedback(
             ))
 
         song.lyrics = result["revised_lyrics"]
+        song.live_feedback = result.get("feedback")
         # We could also store the feedback in the DB if we had a column for it,
         # but for now we just update the lyrics.
         db.add(song)

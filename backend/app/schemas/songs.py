@@ -64,6 +64,7 @@ class SongDetail(SongRead):
     generation_config: Optional[str] = None
     clean_lyrics: Optional[str] = None
     error_message: Optional[str] = None
+    live_feedback: Optional[str] = None
     versions: List[SongVersionRead] = []
 
 

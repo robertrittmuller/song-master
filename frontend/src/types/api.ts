@@ -36,6 +36,7 @@ export type Song = {
   vocal_gender?: string;
   generation_config?: string;
   error_message?: string;
+  live_feedback?: string;
   versions?: SongVersion[];
 };
 

@@ -320,6 +320,18 @@ export function SongDetailPage() {
                       Submit for Feedback
                     </button>
                   </form>
+
+                  {song.live_feedback && (
+                    <div className="glass" style={{ padding: 12, marginTop: 12, border: "1px solid rgba(139, 92, 246, 0.3)" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--violet-400)", marginBottom: 6, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--violet-400)" }} />
+                        Latest AI Feedback
+                      </div>
+                      <p style={{ color: "var(--gray-200)", margin: 0, fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                        {song.live_feedback}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </Card>
             )}

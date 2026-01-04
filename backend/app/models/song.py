@@ -26,6 +26,7 @@ class Song(Base):
     status = Column(String(50), default="pending")
     generation_config = Column(Text)  # JSON string
     error_message = Column(Text)
+    live_feedback = Column(Text)
     generation_started_at = Column(DateTime)
     generation_completed_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
