@@ -71,6 +71,7 @@ export function SongDetailPage() {
 
   const [copiedStyles, setCopiedStyles] = useState(false);
   const [copiedExcludeStyles, setCopiedExcludeStyles] = useState(false);
+  const [isLiveFeedbackOpen, setIsLiveFeedbackOpen] = useState(false);
 
   const [selectedVersionId, setSelectedVersionId] = useState<number | "current">("current");
   const [isDiffMode, setIsDiffMode] = useState(false);
@@ -323,13 +324,25 @@ export function SongDetailPage() {
 
                   {song.live_feedback && (
                     <div className="glass" style={{ padding: 12, marginTop: 12, border: "1px solid rgba(139, 92, 246, 0.3)" }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--violet-400)", marginBottom: 6, textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6 }}>
-                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--violet-400)" }} />
-                        Latest AI Feedback
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: isLiveFeedbackOpen ? 6 : 0 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--violet-400)", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--violet-400)" }} />
+                          Latest AI Feedback
+                        </div>
+                        <button
+                          type="button"
+                          className="btn ghost"
+                          style={{ padding: "2px 6px", fontSize: 11, height: "auto", minHeight: 0 }}
+                          onClick={() => setIsLiveFeedbackOpen((prev) => !prev)}
+                        >
+                          {isLiveFeedbackOpen ? "Hide" : "Show"}
+                        </button>
                       </div>
-                      <p style={{ color: "var(--gray-200)", margin: 0, fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-                        {song.live_feedback}
-                      </p>
+                      {isLiveFeedbackOpen && (
+                        <p style={{ color: "var(--gray-200)", margin: 0, fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                          {song.live_feedback}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
