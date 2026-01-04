@@ -26,6 +26,7 @@ export type Song = {
   metadata_json?: string;
   album_art?: string;
   album_id?: number | null;
+  vocal_gender?: string;
   generation_config?: string;
   error_message?: string;
 };

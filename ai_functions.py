@@ -398,3 +398,62 @@ def generate_metadata_summary(prompt_template: PromptTemplate, lyrics: str, user
         }
     except Exception:
         return fallback
+
+
+def review_song_with_audio(lyrics: str, audio_path: str, use_local: bool) -> str:
+    """
+    Send the audio file and lyrics to a multimodal LLM for review.
+    Returns the feedback string.
+    """
+    import base64
+    from helpers import read_prompt
+
+    if use_local:
+        return "Audio review is not supported in local mode."
+
+    # Load prompt
+    system_prompt = read_prompt("live_listen")
+
+    # Encode audio
+    try:
+        with open(audio_path, "rb") as audio_file:
+            audio_base64 = base64.b64encode(audio_file.read()).decode("utf-8")
+    except Exception as e:
+        return f"Error reading audio file: {str(e)}"
+
+    # Construct the payload for OpenAI (or compatible)
+    # This assumes we are using a model that supports audio input like gpt-4o-audio-preview or similar.
+    # We will use the standard openai client from the environment.
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return "OPENAI_API_KEY not set."
+
+    client = openai.OpenAI(api_key=api_key)
+    # Using gpt-4o-audio-preview as it is the current standard for audio input
+    # If the user has a different preference, they can change the model here.
+    model = "gpt-4o-audio-preview"
+
+    try:
+        completion = client.chat.completions.create(
+            model=model,
+            modalities=["text"],
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": f"{system_prompt}\n\nLyrics:\n{lyrics}"},
+                        {
+                            "type": "input_audio",
+                            "input_audio": {
+                                "data": audio_base64,
+                                "format": "mp3"
+                            }
+                        }
+                    ]
+                }
+            ]
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        return f"Error calling multimodal LLM: {str(e)}"

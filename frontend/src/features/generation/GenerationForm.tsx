@@ -30,6 +30,7 @@ export function GenerationForm() {
   const [selectedInstruments, setSelectedInstruments] = useState<Set<string>>(new Set(["guitar", "bass", "drums"]));
   const [customInstruments, setCustomInstruments] = useState("");
   const [mood, setMood] = useState("happy");
+  const [vocalGender, setVocalGender] = useState("");
 
   const toggleInstrument = (inst: string) => {
     const next = new Set(selectedInstruments);
@@ -64,6 +65,7 @@ export function GenerationForm() {
         ...(customInstruments ? customInstruments.split(",").map(i => i.trim()) : [])
       ].filter(Boolean).join(", "),
       mood,
+      vocal_gender: vocalGender || undefined,
       use_local: useLocal,
       album_id: albumId,
       generate_album_art: useLocal ? false : generateCoverArt
@@ -199,6 +201,27 @@ export function GenerationForm() {
               {["happy", "sad", "energetic", "calm", "dark", "uplifting", "angry", "romantic"].map(m => (
                 <option key={m} value={m}>{m}</option>
               ))}
+            </select>
+          </div>
+
+          <div className="stack">
+            <label style={{ color: "var(--gray-300)", fontSize: 13 }}>Vocal Gender</label>
+            <select
+              className="input"
+              value={vocalGender}
+              onChange={(e) => setVocalGender(e.target.value)}
+              style={{
+                padding: "12px 14px",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.04)",
+                color: "var(--gray-50)"
+              }}
+            >
+              <option value="">Auto (Persona / AI choice)</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Duet">Duet</option>
             </select>
           </div>
 

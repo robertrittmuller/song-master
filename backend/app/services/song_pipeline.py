@@ -48,6 +48,7 @@ def generate_song_pipeline(
     key: Optional[str] = None,
     instruments: Optional[str] = None,
     mood: Optional[str] = None,
+    vocal_gender: Optional[str] = None,
     progress_callback: Optional[ProgressCallback] = None,
 ) -> SongState:
     """
@@ -87,6 +88,8 @@ def generate_song_pipeline(
         resources.default_params["instruments"] = instruments
     if mood:
         resources.default_params["mood"] = mood
+    if vocal_gender:
+        resources.default_params["vocal_gender"] = vocal_gender
 
     max_rounds = int(os.getenv("REVIEW_MAX_ROUNDS", "3"))
     score_threshold = float(os.getenv("REVIEW_SCORE_THRESHOLD", "8.0"))
@@ -110,6 +113,7 @@ def generate_song_pipeline(
         "metadata": {},
         "filename": None,
         "album_art": None,
+        "vocal_gender": vocal_gender,
         "generate_album_art": should_generate_art,
     }
 

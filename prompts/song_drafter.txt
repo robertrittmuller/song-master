@@ -18,6 +18,7 @@ Consider the following:
 - Depending on where they are in the lyrics, words may need to be hyphenated in order to be sung correctly.
 - Reference the provided Styles and Tags for appropriate musical styles, genres, and section tags to enhance the draft. **Tags can be combined** - you may use multiple tags together to create rich, detailed sections (e.g., "[Verse] [Genre: Hip Hop] [Tempo: 95 BPM] [Mood: Confident]").
 - **CRITICAL: Always specify vocal gender for every sung section** using appropriate vocal tags: [Female Vocal], [Male Vocal], [Duet], [Female Narrator], [Male - deep baritone], etc. If the song involves multiple vocalists, clearly tag which section belongs to which vocalist. 
+- **STRICT CONSISTENCY: You MUST use the vocal gender specified in the "default_params" if it is provided (e.g., "Male", "Female", or "Duet").** If no explicit vocal gender is provided in default_params, check the persona styles for any gender cues (like "female vocals", "male voice"). If both are provided, the default_params choice takes precedence. Ensure the chosen gender is maintained consistently throughout the entire song.
 - Focus on creating engaging, memorable lyrics that could stand out on the radio without being overly simplistic or cliché.
 - Prioritize internal rhymes, assonance, and alliteration to enhance lyrical flow and memorability.
 - **MUSICALITY: Ensure the lyrics have "room to breathe". Don't crowd every beat with syllables; allow for pauses, instrumental pauses, and rhythmic variety.**

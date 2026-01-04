@@ -54,6 +54,7 @@ class SongGenerationManager:
             key=metadata.get("key"),
             instruments=metadata.get("instruments"),
             mood=metadata.get("mood"),
+            vocal_gender=song.vocal_gender,
             use_local=song.use_local,
             album_id=song.album_id,
             generate_album_art=False, # Explicitly disable art regeneration

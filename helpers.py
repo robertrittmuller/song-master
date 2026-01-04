@@ -97,6 +97,7 @@ def get_default_song_params() -> Dict[str, Optional[str]]:
         "key": os.getenv("DEFAULT_KEY", "C"),
         "instruments": os.getenv("DEFAULT_INSTRUMENTS", "guitar,bass,drums"),
         "mood": os.getenv("DEFAULT_MOOD", "happy"),
+        "vocal_gender": os.getenv("DEFAULT_VOCAL_GENDER"),
     }
 
 
@@ -453,6 +454,7 @@ class SongState(TypedDict, total=False):
     key: Optional[str]
     instruments: Optional[str]
     mood: Optional[str]
+    vocal_gender: Optional[str]
 
 
 def load_resources(persona_name: Optional[str]) -> SongResources:

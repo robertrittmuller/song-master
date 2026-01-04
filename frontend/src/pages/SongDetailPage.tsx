@@ -6,7 +6,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Card } from "../components/ui/Card";
 import { LiveProgress } from "../features/progress/LiveProgress";
 import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
-import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, regenerateLyrics } from "../services/api";
+import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, regenerateLyrics, uploadLiveFeedback } from "../services/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -244,6 +244,61 @@ export function SongDetailPage() {
                 />
               </Card>
             )}
+
+            {!song.use_local && (
+              <Card title="Live Listen Feedback">
+                <div className="stack" style={{ gap: 12 }}>
+                  <p style={{ color: "var(--gray-300)", fontSize: 13, margin: 0, lineHeight: 1.4 }}>
+                    Upload an MP3 of your current generated song. The AI will listen and provide feedback to improve the lyrics fit.
+                  </p>
+
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const form = e.target as HTMLFormElement;
+                      const fileInput = form.elements.namedItem("file") as HTMLInputElement;
+                      if (!fileInput.files?.length) return;
+
+                      if (!confirm("This will submit the audio to an external LLM for analysis and regenerate the lyrics based on feedback. Continue?")) return;
+
+                      const file = fileInput.files[0];
+                      const btn = form.querySelector("button[type=submit]") as HTMLButtonElement;
+                      const originalText = btn.textContent;
+                      btn.disabled = true;
+                      btn.textContent = "Analyzing...";
+
+                      uploadLiveFeedback(song.id, file)
+                        .then(() => {
+                          queryClient.invalidateQueries({ queryKey: ["song", songId] });
+                          form.reset();
+                          alert("Feedback received and lyrics updated!");
+                        })
+                        .catch((err) => {
+                          console.error(err);
+                          alert("Failed to process feedback: " + (err.response?.data?.detail || err.message));
+                        })
+                        .finally(() => {
+                          btn.disabled = false;
+                          btn.textContent = originalText;
+                        });
+                    }}
+                  >
+                    <input
+                      type="file"
+                      name="file"
+                      accept=".mp3,audio/mpeg"
+                      className="input"
+                      style={{ width: "100%", marginBottom: 12, fontSize: 13 }}
+                      required
+                    />
+                    <button type="submit" className="btn primary" style={{ width: "100%" }}>
+                      Submit for Feedback
+                    </button>
+                  </form>
+                </div>
+              </Card>
+            )}
+
             <Card title="Metadata">
               <div className="stack" style={{ gap: 16 }}>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

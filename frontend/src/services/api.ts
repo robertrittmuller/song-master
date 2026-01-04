@@ -69,6 +69,7 @@ export async function createSong(payload: {
   mood?: string;
   use_local?: boolean;
   album_id?: number;
+  vocal_gender?: string;
   generate_album_art?: boolean;
 }) {
   const { data } = await client.post<Song>("/api/songs/generate", payload);
@@ -95,5 +96,14 @@ export async function regenerateAlbumArt(songId: number): Promise<Song> {
 
 export async function regenerateLyrics(songId: number): Promise<Song> {
   const { data } = await client.post<Song>(`/api/songs/${songId}/regenerate-lyrics`);
+  return data;
+}
+
+export async function uploadLiveFeedback(songId: number, file: File): Promise<Song> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const { data } = await client.post<Song>(`/api/songs/${songId}/live-feedback`, formData, {
+    headers: { "Content-Type": "multipart/form-data" }
+  });
   return data;
 }

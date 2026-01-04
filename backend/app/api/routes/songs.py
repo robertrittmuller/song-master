@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.app.db.deps import get_db
@@ -64,6 +64,7 @@ async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> Son
         user_prompt=payload.user_prompt,
         persona=payload.persona,
         style=payload.style,
+        vocal_gender=payload.vocal_gender,
         use_local=payload.use_local,
         album_id=payload.album_id,
         status="pending",
@@ -123,4 +124,39 @@ async def regenerate_song_lyrics(song_id: int, db: Session = Depends(get_db)) ->
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
 
     generation_manager.regenerate_lyrics(song_id, db)
+    return song
+
+
+@router.post("/{song_id}/live-feedback", response_model=SongDetail)
+async def live_listen_feedback(
+    song_id: int, file: UploadFile = UploadFile(...), db: Session = Depends(get_db)
+) -> SongDetail:
+    """Submit an audio file for live feedback from a multimodal LLM."""
+    song = db.get(Song, song_id)
+    if not song:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+
+    if song.use_local:
+        raise HTTPException(status_code=400, detail="Live Listen Feedback is not available for local models.")
+
+    from backend.app.services.live_listen_service import process_live_listen_feedback
+    
+    # We must read song data as dict for the service
+    song_data = {
+        "lyrics": song.lyrics,
+        "title": song.title,
+        "user_prompt": song.user_prompt
+    }
+
+    result = await process_live_listen_feedback(song_id, file, song_data, song.use_local)
+
+    # Update song with revised lyrics
+    if "revised_lyrics" in result:
+        song.lyrics = result["revised_lyrics"]
+        # We could also store the feedback in the DB if we had a column for it,
+        # but for now we just update the lyrics.
+        db.add(song)
+        db.commit()
+        db.refresh(song)
+
     return song

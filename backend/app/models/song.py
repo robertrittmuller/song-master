@@ -16,6 +16,7 @@ class Song(Base):
     user_prompt = Column(Text, nullable=False)
     persona = Column(String(100))
     style = Column(String(100))
+    vocal_gender = Column(String(50))
     use_local = Column(Boolean, default=False)
     lyrics: Optional[str] = Column(Text)
     clean_lyrics: Optional[str] = Column(Text)
