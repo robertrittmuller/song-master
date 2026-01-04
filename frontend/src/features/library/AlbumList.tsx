@@ -8,6 +8,8 @@ import type { Album } from "../../types/api";
 function AlbumItem({ album, onDelete }: { album: Album; onDelete: (id: number) => void }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const [visibleSongsCount, setVisibleSongsCount] = useState(12);
+
   return (
     <div key={album.id} className="glass" style={{ padding: 16, borderRadius: 14, display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -40,25 +42,37 @@ function AlbumItem({ album, onDelete }: { album: Album; onDelete: (id: number) =
             Songs ({album.songs?.length || 0})
           </div>
           {album.songs && album.songs.length > 0 ? (
-            <div className="stack" style={{ gap: 4 }}>
-              {album.songs.map((song) => (
-                <Link
-                  key={song.id}
-                  to={`/songs/${song.id}`}
-                  style={{
-                    fontSize: 13,
-                    color: "var(--gray-300)",
-                    textDecoration: "none",
-                    padding: "4px 6px",
-                    borderRadius: 6,
-                    background: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(255,255,255,0.05)"
-                  }}
-                  className="hover-card"
+            <div className="stack" style={{ gap: 8 }}>
+              <div className="stack" style={{ gap: 4 }}>
+                {album.songs.slice(0, visibleSongsCount).map((song) => (
+                  <Link
+                    key={song.id}
+                    to={`/songs/${song.id}`}
+                    style={{
+                      fontSize: 13,
+                      color: "var(--gray-300)",
+                      textDecoration: "none",
+                      padding: "4px 6px",
+                      borderRadius: 6,
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.05)"
+                    }}
+                    className="hover-card"
+                  >
+                    {song.title}
+                  </Link>
+                ))}
+              </div>
+
+              {album.songs.length > visibleSongsCount && (
+                <button
+                  className="btn secondary"
+                  style={{ alignSelf: "flex-start", padding: "4px 8px", fontSize: 11 }}
+                  onClick={() => setVisibleSongsCount(prev => prev + 12)}
                 >
-                  {song.title}
-                </Link>
-              ))}
+                  Show More ({album.songs.length - visibleSongsCount} remaining)
+                </button>
+              )}
             </div>
           ) : (
             <div style={{ fontSize: 12, color: "var(--gray-600)", fontStyle: "italic" }}>

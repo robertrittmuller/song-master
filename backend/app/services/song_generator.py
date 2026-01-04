@@ -137,6 +137,7 @@ class SongGenerationManager:
                     key=payload.key,
                     instruments=payload.instruments,
                     mood=payload.mood,
+                    vocal_gender=payload.vocal_gender,
                     progress_callback=add_log,
                 ),
             )

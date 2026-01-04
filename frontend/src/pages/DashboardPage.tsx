@@ -24,6 +24,8 @@ export function DashboardPage() {
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
+  const [visibleSongsCount, setVisibleSongsCount] = useState(12);
+
   const { data: songs = [] } = useQuery({ queryKey: ["songs"], queryFn: fetchSongs });
   const { data: personas = [] } = useQuery({ queryKey: ["personas"], queryFn: fetchPersonas });
 
@@ -32,6 +34,9 @@ export function DashboardPage() {
   // Filter and sort songs
   const filteredAndSortedSongs = useMemo(() => {
     let result = [...songs];
+
+    // Reset visible count when filters/search/sort changes
+    setVisibleSongsCount(12);
 
     // Apply search
     if (searchQuery) {
@@ -42,7 +47,6 @@ export function DashboardPage() {
           song.user_prompt?.toLowerCase().includes(query)
       );
     }
-
     // Apply filters
     if (filters.status) {
       result = result.filter((song) => song.status === filters.status);
@@ -75,6 +79,10 @@ export function DashboardPage() {
 
     return result;
   }, [songs, searchQuery, filters, sortBy]);
+
+  const visibleSongs = useMemo(() => {
+    return filteredAndSortedSongs.slice(0, visibleSongsCount);
+  }, [filteredAndSortedSongs, visibleSongsCount]);
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -129,7 +137,19 @@ export function DashboardPage() {
           </div>
         </Card>
       ) : (
-        <SongGrid songs={filteredAndSortedSongs} viewMode={viewMode} />
+        <div className="stack" style={{ gap: 16 }}>
+          <SongGrid songs={visibleSongs} viewMode={viewMode} />
+
+          {filteredAndSortedSongs.length > visibleSongsCount && (
+            <button
+              className="btn secondary"
+              style={{ alignSelf: "center", minWidth: 200 }}
+              onClick={() => setVisibleSongsCount(prev => prev + 12)}
+            >
+              More Songs ({filteredAndSortedSongs.length - visibleSongsCount} remaining)
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

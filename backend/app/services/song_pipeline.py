@@ -202,7 +202,14 @@ def generate_song_pipeline(
             notify("Album artwork skipped (manually disabled)", 80)
             return {"album_art": None}
         title = extract_title(state["lyrics"], state.get("song_name"))
-        artwork_path = generate_album_art(title, state["user_input"])
+        artwork_path = generate_album_art(
+            title, 
+            state["user_input"],
+            persona_name=state.get("persona_name"),
+            style=state.get("style"),
+            mood=state.get("mood") or state.get("resources").default_params.get("mood"),
+            vocal_gender=state.get("vocal_gender") or state.get("resources").default_params.get("vocal_gender")
+        )
         notify(f"Album artwork generated: {artwork_path}", 85)
         return {"album_art": artwork_path}
 

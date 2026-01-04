@@ -104,9 +104,28 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
 
     from helpers import extract_title, generate_album_art
+    import json
 
     title = extract_title(song.lyrics or "", song.title)
-    artwork_path = generate_album_art(title, song.user_prompt)
+    
+    # Extract mood from metadata_json if available
+    metadata = {}
+    if song.metadata_json:
+        try:
+            metadata = json.loads(song.metadata_json)
+        except:
+            pass
+            
+    mood = metadata.get("mood")
+    
+    artwork_path = generate_album_art(
+        title, 
+        song.user_prompt,
+        persona_name=song.persona,
+        style=song.style,
+        mood=mood,
+        vocal_gender=song.vocal_gender
+    )
 
     if artwork_path:
         song.album_art = artwork_path

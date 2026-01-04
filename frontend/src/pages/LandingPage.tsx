@@ -8,8 +8,8 @@ import { fetchSongs } from "../services/api";
 export function LandingPage() {
   const { data: songs = [] } = useQuery({ queryKey: ["songs"], queryFn: fetchSongs });
 
-  // Show only the 8 most recent songs on the landing page
-  const recentSongs = songs.slice(0, 8);
+  // Show only the 12 most recent songs on the landing page
+  const recentSongs = songs.slice(0, 12);
 
   return (
     <div className="stack" style={{ gap: 20 }}>

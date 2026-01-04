@@ -49,6 +49,25 @@ def read_persona(persona_name: str) -> str:
     return content[start:end].strip()
 
 
+def read_persona_visual_styles(persona_name: str) -> str:
+    """Extract visual styles from the persona markdown file."""
+    persona_file = resolve_persona_file(persona_name)
+    if not persona_file:
+        return ""
+
+    with open(persona_file, "r") as file:
+        content = file.read()
+    if "Visual styles" not in content:
+        return ""
+
+    start = content.find("Visual styles") + len("Visual styles")
+    # Check for another section or end of file
+    end = content.find("\n##", start)
+    if end == -1:
+        end = len(content)
+    return content[start:end].strip()
+
+
 def resolve_persona_file(persona_input: str) -> Optional[str]:
     """
     Resolve a persona input to an existing markdown file.
@@ -223,13 +242,49 @@ def remove_title_from_lyrics(lyrics: str) -> str:
     return "\n".join(new_lines).strip()
 
 
-def generate_album_art(title: str, user_input: str) -> str:
-    """Generate album artwork using integrated function."""
-    artwork_prompt = (
-        f"Album cover for song '{title}' with theme {user_input}. "
-        "Do not include any text, lettering, or typography on the image."
-    )
-    output_file = f"songs/{title.replace(' ', '_')}_cover.jpg"
+def generate_album_art(
+    title: str, 
+    user_input: str, 
+    persona_name: Optional[str] = None, 
+    style: Optional[str] = None, 
+    mood: Optional[str] = None, 
+    vocal_gender: Optional[str] = None
+) -> str:
+    """Generate album artwork using integrated function with enriched prompt."""
+    
+    # Base prompt elements
+    prompt_parts = [f"Album cover for song '{title}'"]
+    
+    # Add user theme/prompt
+    prompt_parts.append(f"with theme '{user_input}'")
+    
+    # Add persona visual styles if available
+    if persona_name:
+        visual_styles = read_persona_visual_styles(persona_name)
+        if visual_styles:
+            prompt_parts.append(f"in styles: {visual_styles}")
+            
+    # Add song metadata for more context
+    metadata_context = []
+    if style:
+        metadata_context.append(f"style: {style}")
+    if mood:
+        metadata_context.append(f"mood: {mood}")
+    if vocal_gender:
+        metadata_context.append(f"vocal gender: {vocal_gender}")
+        
+    if metadata_context:
+        prompt_parts.append(f"({', '.join(metadata_context)})")
+        
+    # Final assembly
+    artwork_prompt = " ".join(prompt_parts) + ". Do not include any text, lettering, or typography on the image."
+    
+    # Debug print to verify prompt consistency
+    print(f"--- Art Prompt: {artwork_prompt}")
+    
+    # Use a timestamp to ensure unique filename for cache busting
+    timestamp = datetime.now().strftime("%H%M%S")
+    output_file = f"songs/{title.replace(' ', '_')}_{timestamp}_cover.jpg"
     os.makedirs("songs", exist_ok=True)
     try:
         generate_album_art_image(artwork_prompt, output_file)
