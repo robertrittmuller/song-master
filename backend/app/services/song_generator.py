@@ -187,13 +187,9 @@ class SongGenerationManager:
             db_gen = session.query(GenerationSession).filter(GenerationSession.song_id == song_id)
             db_gen.delete()
 
-            if not is_regeneration:
-                if song := session.get(Song, song_id):
-                    session.delete(song)
-            else:
-                 if song := session.get(Song, song_id):
-                    song.status = "error"
-                    song.error_message = str(exc)
+            if song := session.get(Song, song_id):
+                song.status = "error"
+                song.error_message = str(exc)
             
             session.commit()
 

@@ -127,9 +127,28 @@ def enhance_user_input(user_input: str, song_name: Optional[str], style: Optiona
     return "\n".join(parts)
 
 
+
+def remove_thinking_tags(text: str) -> str:
+    """Remove thinking tokens enclosed in <think></think> or <thought></thought> tags (including tags themselves)."""
+    import re
+    # Match <think>...</think> or <thought>...</thought>
+    # Case insensitive, handle optional spaces like <think >, handle unclosed tags at the end.
+    patterns = [
+        r'<(think|thought)[^>]*>.*?</\1>', # Closed tags
+        r'<(think|thought)[^>]*>.*$',       # Unclosed tags at end of string
+    ]
+    result = text
+    for pattern in patterns:
+        result = re.sub(pattern, '', result, flags=re.DOTALL | re.IGNORECASE)
+    return result.strip()
+
+
 def extract_title(lyrics: str, provided_title: Optional[str]) -> str:
     if provided_title:
         return provided_title
+    
+    # Clean thinking tags before extracting title
+    lyrics = remove_thinking_tags(lyrics)
     
     # Check for various title formats
     title_markers = ["Title:", "Song Title:", "## Song Title"]
@@ -163,7 +182,8 @@ def extract_title(lyrics: str, provided_title: Optional[str]) -> str:
 
 
 def remove_title_from_lyrics(lyrics: str) -> str:
-    """Strip the title block from the beginning of the LLM output."""
+    """Strip the title block from the beginning of the LLM output and remove thinking tokens."""
+    lyrics = remove_thinking_tags(lyrics)
     lines = lyrics.splitlines()
     if not lines:
         return lyrics

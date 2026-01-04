@@ -27,6 +27,7 @@ export type Song = {
   album_art?: string;
   album_id?: number | null;
   generation_config?: string;
+  error_message?: string;
 };
 
 export type SongStatus = {
@@ -36,6 +37,7 @@ export type SongStatus = {
   status: string;
   estimated_seconds_remaining?: number | null;
   logs: { timestamp: string; message: string }[];
+  error_message?: string | null;
 };
 
 export type Settings = {

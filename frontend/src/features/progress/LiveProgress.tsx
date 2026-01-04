@@ -7,9 +7,10 @@ import type { SongStatus } from "../../types/api";
 
 type Props = {
   songId: number;
+  onRetry?: () => void;
 };
 
-export function LiveProgress({ songId }: Props) {
+export function LiveProgress({ songId, onRetry }: Props) {
   const [wsStatus, setWsStatus] = useState<SongStatus | null>(null);
 
   const { data: httpStatus } = useQuery({
@@ -46,8 +47,41 @@ export function LiveProgress({ songId }: Props) {
       <div className="glass">
         <div className="section-title">
           <span>Live Logs</span>
-          <span className="pill">{status.status}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {(status.status === "failed" || status.status === "error") && onRetry && (
+              <button
+                type="button"
+                className="btn secondary"
+                style={{ padding: "4px 10px", fontSize: 13 }}
+                onClick={onRetry}
+              >
+                Retry Generation
+              </button>
+            )}
+            <span className="pill" style={{
+              background: (status.status === "failed" || status.status === "error") ? "rgba(239, 68, 68, 0.1)" : undefined,
+              color: (status.status === "failed" || status.status === "error") ? "#fca5a5" : undefined,
+              borderColor: (status.status === "failed" || status.status === "error") ? "rgba(239, 68, 68, 0.2)" : undefined,
+            }}>
+              {status.status}
+            </span>
+          </div>
         </div>
+
+        {(status.status === "failed" || status.status === "error") && status.error_message && (
+          <div style={{
+            margin: "12px 0",
+            padding: 12,
+            borderRadius: 12,
+            background: "rgba(239, 68, 68, 0.05)",
+            border: "1px solid rgba(239, 68, 68, 0.1)",
+            color: "#fca5a5",
+            fontSize: 14
+          }}>
+            <strong>Error:</strong> {status.error_message}
+          </div>
+        )}
+
         <div className="stack" style={{ marginTop: 12, maxHeight: 260, overflow: "auto" }}>
           {logs.map((log) => (
             <div

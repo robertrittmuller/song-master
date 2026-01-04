@@ -27,6 +27,7 @@ from helpers import (
     load_prompt_from_file,
     load_resources,
     parse_persona,
+    remove_thinking_tags,
     save_song,
 )
 
@@ -135,7 +136,7 @@ def generate_song_pipeline(
 
     def review_node(state: SongState):
         feedback = run_parallel_reviews(review_prompt, state["lyrics"], state["use_local"])
-        revised_lyrics = revise_lyrics(revision_prompt, state["lyrics"], feedback, state["use_local"])
+        revised_lyrics = remove_thinking_tags(revise_lyrics(revision_prompt, state["lyrics"], feedback, state["use_local"]))
         score = score_lyrics(scoring_prompt, revised_lyrics, state["use_local"])
         round_complete = state["round"] + 1
         notify(f"Review round {round_complete} complete (score {score:.2f})", 40 + min(round_complete * 5, 10))
@@ -148,7 +149,7 @@ def generate_song_pipeline(
         return "go_critic"
 
     def critic_node(state: SongState):
-        revised = critique_song(critic_prompt, revision_prompt, state["lyrics"], state["use_local"])
+        revised = remove_thinking_tags(critique_song(critic_prompt, revision_prompt, state["lyrics"], state["use_local"]))
         notify("Critic feedback applied", 55)
         return {"lyrics": revised}
 
@@ -169,7 +170,7 @@ def generate_song_pipeline(
         """Revise lyrics specifically to address preflight issues."""
         issues = state.get("preflight_issues", [])
         feedback = "Fix these preflight issues:\n" + "\n".join(f"- {issue}" for issue in issues)
-        revised = revise_lyrics(revision_prompt, state["lyrics"], feedback, state["use_local"])
+        revised = remove_thinking_tags(revise_lyrics(revision_prompt, state["lyrics"], feedback, state["use_local"]))
         notify("Applied targeted fixes from preflight", 50)
         return {"lyrics": revised, "feedback": feedback, "round": state["round"] + 1}
 

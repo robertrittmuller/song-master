@@ -187,7 +187,12 @@ export function SongDetailPage() {
           </div>
         </div>
 
-        {song.status !== "completed" && Number.isFinite(songId) && <LiveProgress songId={songId} />}
+        {song.status !== "completed" && Number.isFinite(songId) && (
+          <LiveProgress
+            songId={songId}
+            onRetry={() => regenerateLyricsMutation.mutate(song.id)}
+          />
+        )}
       </Card>
 
       {song.status === "completed" && (

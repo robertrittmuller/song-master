@@ -149,7 +149,7 @@ def get_llm(use_local: bool = False):
 
 def build_prompts():
     """Build and return all prompt templates for song generation."""
-    from helpers import read_prompt
+    from helpers import read_prompt, remove_thinking_tags
 
     song_drafter_template = read_prompt("song_drafter")
     song_review_template = read_prompt("song_review")
@@ -300,7 +300,9 @@ def score_lyrics(prompt_template: PromptTemplate, lyrics: str, use_local: bool) 
     formatted_prompt = prompt_template.format(lyrics=lyrics)
     try:
         raw = get_llm(use_local).invoke(formatted_prompt)
-        parsed = json.loads(raw)
+        from helpers import remove_thinking_tags
+        clean_raw = remove_thinking_tags(raw)
+        parsed = json.loads(clean_raw)
         return float(parsed.get("score", 0))
     except Exception:
         return 0.0
@@ -340,7 +342,9 @@ def triage_preflight(prompt_template: PromptTemplate, preflight_output: str, use
     formatted = prompt_template.format(preflight_output=preflight_output)
     try:
         raw = get_llm(use_local).invoke(formatted)
-        parsed = json.loads(raw)
+        from helpers import remove_thinking_tags
+        clean_raw = remove_thinking_tags(raw)
+        parsed = json.loads(clean_raw)
         passed = bool(parsed.get("pass", False))
         issues = parsed.get("issues", [])
         if isinstance(issues, str):
@@ -370,7 +374,9 @@ def generate_metadata_summary(prompt_template: PromptTemplate, lyrics: str, user
     )
     try:
         raw = get_llm(use_local).invoke(formatted_prompt)
-        parsed = json.loads(raw)
+        from helpers import remove_thinking_tags
+        clean_raw = remove_thinking_tags(raw)
+        parsed = json.loads(clean_raw)
         description = parsed.get("description") or fallback["description"]
         styles = parsed.get("suno_styles") or fallback["suno_styles"]
         exclude_styles = parsed.get("suno_exclude_styles") or fallback["suno_exclude_styles"]
