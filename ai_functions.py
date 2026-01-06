@@ -421,25 +421,19 @@ def review_song_with_audio(lyrics: str, audio_path: str, use_local: bool) -> str
     except Exception as e:
         return f"Error reading audio file: {str(e)}"
 
-    # Select best available credentials and model (match get_llm auth behavior)
-    litellm_model = os.getenv("LITELLM_MODEL")
+    # Use the LiteLLM multimodal model for live feedback
+    litellm_model = os.getenv("LITELLM_MULTIMODAL_MODEL")
     litellm_api_key = os.getenv("LITELLM_API_KEY")
     litellm_base_url = os.getenv("LITELLM_API_BASE")
-    
-    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-    openrouter_base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-    
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    openai_multimodal_model = os.getenv("OPENAI_MULTIMODAL_MODEL", "gpt-4o-audio-preview")
-    
-    main_model = os.getenv("LLM_MODEL")
 
     def _is_real_key(value: Optional[str]) -> bool:
         return bool(value and value != "your_openrouter_api_key_here")
 
     litellm_api_key = litellm_api_key if _is_real_key(litellm_api_key) else None
-    openrouter_api_key = openrouter_api_key if _is_real_key(openrouter_api_key) else None
-    
+
+    if not litellm_model:
+        return "Multimodal LLM error: LITELLM_MULTIMODAL_MODEL is not set."
+
     # Headers often required/recommended for OpenRouter
     extra_headers = {
         "HTTP-Referer": "https://github.com/google-deepmind/song-master",
@@ -447,74 +441,9 @@ def review_song_with_audio(lyrics: str, audio_path: str, use_local: bool) -> str
     }
 
     try:
-        # 1. LiteLLM Strategy (if a specific litellm model is set)
-        if litellm_model:
-            kwargs = {
-                "model": litellm_model,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": f"{system_prompt}\n\nLyrics:\n{lyrics}"},
-                            {
-                                "type": "input_audio",
-                                "input_audio": {
-                                    "data": audio_base64,
-                                    "format": "mp3"
-                                }
-                            }
-                        ]
-                    }
-                ],
-                "extra_headers": extra_headers if "openrouter" in (litellm_base_url or "").lower() or "openrouter" in litellm_model.lower() else None
-            }
-            if litellm_api_key:
-                kwargs["api_key"] = litellm_api_key
-            if litellm_base_url:
-                kwargs["api_base"] = litellm_base_url
-                
-            response = completion(**kwargs)
-            return response.choices[0].message.content
-
-        # 2. OpenRouter Strategy (via OpenAI client for maximum reliability)
-        if openrouter_api_key and openrouter_api_key != "your_openrouter_api_key_here":
-            client = openai.OpenAI(
-                api_key=openrouter_api_key,
-                base_url=openrouter_base_url,
-                default_headers=extra_headers
-            )
-            # Use gpt-4o-audio-preview as default for multimodal if the main model isn't one
-            model_to_use = main_model if main_model and "audio" in main_model else openai_multimodal_model
-            
-            completion_res = client.chat.completions.create(
-                model=model_to_use,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": f"{system_prompt}\n\nLyrics:\n{lyrics}"},
-                            {
-                                "type": "input_audio",
-                                "input_audio": {
-                                    "data": audio_base64,
-                                    "format": "mp3"
-                                }
-                            }
-                        ]
-                    }
-                ]
-            )
-            return completion_res.choices[0].message.content
-
-        # 3. Pure OpenAI Strategy
-        if not openai_api_key:
-             return "Multimodal LLM error: No valid configuration found. Please set LITELLM_MODEL, OPENROUTER_API_KEY, or OPENAI_API_KEY."
-
-        client = openai.OpenAI(api_key=openai_api_key)
-        completion_res = client.chat.completions.create(
-            model=openai_multimodal_model,
-            modalities=["text"], # modalities is supported by gpt-4o-audio-preview
-            messages=[
+        kwargs = {
+            "model": litellm_model,
+            "messages": [
                 {
                     "role": "user",
                     "content": [
@@ -528,8 +457,15 @@ def review_song_with_audio(lyrics: str, audio_path: str, use_local: bool) -> str
                         }
                     ]
                 }
-            ]
-        )
-        return completion_res.choices[0].message.content
+            ],
+            "extra_headers": extra_headers if "openrouter" in (litellm_base_url or "").lower() or "openrouter" in litellm_model.lower() else None
+        }
+        if litellm_api_key:
+            kwargs["api_key"] = litellm_api_key
+        if litellm_base_url:
+            kwargs["api_base"] = litellm_base_url
+
+        response = completion(**kwargs)
+        return response.choices[0].message.content
     except Exception as e:
         return f"Error calling multimodal LLM: {str(e)}"
