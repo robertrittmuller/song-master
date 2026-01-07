@@ -436,8 +436,8 @@ def review_song_with_audio(lyrics: str, audio_path: str, use_local: bool) -> str
 
     # Headers often required/recommended for OpenRouter
     extra_headers = {
-        "HTTP-Referer": "https://github.com/google-deepmind/song-master",
-        "X-Title": "Song Master Web",
+        "HTTP-Referer": "https://github.com/robertrittmuller/song-master",
+        "X-Title": "Song Master Web App",
     }
 
     try:
