@@ -6,10 +6,100 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import OpenAI
+import litellm
 from litellm import completion
 
 load_dotenv()
-import openai
+
+
+def _is_truthy_env(value: Optional[str]) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _is_real_langfuse_key(value: Optional[str]) -> bool:
+    if not value:
+        return False
+    trimmed = value.strip()
+    if not trimmed:
+        return False
+    lowered = trimmed.lower()
+    return not lowered.startswith("your_langfuse_")
+
+
+_LANGFUSE_ACTIVE = (
+    _is_truthy_env(os.getenv("LANGFUSE_ENABLED"))
+    and _is_real_langfuse_key(os.getenv("LANGFUSE_PUBLIC_KEY"))
+    and _is_real_langfuse_key(os.getenv("LANGFUSE_SECRET_KEY"))
+)
+
+if _LANGFUSE_ACTIVE:
+    from langfuse.openai import openai
+else:
+    import openai
+
+_LANGFUSE_CONFIGURED = False
+_LANGFUSE_LANGCHAIN_HANDLER = None
+
+
+def _get_litellm_langfuse_callback() -> Optional[str]:
+    if not _LANGFUSE_ACTIVE:
+        return None
+    try:
+        from langfuse import Langfuse
+    except Exception:
+        return None
+    if hasattr(Langfuse, "trace"):
+        return "langfuse"
+    return "langfuse_otel"
+
+
+def _patch_langfuse_sdk_integration() -> None:
+    if not _LANGFUSE_ACTIVE:
+        return
+    try:
+        import inspect
+        from langfuse import Langfuse
+    except Exception:
+        return
+    if "sdk_integration" in inspect.signature(Langfuse.__init__).parameters:
+        return
+    original_init = Langfuse.__init__
+
+    def _patched_init(self, *args, **kwargs):
+        kwargs.pop("sdk_integration", None)
+        return original_init(self, *args, **kwargs)
+
+    Langfuse.__init__ = _patched_init
+
+
+def _configure_langfuse() -> None:
+    global _LANGFUSE_CONFIGURED
+    if _LANGFUSE_CONFIGURED or not _LANGFUSE_ACTIVE:
+        return
+    _LANGFUSE_CONFIGURED = True
+    callback_name = _get_litellm_langfuse_callback()
+    if not callback_name:
+        return
+    for callback_list in (litellm.success_callback, litellm.failure_callback):
+        if callback_name not in callback_list:
+            callback_list.append(callback_name)
+
+
+def _get_langfuse_langchain_handler():
+    global _LANGFUSE_LANGCHAIN_HANDLER
+    if not _LANGFUSE_ACTIVE:
+        return None
+    if _LANGFUSE_LANGCHAIN_HANDLER is None:
+        try:
+            from langfuse.langchain import CallbackHandler
+        except Exception:
+            return None
+        _LANGFUSE_LANGCHAIN_HANDLER = CallbackHandler()
+    return _LANGFUSE_LANGCHAIN_HANDLER
+
+
+_patch_langfuse_sdk_integration()
+_configure_langfuse()
 
 # LLM instance will be created fresh for every call to get_llm
 
@@ -139,11 +229,13 @@ def get_llm(use_local: bool = False):
     if not openai_api_key:
         raise ValueError("Neither OPENROUTER_API_KEY nor OPENAI_API_KEY found in environment variables")
 
+    langfuse_handler = _get_langfuse_langchain_handler()
     return OpenAI(
         temperature=temperature,
         model=model,
         max_tokens=max_tokens,
         openai_api_key=openai_api_key,
+        callbacks=[langfuse_handler] if langfuse_handler else None,
     )
 
 

@@ -1,7 +1,37 @@
 import os
 import sys
 import base64
-from openai import OpenAI
+from typing import Optional
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def _is_truthy_env(value: Optional[str]) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _is_real_langfuse_key(value: Optional[str]) -> bool:
+    if not value:
+        return False
+    trimmed = value.strip()
+    if not trimmed:
+        return False
+    lowered = trimmed.lower()
+    return not lowered.startswith("your_langfuse_")
+
+
+_LANGFUSE_ACTIVE = (
+    _is_truthy_env(os.getenv("LANGFUSE_ENABLED"))
+    and _is_real_langfuse_key(os.getenv("LANGFUSE_PUBLIC_KEY"))
+    and _is_real_langfuse_key(os.getenv("LANGFUSE_SECRET_KEY"))
+)
+
+if _LANGFUSE_ACTIVE:
+    from langfuse.openai import OpenAI
+else:
+    from openai import OpenAI
 
 base_prompt = "You are an AI that generates album cover art based on textual descriptions in portrait aspect ratio. Create a visually striking and unique album cover art image based on the following description: "
 
