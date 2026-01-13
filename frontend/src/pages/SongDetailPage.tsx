@@ -8,7 +8,7 @@ import { LiveProgress } from "../features/progress/LiveProgress";
 import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
 import { LyricVersionTabs } from "../features/songViewer/LyricVersionTabs";
 import { LyricDiffView } from "../features/songViewer/LyricDiffView";
-import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, regenerateLyrics, uploadLiveFeedback } from "../services/api";
+import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, regenerateLyrics, uploadLiveFeedback, fetchPersonas } from "../services/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -27,6 +27,11 @@ export function SongDetailPage() {
   const { data: albums = [] } = useQuery({
     queryKey: ["albums"],
     queryFn: fetchAlbums
+  });
+
+  const { data: personas = [] } = useQuery({
+    queryKey: ["personas"],
+    queryFn: fetchPersonas
   });
 
   const deleteMutation = useMutation({
@@ -52,7 +57,16 @@ export function SongDetailPage() {
   });
 
   const updateSongMutation = useMutation({
-    mutationFn: (payload: { album_id: number | null }) => updateSong(songId, payload),
+    mutationFn: (payload: { album_id?: number | null; persona?: string | null }) => {
+      const apiPayload: Record<string, unknown> = {};
+      if (payload.album_id !== undefined) apiPayload.album_id = payload.album_id;
+      if (payload.persona !== undefined) {
+        // If payload.persona is null, we want to send null to the backend to clear it
+        // If it's a string, we slugify it
+        apiPayload.persona = payload.persona ? payload.persona.toLowerCase().replace(/\s+/g, "_") : null;
+      }
+      return updateSong(songId, apiPayload as Partial<import("../types/api").Song>);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["song", songId] });
       queryClient.invalidateQueries({ queryKey: ["songs"] });
@@ -351,9 +365,26 @@ export function SongDetailPage() {
 
             <Card title="Metadata">
               <div className="stack" style={{ gap: 16 }}>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <div className="tag" style={{ background: "rgba(255,255,255,0.1)" }}>Persona: {song.persona || "—"}</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                   <div className="tag" style={{ background: "rgba(255,255,255,0.1)" }}>Mode: {song.use_local ? "Local" : "Remote"}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span className="tag" style={{ background: "rgba(255,255,255,0.1)" }}>Persona:</span>
+                    <select
+                      className="input"
+                      style={{ padding: "4px 8px", fontSize: 12, minWidth: 120 }}
+                      value={song.persona ? song.persona.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) : ""}
+                      onChange={(e) => {
+                        const val = e.target.value || null;
+                        updateSongMutation.mutate({ persona: val });
+                      }}
+                      disabled={updateSongMutation.isPending}
+                    >
+                      <option value="">None</option>
+                      {personas.map((p) => (
+                        <option key={p.name} value={p.name}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 {metadata?.suno_styles && (

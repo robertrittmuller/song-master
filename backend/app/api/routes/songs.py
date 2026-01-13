@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from backend.app.db.deps import get_db
 from backend.app.models import GenerationSession, Song
 from backend.app.schemas import SongCreate, SongDetail, SongRead, SongStatus, SongUpdate
+from backend.app.services.persona_service import sync_persona_style_tags
 from backend.app.services.song_generator import generation_manager
 
 router = APIRouter(prefix="/api/songs", tags=["songs"])
@@ -81,12 +82,65 @@ async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> Son
 def update_song(
     song_id: int, payload: SongUpdate, db: Session = Depends(get_db)
 ) -> SongDetail:
-    """Update song metadata (e.g., move to an album)."""
+    """Update song metadata (e.g., move to an album, change persona)."""
+    import json
+
     song = db.get(Song, song_id)
     if not song:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
 
     update_data = payload.model_dump(exclude_unset=True)
+
+    # Handle persona changes and sync style tags
+    if "persona" in update_data:
+        new_persona = update_data["persona"]
+        old_persona = song.persona
+        
+        # Only process if there's actually a change
+        if new_persona != old_persona:
+            added_tags, removed_tags = sync_persona_style_tags(old_persona, new_persona)
+            
+            # Log the persona style tag changes
+            if added_tags or removed_tags:
+                print(f"Persona change: {old_persona} -> {new_persona}")
+                if added_tags:
+                    print(f"  Added style tags: {added_tags}")
+                if removed_tags:
+                    print(f"  Removed style tags: {removed_tags}")
+
+            # Update metadata_json with the new persona's style tags
+            metadata = {}
+            if song.metadata_json:
+                try:
+                    metadata = json.loads(song.metadata_json)
+                except:
+                    pass
+
+            # Get current suno_styles or default to empty list
+            current_styles = metadata.get("suno_styles", [])
+            if isinstance(current_styles, str):
+                current_styles = [s.strip() for s in current_styles.split(",") if s.strip()]
+            elif not isinstance(current_styles, list):
+                current_styles = []
+
+            # Remove old persona tags
+            if removed_tags:
+                current_styles = [s for s in current_styles if s not in removed_tags]
+
+            # Add new persona tags
+            if added_tags:
+                current_styles.extend(added_tags)
+                # Remove duplicates while preserving order
+                seen = set()
+                unique_styles = []
+                for s in current_styles:
+                    if s not in seen:
+                        seen.add(s)
+                        unique_styles.append(s)
+                current_styles = unique_styles
+
+            metadata["suno_styles"] = current_styles
+            song.metadata_json = json.dumps(metadata)
     for key, value in update_data.items():
         setattr(song, key, value)
 
