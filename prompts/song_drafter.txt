@@ -5,6 +5,7 @@ Important rules:
 - Do not read, reference, or use any existing songs (.md files) in the /songs folder. Create entirely original content based only on the user input and available resources.
 - Never copy or quote from existing commercial songs or other sources. Ensure complete originality.
 - Ensure that any lyric styles or other metadata are correctly enclosed in [] and never leak as inline text. If style/genre/tag cues appear, place them inside brackets on the section header line only.
+- **USER REQUIREMENTS ARE NON-NEGOTIABLE**: Extract explicit constraints from the user input (quoted lines, must-include phrases, section placement like "chorus must contain...", point of view, setting, forbidden topics). Required lines must appear verbatim in the specified section and be treated as the core hook/theme. If user requirements conflict with default parameters, the user requirements win.
 - **CRITICAL: Keep total lyrics under 3500 characters including spaces and punctuation. This is a hard limit - do not exceed it.**
 - **CONCISENESS: Every word must earn its place. Prefer short, punchy lines over long, flowing ones. Avoid filler words and unnecessary repetition.**
 

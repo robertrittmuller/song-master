@@ -56,21 +56,62 @@ Data is stored in `backend/data/song_master.db`. Personas/styles are read from t
 
 ## Installation
 
+### Option 1: Docker Compose (Recommended)
+
 1. Clone the repository:
 ```bash
 git clone https://github.com/your-username/song-master.git
 cd song-master
 ```
 
-2. Install dependencies:
+2. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your API keys and configuration
+```
+
+3. Start all services with Docker Compose:
+```bash
+docker-compose up --dev
+```
+
+4. Access the application:
+   - Frontend: http://localhost:5173
+   - Backend API: http://localhost:8000
+   - API Documentation: http://localhost:8000/docs
+
+### Option 2: Local Development
+
+1. Clone the repository:
+```bash
+git clone https://github.com/your-username/song-master.git
+cd song-master
+```
+
+2. Install Python dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Set up environment variables:
+3. Install frontend dependencies:
+```bash
+cd frontend && npm install
+```
+
+4. Set up environment variables:
 ```bash
 cp .env.example .env
 # Edit .env with your API keys and configuration
+```
+
+5. Start the backend:
+```bash
+uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+6. Start the frontend (in a new terminal):
+```bash
+cd frontend && npm run dev
 ```
 
 ## Usage

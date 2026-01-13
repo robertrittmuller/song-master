@@ -139,8 +139,21 @@ def generate_song_pipeline(
         return {"lyrics": clean_lyrics, "song_name": title}
 
     def review_node(state: SongState):
-        feedback = run_parallel_reviews(review_prompt, state["lyrics"], state["use_local"])
-        revised_lyrics = remove_thinking_tags(revise_lyrics(revision_prompt, state["lyrics"], feedback, state["use_local"]))
+        feedback = run_parallel_reviews(
+            review_prompt,
+            state["lyrics"],
+            state["use_local"],
+            user_input=state["user_input"],
+        )
+        revised_lyrics = remove_thinking_tags(
+            revise_lyrics(
+                revision_prompt,
+                state["lyrics"],
+                feedback,
+                state["use_local"],
+                user_input=state["user_input"],
+            )
+        )
         score = score_lyrics(scoring_prompt, revised_lyrics, state["use_local"])
         round_complete = state["round"] + 1
         notify(f"Review round {round_complete} complete (score {score:.2f})", 40 + min(round_complete * 5, 10))
@@ -153,12 +166,27 @@ def generate_song_pipeline(
         return "go_critic"
 
     def critic_node(state: SongState):
-        revised = remove_thinking_tags(critique_song(critic_prompt, revision_prompt, state["lyrics"], state["use_local"]))
+        revised = remove_thinking_tags(
+            critique_song(
+                critic_prompt,
+                revision_prompt,
+                state["lyrics"],
+                state["use_local"],
+                user_input=state["user_input"],
+            )
+        )
         notify("Critic feedback applied", 55)
         return {"lyrics": revised}
 
     def preflight_node(state: SongState):
-        raw = preflight_song(preflight_prompt, state["lyrics"], state["resources"].styles, state["resources"].tags, state["use_local"])
+        raw = preflight_song(
+            preflight_prompt,
+            state["lyrics"],
+            state["resources"].styles,
+            state["resources"].tags,
+            state["use_local"],
+            user_input=state["user_input"],
+        )
         triaged = triage_preflight(preflight_triage_prompt, raw, state["use_local"])
         passed = bool(triaged.get("pass", False))
         issues = triaged.get("issues", [])
@@ -174,7 +202,15 @@ def generate_song_pipeline(
         """Revise lyrics specifically to address preflight issues."""
         issues = state.get("preflight_issues", [])
         feedback = "Fix these preflight issues:\n" + "\n".join(f"- {issue}" for issue in issues)
-        revised = remove_thinking_tags(revise_lyrics(revision_prompt, state["lyrics"], feedback, state["use_local"]))
+        revised = remove_thinking_tags(
+            revise_lyrics(
+                revision_prompt,
+                state["lyrics"],
+                feedback,
+                state["use_local"],
+                user_input=state["user_input"],
+            )
+        )
         notify("Applied targeted fixes from preflight", 50)
         return {"lyrics": revised, "feedback": feedback, "round": state["round"] + 1}
 

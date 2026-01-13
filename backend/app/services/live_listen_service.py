@@ -32,7 +32,15 @@ async def process_live_listen_feedback(song_id: int, file: UploadFile, song_data
         _, _, _, _, revision_prompt, _, _, _ = build_prompts()
 
         # Revise lyrics based on feedback
-        revised_lyrics = remove_thinking_tags(revise_lyrics(revision_prompt, current_lyrics, feedback, use_local))
+        revised_lyrics = remove_thinking_tags(
+            revise_lyrics(
+                revision_prompt,
+                current_lyrics,
+                feedback,
+                use_local,
+                user_input=song_data.get("user_prompt", ""),
+            )
+        )
 
         # Update the song in the database (or wherever it persists)
         # We need to simulate the state update that song_pipeline does, but for a single update.

@@ -277,7 +277,7 @@ def generate_album_art(
         prompt_parts.append(f"({', '.join(metadata_context)})")
         
     # Final assembly
-    artwork_prompt = " ".join(prompt_parts) + ". Do not include any text, lettering, or typography on the image."
+    artwork_prompt = " ".join(prompt_parts)
     
     # Debug print to verify prompt consistency
     print(f"--- Art Prompt: {artwork_prompt}")

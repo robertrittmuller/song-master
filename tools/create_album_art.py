@@ -33,7 +33,18 @@ if _LANGFUSE_ACTIVE:
 else:
     from openai import OpenAI
 
-base_prompt = "You are an AI that generates album cover art based on textual descriptions in portrait aspect ratio. Create a visually striking and unique album cover art image based on the following description: "
+def _load_album_art_prompt() -> str:
+    prompt_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, "prompts", "album_art.txt"))
+    if not os.path.isfile(prompt_path):
+        raise FileNotFoundError(f"Album art prompt not found: {prompt_path}")
+    with open(prompt_path, "r") as file:
+        return file.read().strip()
+
+
+def _build_album_art_prompt(user_prompt: str) -> str:
+    base_prompt = _load_album_art_prompt()
+    separator = "" if base_prompt.endswith((" ", "\n", "\t")) else " "
+    return f"{base_prompt}{separator}{user_prompt}"
 
 def generate_album_art_image(prompt: str, output_file: str) -> None:
     """
@@ -60,7 +71,7 @@ def generate_album_art_image(prompt: str, output_file: str) -> None:
     # Request image
     response = client.chat.completions.create(
         model="google/gemini-3-pro-image-preview",
-        messages=[{"role": "user", "content": base_prompt + prompt}],
+        messages=[{"role": "user", "content": _build_album_art_prompt(prompt)}],
         extra_body={"modalities": ["image", "text"]},
     )
 

@@ -26,10 +26,29 @@ def _is_real_langfuse_key(value: Optional[str]) -> bool:
     return not lowered.startswith("your_langfuse_")
 
 
+def _check_langfuse_server_available() -> bool:
+    """Check if the langfuse server is reachable before enabling langfuse."""
+    import socket
+    host = os.getenv("LANGFUSE_HOST", "http://localhost:3000").replace("http://", "").replace("https://", "").split("/")[0]
+    port = 3000
+    if ":" in host:
+        host, port_str = host.split(":")
+        port = int(port_str)
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        result = sock.connect_ex((host, port))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
+
+
 _LANGFUSE_ACTIVE = (
     _is_truthy_env(os.getenv("LANGFUSE_ENABLED"))
     and _is_real_langfuse_key(os.getenv("LANGFUSE_PUBLIC_KEY"))
     and _is_real_langfuse_key(os.getenv("LANGFUSE_SECRET_KEY"))
+    and _check_langfuse_server_available()
 )
 
 if _LANGFUSE_ACTIVE:
@@ -80,9 +99,17 @@ def _configure_langfuse() -> None:
     callback_name = _get_litellm_langfuse_callback()
     if not callback_name:
         return
-    for callback_list in (litellm.success_callback, litellm.failure_callback):
-        if callback_name not in callback_list:
-            callback_list.append(callback_name)
+    try:
+        for callback_list in (litellm.success_callback, litellm.failure_callback):
+            if callback_name not in callback_list:
+                callback_list.append(callback_name)
+    except Exception as e:
+        # Log the error but don't fail - langfuse server may be unavailable
+        import logging
+        logging.warning(f"Failed to configure langfuse callback (langfuse server may be down): {e}")
+        # Disable langfuse to prevent further connection attempts
+        global _LANGFUSE_ACTIVE
+        _LANGFUSE_ACTIVE = False
 
 
 def _get_langfuse_langchain_handler():
@@ -94,7 +121,16 @@ def _get_langfuse_langchain_handler():
             from langfuse.langchain import CallbackHandler
         except Exception:
             return None
-        _LANGFUSE_LANGCHAIN_HANDLER = CallbackHandler()
+        try:
+            _LANGFUSE_LANGCHAIN_HANDLER = CallbackHandler()
+        except Exception as e:
+            # Log the error but don't fail - langfuse server may be unavailable
+            import logging
+            logging.warning(f"Failed to create langfuse handler (langfuse server may be down): {e}")
+            # Disable langfuse to prevent further connection attempts
+            global _LANGFUSE_ACTIVE
+            _LANGFUSE_ACTIVE = False
+            return None
     return _LANGFUSE_LANGCHAIN_HANDLER
 
 
@@ -271,38 +307,47 @@ Output your draft as a basic song structure plus lyrics.
     )
 
     song_review_prompt = PromptTemplate(
-        input_variables=["lyrics"],
+        input_variables=["lyrics", "user_input"],
         template=f"""
 {song_review_template}
+
+User Input: {{user_input}}
 
 Lyrics: {{lyrics}}
 """,
     )
 
     song_critic_prompt = PromptTemplate(
-        input_variables=["lyrics"],
+        input_variables=["lyrics", "user_input"],
         template=f"""
 {song_critic_template}
+
+User Input: {{user_input}}
 
 Lyrics: {{lyrics}}
 """,
     )
 
     song_preflight_prompt = PromptTemplate(
-        input_variables=["lyrics", "styles", "tags"],
+        input_variables=["lyrics", "styles", "tags", "user_input"],
         template=f"""
 {song_preflight_template}
 
 Styles: {{styles}}
 Tags: {{tags}}
 
+User Input: {{user_input}}
+
 Lyrics: {{lyrics}}
 """,
     )
 
     song_revision_prompt = PromptTemplate(
-        input_variables=["lyrics", "feedback"],
+        input_variables=["lyrics", "feedback", "user_input"],
         template=f"""{song_revision_template}
+
+User Input:
+{{user_input}}
 
 Lyrics:
 {{lyrics}}
@@ -371,15 +416,27 @@ def draft_song(prompt_template: PromptTemplate, enhanced_input: str, styles: Dic
     return get_llm(use_local).invoke(formatted_prompt)
 
 
-def revise_lyrics(prompt_template: PromptTemplate, lyrics: str, feedback: str, use_local: bool) -> str:
-    formatted_prompt = prompt_template.format(lyrics=lyrics, feedback=feedback)
+def revise_lyrics(
+    prompt_template: PromptTemplate,
+    lyrics: str,
+    feedback: str,
+    use_local: bool,
+    user_input: str = "",
+) -> str:
+    formatted_prompt = prompt_template.format(lyrics=lyrics, feedback=feedback, user_input=user_input)
     return get_llm(use_local).invoke(formatted_prompt)
 
 
-def run_parallel_reviews(prompt_template: PromptTemplate, lyrics: str, use_local: bool, reviewer_count: int = 3) -> str:
+def run_parallel_reviews(
+    prompt_template: PromptTemplate,
+    lyrics: str,
+    use_local: bool,
+    reviewer_count: int = 3,
+    user_input: str = "",
+) -> str:
     """Run multiple AI reviewers in parallel and merge their feedback."""
     def _call(_):
-        formatted_prompt = prompt_template.format(lyrics=lyrics)
+        formatted_prompt = prompt_template.format(lyrics=lyrics, user_input=user_input)
         return get_llm(use_local).invoke(formatted_prompt)
 
     with ThreadPoolExecutor(max_workers=reviewer_count) as executor:
@@ -400,29 +457,54 @@ def score_lyrics(prompt_template: PromptTemplate, lyrics: str, use_local: bool) 
         return 0.0
 
 
-def review_song(prompt_template: PromptTemplate, revision_prompt: PromptTemplate, scoring_prompt: PromptTemplate, lyrics: str, use_local: bool, reviewer_count: int = 3, score_threshold: float = 8.0, max_rounds: int = 2) -> str:
+def review_song(
+    prompt_template: PromptTemplate,
+    revision_prompt: PromptTemplate,
+    scoring_prompt: PromptTemplate,
+    lyrics: str,
+    use_local: bool,
+    reviewer_count: int = 3,
+    score_threshold: float = 8.0,
+    max_rounds: int = 2,
+    user_input: str = "",
+) -> str:
     for _ in range(max_rounds):
-        feedback = run_parallel_reviews(prompt_template, lyrics, use_local, reviewer_count=reviewer_count)
-        lyrics = revise_lyrics(revision_prompt, lyrics, feedback, use_local)
+        feedback = run_parallel_reviews(
+            prompt_template, lyrics, use_local, reviewer_count=reviewer_count, user_input=user_input
+        )
+        lyrics = revise_lyrics(revision_prompt, lyrics, feedback, use_local, user_input=user_input)
         score = score_lyrics(scoring_prompt, lyrics, use_local)
         if score >= score_threshold:
             break
     return lyrics
 
 
-def critique_song(prompt_template: PromptTemplate, revision_prompt: PromptTemplate, lyrics: str, use_local: bool) -> str:
-    formatted_prompt = prompt_template.format(lyrics=lyrics)
+def critique_song(
+    prompt_template: PromptTemplate,
+    revision_prompt: PromptTemplate,
+    lyrics: str,
+    use_local: bool,
+    user_input: str = "",
+) -> str:
+    formatted_prompt = prompt_template.format(lyrics=lyrics, user_input=user_input)
     raw_feedback = get_llm(use_local).invoke(formatted_prompt)
     try:
         parsed = json.loads(raw_feedback)
         feedback = parsed.get("feedback", raw_feedback)
     except Exception:
         feedback = raw_feedback
-    return revise_lyrics(revision_prompt, lyrics, feedback, use_local)
+    return revise_lyrics(revision_prompt, lyrics, feedback, use_local, user_input=user_input)
 
 
-def preflight_song(prompt_template: PromptTemplate, lyrics: str, styles: Dict[str, str], tags: Dict[str, str], use_local: bool) -> str:
-    formatted_prompt = prompt_template.format(lyrics=lyrics, styles=str(styles), tags=str(tags))
+def preflight_song(
+    prompt_template: PromptTemplate,
+    lyrics: str,
+    styles: Dict[str, str],
+    tags: Dict[str, str],
+    use_local: bool,
+    user_input: str = "",
+) -> str:
+    formatted_prompt = prompt_template.format(lyrics=lyrics, styles=str(styles), tags=str(tags), user_input=user_input)
     return get_llm(use_local).invoke(formatted_prompt)
 
 
