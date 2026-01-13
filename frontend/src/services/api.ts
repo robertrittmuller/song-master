@@ -14,6 +14,32 @@ export async function fetchPersonas(): Promise<Persona[]> {
   return data;
 }
 
+export async function fetchPersona(name: string): Promise<Persona> {
+  const { data } = await client.get<Persona>(`/api/personas/${name}`);
+  return data;
+}
+
+export async function createPersona(payload: {
+  name: string;
+  styles: string;
+  visual_styles?: string;
+}): Promise<Persona> {
+  const { data } = await client.post<Persona>("/api/personas", payload);
+  return data;
+}
+
+export async function updatePersona(
+  name: string,
+  payload: Partial<{ styles: string; visual_styles: string }>
+): Promise<Persona> {
+  const { data } = await client.put<Persona>(`/api/personas/${name}`, payload);
+  return data;
+}
+
+export async function deletePersona(name: string): Promise<void> {
+  await client.delete(`/api/personas/${name}`);
+}
+
 export async function fetchSettings(): Promise<Settings> {
   const { data } = await client.get<Settings>("/api/settings");
   return data;

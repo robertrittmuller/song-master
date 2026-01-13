@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 
 const nav = [
   { path: "/", label: "Home" },
+  { path: "/personas", label: "Personas" },
   { path: "/dashboard", label: "Albums" },
   { path: "/generate", label: "Generate" },
   { path: "/settings", label: "Settings" }

@@ -2,6 +2,7 @@ export type Persona = {
   name: string;
   description?: string;
   styles?: string;
+  visual_styles?: string;
 };
 
 export type Album = {

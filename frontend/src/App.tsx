@@ -6,6 +6,7 @@ import { GeneratePage } from "./pages/GeneratePage";
 import { LandingPage } from "./pages/LandingPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SongDetailPage } from "./pages/SongDetailPage";
+import { PersonasPage } from "./pages/PersonasPage";
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/personas" element={<PersonasPage />} />
         <Route path="/generate" element={<GeneratePage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/songs/:songId" element={<SongDetailPage />} />
