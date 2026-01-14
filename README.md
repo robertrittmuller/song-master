@@ -27,7 +27,7 @@ The latest release introduces a modern, feature-rich web interface with intuitiv
 | ![Dashboard](images/screencapture-localhost-5173-dashboard-2026-01-13-22_08_25.png) | ![Generate](images/screencapture-localhost-5173-generate-2026-01-13-22_09_35.png) |
 | The centralized dashboard provides quick access to recent songs, generation statistics, and navigation to all major features. Track your creative workflow at a glance with an intuitive layout designed for efficiency. | The generation page offers a streamlined interface for creating new songs with style selection, persona customization, and real-time feedback during the AI songwriting process. |
 
-| **Song Library - Grid View** | **Song Library - List View** |
+| **Song Edits - Live Listen** | **Song Library - List View** |
 |:---:|:---:|
 | ![Song Change Tracking](images/screencapture-localhost-5173-songs-22-2026-01-13-22_06_53.png) | ![Songs List](images/screencapture-localhost-5173-songs-22-2026-01-13-22_07_37.png) |
 | Use the "Live Listen" feature to get AI-powered feedback on your Suno generated song! | The detailed list view presents comprehensive song metadata including creation date, style tags, and status indicators, perfect for sorting and filtering your growing library. |
