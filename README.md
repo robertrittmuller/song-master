@@ -18,6 +18,27 @@ Quick start:
 
 Data is stored in `backend/data/song_master.db`. Personas/styles are read from the existing repo assets so the web app matches the CLI outputs.
 
+### New Web GUI Features
+
+The latest release introduces a modern, feature-rich web interface with intuitive navigation and real-time progress tracking:
+
+| **Dashboard Overview** | **Song Generation** |
+|:---:|:---:|
+| ![Dashboard](images/screencapture-localhost-5173-dashboard-2026-01-13-22_08_25.png) | ![Generate](images/screencapture-localhost-5173-generate-2026-01-13-22_09_35.png) |
+| The centralized dashboard provides quick access to recent songs, generation statistics, and navigation to all major features. Track your creative workflow at a glance with an intuitive layout designed for efficiency. | The generation page offers a streamlined interface for creating new songs with style selection, persona customization, and real-time feedback during the AI songwriting process. |
+
+| **Song Library - Grid View** | **Song Library - List View** |
+|:---:|:---:|
+| ![Songs Grid](images/screencapture-localhost-5173-songs-22-2026-01-13-22_06_53.png) | ![Songs List](images/screencapture-localhost-5173-songs-22-2026-01-13-22_07_37.png) |
+| Browse your song collection in a visually rich grid format with album art thumbnails, enabling quick visual identification and selection of your creative works. | The detailed list view presents comprehensive song metadata including creation date, style tags, and status indicators, perfect for sorting and filtering your growing library. |
+
+**Key GUI Highlights:**
+- **Responsive Design**: Works seamlessly across desktop and tablet devices
+- **Real-time Progress**: Watch song generation progress with live updates
+- **Intuitive Navigation**: Quick access to dashboard, generation, library, and settings
+- **Smart Filtering**: Filter songs by style, date, or custom criteria
+- **Persona Management**: Configure and switch between AI personas easily
+
 ## Table of Contents
 
 - [Features](#features)
