@@ -29,8 +29,8 @@ The latest release introduces a modern, feature-rich web interface with intuitiv
 
 | **Song Library - Grid View** | **Song Library - List View** |
 |:---:|:---:|
-| ![Songs Grid](images/screencapture-localhost-5173-songs-22-2026-01-13-22_06_53.png) | ![Songs List](images/screencapture-localhost-5173-songs-22-2026-01-13-22_07_37.png) |
-| Browse your song collection in a visually rich grid format with album art thumbnails, enabling quick visual identification and selection of your creative works. | The detailed list view presents comprehensive song metadata including creation date, style tags, and status indicators, perfect for sorting and filtering your growing library. |
+| ![Song Change Tracking](images/screencapture-localhost-5173-songs-22-2026-01-13-22_06_53.png) | ![Songs List](images/screencapture-localhost-5173-songs-22-2026-01-13-22_07_37.png) |
+| Use the "Live Listen" feature to get AI-powered feedback on your Suno generated song! | The detailed list view presents comprehensive song metadata including creation date, style tags, and status indicators, perfect for sorting and filtering your growing library. |
 
 **Key GUI Highlights:**
 - **Responsive Design**: Works seamlessly across desktop and tablet devices
