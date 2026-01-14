@@ -1,4 +1,4 @@
-!(iamges/header.png)
+![Header Image](images/header.png)
 # Song Master
 
 A powerful (yet easy to use) script for generating song lyrics using AI models, specifically designed for creating Suno AI-compatible songs with custom styles, metadata, and structured formatting.
