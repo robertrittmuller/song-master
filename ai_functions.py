@@ -92,7 +92,7 @@ def _patch_langfuse_sdk_integration() -> None:
 
 
 def _configure_langfuse() -> None:
-    global _LANGFUSE_CONFIGURED
+    global _LANGFUSE_CONFIGURED, _LANGFUSE_ACTIVE
     if _LANGFUSE_CONFIGURED or not _LANGFUSE_ACTIVE:
         return
     _LANGFUSE_CONFIGURED = True
@@ -108,12 +108,11 @@ def _configure_langfuse() -> None:
         import logging
         logging.warning(f"Failed to configure langfuse callback (langfuse server may be down): {e}")
         # Disable langfuse to prevent further connection attempts
-        global _LANGFUSE_ACTIVE
         _LANGFUSE_ACTIVE = False
 
 
 def _get_langfuse_langchain_handler():
-    global _LANGFUSE_LANGCHAIN_HANDLER
+    global _LANGFUSE_LANGCHAIN_HANDLER, _LANGFUSE_ACTIVE
     if not _LANGFUSE_ACTIVE:
         return None
     if _LANGFUSE_LANGCHAIN_HANDLER is None:
@@ -128,7 +127,6 @@ def _get_langfuse_langchain_handler():
             import logging
             logging.warning(f"Failed to create langfuse handler (langfuse server may be down): {e}")
             # Disable langfuse to prevent further connection attempts
-            global _LANGFUSE_ACTIVE
             _LANGFUSE_ACTIVE = False
             return None
     return _LANGFUSE_LANGCHAIN_HANDLER
