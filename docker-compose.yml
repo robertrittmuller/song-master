@@ -12,6 +12,7 @@ services:
       - ./personas:/app/personas
       - ./styles:/app/styles
       - ./prompts:/app/prompts
+      - ./songs:/songs
     environment:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - LMSTUDIO_API_KEY=${LMSTUDIO_API_KEY}
