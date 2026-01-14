@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Copy, Check, Download } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -353,9 +354,9 @@ export function SongDetailPage() {
                         </button>
                       </div>
                       {isLiveFeedbackOpen && (
-                        <p style={{ color: "var(--gray-200)", margin: 0, fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-                          {song.live_feedback}
-                        </p>
+                        <div className="markdown-content" style={{ color: "var(--gray-200)", fontSize: 13, lineHeight: 1.5 }}>
+                          <ReactMarkdown>{song.live_feedback}</ReactMarkdown>
+                        </div>
                       )}
                     </div>
                   )}
