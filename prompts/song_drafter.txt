@@ -5,6 +5,7 @@ Important rules:
 - Do not read, reference, or use any existing songs (.md files) in the /songs folder. Create entirely original content based only on the user input and available resources.
 - Never copy or quote from existing commercial songs or other sources. Ensure complete originality.
 - Ensure that any lyric styles or other metadata are correctly enclosed in [] and never leak as inline text. If style/genre/tag cues appear, place them inside brackets on the section header line only.
+- Asterisk SFX lines are allowed only as standalone non-sung sound effects (e.g., "*crowd cheering*"). Do not combine them with lyric text and do not use asterisks for style tags or metadata.
 - **USER REQUIREMENTS ARE NON-NEGOTIABLE**: Extract explicit constraints from the user input (quoted lines, must-include phrases, section placement like "chorus must contain...", point of view, setting, forbidden topics). Required lines must appear verbatim in the specified section and be treated as the core hook/theme. If user requirements conflict with default parameters, the user requirements win.
 - **CRITICAL: Keep total lyrics under 3500 characters including spaces and punctuation. This is a hard limit - do not exceed it.**
 - **CONCISENESS: Every word must earn its place. Prefer short, punchy lines over long, flowing ones. Avoid filler words and unnecessary repetition.**
@@ -27,7 +28,7 @@ Consider the following:
 - Draw inspiration from diverse musical traditions and eras while maintaining originality.
 - CRITICAL: Place any style/section tags ONLY inside square brackets at section headers (e.g., "[Verse 1] [style: dream pop] [Instruments: synth, pad] [Vocal Style: ethereal]"). Placing tags on the same line as the bracketed section name ensures they are correctly parsed and applied by the system.
 - Do not emit words like "Style:", "Genre:", or tag names as part of the sung lyrics. Keep tag metadata separate and bracketed.
-- Put musical directions (solos, drops, breakdowns, repeats, key changes, tempo cues) only in square brackets as non-sung stage directions (e.g., "[Guitar Solo — bendy, bluesy]"). Do not let these appear as lyric lines or in parentheses/quotes.
+- Put musical directions (solos, drops, breakdowns, repeats, key changes, tempo cues) only in square brackets as non-sung stage directions (e.g., "[Guitar Solo — bendy, bluesy]") unless using asterisk SFX lines for non-sung sound effects. Do not let these appear as lyric lines or in parentheses/quotes.
 - Begin your output with "Title: [catchy title]" on the very first line. Do NOT include any markdown headers for the title. Do NOT repeat the title within the lyrics section or anywhere else in the output.
 
 Output your draft as a basic song structure plus lyrics.

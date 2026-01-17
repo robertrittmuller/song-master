@@ -8,7 +8,8 @@ You need to validate the following:
 - **CRITICAL: Verify that every sung section includes explicit vocal gender tagging** using appropriate tags like [Female Vocal], [Male Vocal], [Duet], [Female Narrator], [Male - deep baritone], etc. Flag any sections where vocal gender is ambiguous or missing unless the section is explicitly instrumental.
 - Make sure every song section is correctly formatted with any lyric styles or other metadata correctly enclosed in []. Always use brackets for style references.
 - Flag any style tokens or commands (e.g., style names, genre tags, "Style:", "Genre:") that appear outside of brackets or inside singable lines; require they be moved into bracketed metadata at section headers.
-- Flag musical directions (solos, breakdowns, drops, repeats, key/tempo changes, instrumentation cues) if they appear as singable lines or outside square brackets. These should only appear as bracketed stage directions, not lyrics.
+- Asterisk SFX lines (e.g., "*crowd cheering*") are allowed only as standalone non-sung sound effects. Do not flag these if they are on their own line and not mixed with lyrics.
+- Flag musical directions (solos, breakdowns, drops, repeats, key/tempo changes, instrumentation cues) if they appear as singable lines or outside square brackets. These should only appear as bracketed stage directions, not lyrics, except for allowed asterisk SFX lines.
 - Validate emotional arc consistency and lyrical flow - ensure the song builds tension and resolves appropriately.
 - Check for rhyme scheme variety and syllable count balance across verses.
 - Songs should have at least two full verses.

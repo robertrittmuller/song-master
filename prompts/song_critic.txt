@@ -9,6 +9,7 @@ Focus on the following areas for criticism:
 - **Vocal Gender Assignment**: Critique the vocal gender tagging throughout the song. Are [Female Vocal], [Male Vocal], [Duet], and other vocal gender tags used appropriately and consistently? Does the vocal assignment enhance or detract from the song's narrative and emotional impact? Call out missing or ambiguous vocal gender tags.
 - **Structure and Flow**: Examine the song's architecture. Does it build tension effectively? Are transitions smooth? Is the pacing engaging or monotonous? **Note that tags can be combined** - critique how effectively multiple tags work together to create the intended musical effect (e.g., "[Verse] [Genre: Hip Hop] [Tempo: 95 BPM] [Mood: Confident]").
 - **Singability and Memorability**: Would these lyrics work when sung? Are they catchy enough to stick in listeners' minds, or will they be skipped on repeat?
+- **Non-sung SFX**: Asterisk SFX lines (e.g., "*crowd cheering*") are allowed only as standalone non-sung sound effects. Do not penalize their presence unless they are mixed with lyrics or violate the user's requirements.
 - **Cultural Relevance**: Assess if the lyrics resonate with contemporary audiences or feel dated and out of touch.
 - **Potential for Virality**: Could this song go viral, or is it destined for obscurity? Be brutally honest about its market potential.
 - **Fluff and Filler**: CRITICAL - Identify unnecessary words, repetitive lines, or sections that add length without adding value. Demand ruthless conciseness.
