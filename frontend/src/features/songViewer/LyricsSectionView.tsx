@@ -347,6 +347,9 @@ export function LyricsSectionView({ lyrics }: Props) {
                                 if (!trimmed) {
                                     return null;
                                 }
+                                if (showClean && isNonSungLine(trimmed)) {
+                                    return null;
+                                }
                                 if (isNonSungLine(trimmed)) {
                                     return (
                                         <div key={`non-sung-${lineIndex}`} style={{ margin: "6px 0" }}>
