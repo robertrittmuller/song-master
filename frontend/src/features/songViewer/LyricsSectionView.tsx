@@ -21,6 +21,22 @@ const SECTION_COLORS: Record<string, string> = {
     default: "linear-gradient(135deg, #6b7280, #4b5563)"
 };
 
+const NON_SUNG_LINE_PATTERN = /^\*[^*]+\*$/;
+const NON_SUNG_TAG_STYLE = {
+    background: "rgba(34, 197, 94, 0.15)",
+    color: "#86efac",
+    border: "1px solid rgba(34, 197, 94, 0.3)"
+};
+
+function isNonSungLine(line: string): boolean {
+    return NON_SUNG_LINE_PATTERN.test(line.trim());
+}
+
+function stripNonSungMarkers(line: string): string {
+    const trimmed = line.trim();
+    return trimmed.slice(1, -1).trim();
+}
+
 function parseLyrics(lyrics: string): LyricSection[] {
     const lines = lyrics.split("\n");
     const sections: LyricSection[] = [];
@@ -326,7 +342,23 @@ export function LyricsSectionView({ lyrics }: Props) {
                                 lineHeight: 1.6
                             }}
                         >
-                            {section.content}
+                            {section.content.split("\n").map((line, lineIndex) => {
+                                const trimmed = line.trim();
+                                if (!trimmed) {
+                                    return null;
+                                }
+                                if (isNonSungLine(trimmed)) {
+                                    return (
+                                        <div key={`non-sung-${lineIndex}`} style={{ margin: "6px 0" }}>
+                                            <span className="tag" style={NON_SUNG_TAG_STYLE}>
+                                                {stripNonSungMarkers(trimmed)}
+                                            </span>
+                                        </div>
+                                    );
+                                }
+
+                                return <div key={`line-${lineIndex}`}>{line}</div>;
+                            })}
                         </div>
                     </div>
                 );
@@ -334,4 +366,3 @@ export function LyricsSectionView({ lyrics }: Props) {
         </div>
     );
 }
-
