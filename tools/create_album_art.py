@@ -82,11 +82,32 @@ def generate_album_art_image(prompt: str, output_file: str) -> None:
 
     # Extract base64 image
     image_data_url = message.images[0]["image_url"]["url"]
-    base64_data = image_data_url.split(",", 1)[1]  # strip "data:image/jpeg;base64,"
-
+    print(f"[DEBUG] image_data_url: {image_data_url[:100]}..." if len(image_data_url) > 100 else f"[DEBUG] image_data_url: {image_data_url}")
+    
+    # Handle different image formats (jpeg, png, webp, etc.)
+    if "," not in image_data_url:
+        raise RuntimeError(f"Unexpected image URL format (no comma): {image_data_url[:100]}")
+    
+    mime_type, base64_data = image_data_url.split(",", 1)
+    print(f"[DEBUG] MIME type: {mime_type}")
+    
+    # Determine file extension from MIME type
+    if "png" in mime_type:
+        output_file = output_file.replace(".jpg", ".png")
+    elif "webp" in mime_type:
+        output_file = output_file.replace(".jpg", ".webp")
+    
     # Decode + write to file
+    try:
+        decoded_data = base64.b64decode(base64_data)
+        print(f"[DEBUG] Decoded {len(decoded_data)} bytes")
+    except Exception as e:
+        raise RuntimeError(f"Failed to decode base64 image: {e}")
+    
     with open(output_file, "wb") as f:
-        f.write(base64.b64decode(base64_data))
+        f.write(decoded_data)
+    
+    print(f"[DEBUG] Image saved to {output_file}, size: {len(decoded_data)} bytes")
 
 def main():
     if len(sys.argv) < 3:

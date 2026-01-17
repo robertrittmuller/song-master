@@ -243,14 +243,19 @@ def remove_title_from_lyrics(lyrics: str) -> str:
 
 
 def generate_album_art(
-    title: str, 
-    user_input: str, 
-    persona_name: Optional[str] = None, 
-    style: Optional[str] = None, 
-    mood: Optional[str] = None, 
+    title: str,
+    user_input: str,
+    persona_name: Optional[str] = None,
+    style: Optional[str] = None,
+    mood: Optional[str] = None,
     vocal_gender: Optional[str] = None
 ) -> str:
     """Generate album artwork using integrated function with enriched prompt."""
+    import os
+    
+    # DEBUG: Log working directory
+    print(f"[DEBUG] generate_album_art cwd: {os.getcwd()}")
+    print(f"[DEBUG] generate_album_art title: {title}")
     
     # Base prompt elements
     prompt_parts = [f"Album cover for song '{title}'"]
@@ -285,13 +290,30 @@ def generate_album_art(
     # Use a timestamp to ensure unique filename for cache busting
     timestamp = datetime.now().strftime("%H%M%S")
     output_file = f"songs/{title.replace(' ', '_')}_{timestamp}_cover.jpg"
+    print(f"[DEBUG] output_file (initial): {output_file}")
+    
     os.makedirs("songs", exist_ok=True)
     try:
         generate_album_art_image(artwork_prompt, output_file)
+        # The actual file might have different extension (PNG/WebP) based on API response
+        # Check for the actual file
+        base_path = output_file.rsplit(".", 1)[0]
+        actual_file = None
+        for ext in [".png", ".jpg", ".webp"]:
+            check_path = f"{base_path}{ext}"
+            if os.path.exists(check_path):
+                actual_file = check_path
+                print(f"[DEBUG] Found actual file: {actual_file}")
+                break
+        
+        if actual_file:
+            return actual_file
+        else:
+            print(f"[DEBUG] Image generation completed, checking file exists: {os.path.exists(output_file)}")
+            return output_file if os.path.exists(output_file) else None
     except Exception as e:
         print(f"Warning: Failed to generate album art: {e}")
         return None
-    return output_file
 
 
 def extract_song_details_for_art(song_path: str) -> tuple[str, str]:

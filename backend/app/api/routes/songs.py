@@ -159,6 +159,7 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
 
     from helpers import extract_title, generate_album_art
     import json
+    import os
 
     title = extract_title(song.lyrics or "", song.title)
     
@@ -172,8 +173,12 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
             
     mood = metadata.get("mood")
     
+    # DEBUG: Log paths for diagnosis
+    print(f"[DEBUG] Current working directory: {os.getcwd()}")
+    print(f"[DEBUG] Song album_art before: {song.album_art}")
+    
     artwork_path = generate_album_art(
-        title, 
+        title,
         song.user_prompt,
         persona_name=song.persona,
         style=song.style,
@@ -181,7 +186,13 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
         vocal_gender=song.vocal_gender
     )
 
+    print(f"[DEBUG] Generated artwork_path: {artwork_path}")
+    
     if artwork_path:
+        # Check if file exists
+        abs_path = os.path.abspath(artwork_path)
+        print(f"[DEBUG] Absolute path: {abs_path}, exists: {os.path.exists(abs_path)}")
+        
         song.album_art = artwork_path
         db.commit()
         db.refresh(song)

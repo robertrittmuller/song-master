@@ -44,4 +44,5 @@ app.include_router(instruments.router)
 app.include_router(progress_ws.router)
 
 # Mount static files for album art and other song assets
-app.mount("/songs", StaticFiles(directory="/songs"), name="songs")
+# Use absolute path relative to backend app directory (/app)
+app.mount("/songs", StaticFiles(directory=str(Path(__file__).parent.parent.parent / "songs")), name="songs")

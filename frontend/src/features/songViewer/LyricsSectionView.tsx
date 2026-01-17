@@ -202,6 +202,7 @@ function getSectionColor(type: string): string {
 
 export function LyricsSectionView({ lyrics }: Props) {
     const [showTags, setShowTags] = useState(true);
+    const [showEffectTags, setShowEffectTags] = useState(true);
     const [showClean, setShowClean] = useState(false);
     const [copied, setCopied] = useState(false);
     const sections = parseLyrics(lyrics);
@@ -216,7 +217,12 @@ export function LyricsSectionView({ lyrics }: Props) {
                     header += ` ${tags}`;
                 }
             }
-            return `${header}\n${section.content}`;
+            let content = section.content;
+            if (!showEffectTags) {
+                const filteredLines = content.split("\n").filter(line => !isNonSungLine(line));
+                content = filteredLines.join("\n");
+            }
+            return `${header}\n${content}`;
         }).join("\n\n");
 
         try {
@@ -259,7 +265,14 @@ export function LyricsSectionView({ lyrics }: Props) {
                     style={{ fontSize: 12, padding: "4px 12px" }}
                     onClick={() => setShowTags(!showTags)}
                 >
-                    {showTags ? "Hide Tags" : "Show Tags"}
+                    {showTags ? "Hide Style Tags" : "Show Tags"}
+                </button>
+                <button
+                    className="btn ghost"
+                    style={{ fontSize: 12, padding: "4px 12px" }}
+                    onClick={() => setShowEffectTags(!showEffectTags)}
+                >
+                    {showEffectTags ? "Hide Effect Tags" : "Show Effect Tags"}
                 </button>
                 <button
                     className="btn ghost"
@@ -344,13 +357,14 @@ export function LyricsSectionView({ lyrics }: Props) {
                         >
                             {section.content.split("\n").map((line, lineIndex) => {
                                 const trimmed = line.trim();
+                                const isNonSung = isNonSungLine(trimmed);
                                 if (!trimmed) {
                                     return null;
                                 }
-                                if (showClean && isNonSungLine(trimmed)) {
+                                if (isNonSung && (showClean || !showEffectTags)) {
                                     return null;
                                 }
-                                if (isNonSungLine(trimmed)) {
+                                if (isNonSung) {
                                     return (
                                         <div key={`non-sung-${lineIndex}`} style={{ margin: "6px 0" }}>
                                             <span className="tag" style={NON_SUNG_TAG_STYLE}>
