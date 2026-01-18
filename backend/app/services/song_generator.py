@@ -171,6 +171,8 @@ class SongGenerationManager:
                     song.album_art = album_art
                 song.generation_completed_at = datetime.utcnow()
                 song.score = int(final_state.get("score", 0)) if isinstance(final_state, dict) else None
+            
+            # Save files to SongFile records
             if filename:
                 path = Path(filename)
                 song_file = SongFile(
@@ -183,6 +185,19 @@ class SongGenerationManager:
                     is_primary=True,
                 )
                 session.add(song_file)
+
+            if album_art:
+                art_path = Path(album_art)
+                art_file = SongFile(
+                    song_id=song_id,
+                    file_type="artwork",
+                    file_path=str(art_path),
+                    file_name=art_path.name,
+                    file_size=art_path.stat().st_size if art_path.exists() else None,
+                    mime_type="image/png" if art_path.suffix.lower() == ".png" else "image/jpeg",
+                    is_primary=True,
+                )
+                session.add(art_file)
 
             add_log("Generation completed", progress=100, status="completed")
 

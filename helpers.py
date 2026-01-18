@@ -242,6 +242,38 @@ def remove_title_from_lyrics(lyrics: str) -> str:
     return "\n".join(new_lines).strip()
 
 
+def get_song_storage_info(title: str, date: Optional[str] = None) -> Dict[str, str]:
+    """
+    Generate consistent folder and filenames for a song.
+    
+    Returns a dict with:
+    - folder: 'songs/YYYY-MM-DD - Song Title'
+    - md: 'songs/YYYY-MM-DD - Song Title/YYYY-MM-DD - Song Title.md'
+    - image_base: 'songs/YYYY-MM-DD - Song Title/YYYY-MM-DD - Song Title' (without extension)
+    """
+    if not date:
+        date = datetime.now().strftime("%Y-%m-%d")
+    
+    # Sanitize title slightly for filesystem safety while keeping it human readable
+    # Remove characters that are definitely problematic across OSs
+    forbidden_chars = '<>:"/\\|?*'
+    safe_title = "".join(c for c in title if c not in forbidden_chars).strip()
+    
+    folder_name = f"{date} - {safe_title}"
+    folder_path = os.path.join("songs", folder_name)
+    
+    # For file names, we also use the same safe title
+    base_name = f"{date} - {safe_title}"
+    md_path = os.path.join(folder_path, f"{base_name}.md")
+    image_base_path = os.path.join(folder_path, base_name)
+    
+    return {
+        "folder": folder_path,
+        "md": md_path,
+        "image_base": image_base_path
+    }
+
+
 def generate_album_art(
     title: str,
     user_input: str,
@@ -287,17 +319,19 @@ def generate_album_art(
     # Debug print to verify prompt consistency
     print(f"--- Art Prompt: {artwork_prompt}")
     
-    # Use a timestamp to ensure unique filename for cache busting
-    timestamp = datetime.now().strftime("%H%M%S")
-    output_file = f"images/{title.replace(' ', '_')}_{timestamp}_cover.jpg"
+    # Use storage info helper for consistent paths
+    storage = get_song_storage_info(title)
+    os.makedirs(storage["folder"], exist_ok=True)
+    
+    # Initial output file, format may vary based on API
+    output_file = f"{storage['image_base']}.jpg"
     print(f"[DEBUG] output_file (initial): {output_file}")
     
-    os.makedirs("images", exist_ok=True)
     try:
         generate_album_art_image(artwork_prompt, output_file)
         # The actual file might have different extension (PNG/WebP) based on API response
         # Check for the actual file
-        base_path = output_file.rsplit(".", 1)[0]
+        base_path = storage["image_base"]
         actual_file = None
         for ext in [".png", ".jpg", ".webp"]:
             check_path = f"{base_path}{ext}"
@@ -307,6 +341,8 @@ def generate_album_art(
                 break
         
         if actual_file:
+            # Overwrite check - if we have multiple extensions, we might want to clean up others
+            # but for now we just return the actual one found.
             return actual_file
         else:
             print(f"[DEBUG] Image generation completed, checking file exists: {os.path.exists(output_file)}")
@@ -422,7 +458,7 @@ def strip_style_tags(lyrics: str) -> str:
     return '\n'.join(result_lines)
 
 
-def save_song(title: str, user_input: str, lyrics: str, default_params: Dict[str, Optional[str]], metadata: Dict[str, object]) -> str:
+def save_song(title: str, user_input: str, lyrics: str, default_params: Dict[str, Optional[str]], metadata: Dict[str, object], album_art_path: Optional[str] = None) -> str:
     """Save the generated song to a markdown file with metadata."""
     description = metadata.get("description", "Short description of the song's theme and style.")
     suno_styles = metadata.get("suno_styles", [default_params.get("genre", "rock")])
@@ -435,11 +471,18 @@ def save_song(title: str, user_input: str, lyrics: str, default_params: Dict[str
     # Generate clean lyrics without style tags
     clean_lyrics = strip_style_tags(lyrics)
     
+    # Prepare album art markdown if path is provided
+    album_art_md = ""
+    if album_art_path:
+        # Use relative path for the markdown link if it's in the same folder
+        art_filename = os.path.basename(album_art_path)
+        album_art_md = f"![Album Art]({art_filename})\n\n"
+
     final_md = f"""
 ## {title}
 ### {description}
 
-## Suno Styles
+{album_art_md}## Suno Styles
 {styles_line}
 
 ## Suno Exclude-styles
@@ -458,9 +501,9 @@ def save_song(title: str, user_input: str, lyrics: str, default_params: Dict[str
 ### Clean Lyrics (No Style Tags):
 {clean_lyrics}
 """
-    os.makedirs("songs", exist_ok=True)
-    date = datetime.now().strftime("%Y%m%d")
-    filename = f"songs/{date}_{title.replace(' ', '_')}.md"
+    storage = get_song_storage_info(title)
+    os.makedirs(storage["folder"], exist_ok=True)
+    filename = storage["md"]
     with open(filename, "w") as file:
         file.write(final_md)
     return filename

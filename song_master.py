@@ -95,10 +95,11 @@ def persist_local_copy(song_detail: Dict[str, Any]) -> Optional[str]:
     lyrics = song_detail.get("lyrics")
     user_prompt = song_detail.get("user_prompt", "")
     metadata = parse_metadata(song_detail.get("metadata") or song_detail.get("metadata_json"))
+    album_art = song_detail.get("album_art")
     if not lyrics:
         return None
     default_params = get_default_song_params()
-    return save_song(title, user_prompt, lyrics, default_params, metadata)
+    return save_song(title, user_prompt, lyrics, default_params, metadata, album_art_path=album_art)
 
 
 def regenerate_album_art(song_path: str) -> str:

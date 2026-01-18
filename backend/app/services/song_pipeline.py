@@ -251,7 +251,14 @@ def generate_song_pipeline(
 
     def save_node(state: SongState):
         title = extract_title(state["lyrics"], state.get("song_name"))
-        filename = save_song(title, state["user_input"], state["lyrics"], state["resources"].default_params, state["metadata"])
+        filename = save_song(
+            title, 
+            state["user_input"], 
+            state["lyrics"], 
+            state["resources"].default_params, 
+            state["metadata"],
+            album_art_path=state.get("album_art")
+        )
         notify(f"Song saved to {filename}", 95)
         return {"filename": filename}
 

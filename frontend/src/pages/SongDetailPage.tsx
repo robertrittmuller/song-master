@@ -275,7 +275,7 @@ export function SongDetailPage() {
                 }
               >
                 <img
-                  src={`${API_BASE}/${song.album_art}?t=${new Date().getTime()}`}
+                  src={encodeURI(`${API_BASE}/${song.album_art}?t=${new Date().getTime()}`)}
                   alt={`${song.title} cover art`}
                   style={{
                     width: "100%",

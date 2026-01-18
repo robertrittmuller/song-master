@@ -36,9 +36,11 @@ export function SongGrid({ songs = [], viewMode = "grid" }: Props) {
                   style={{
                     borderRadius: 12,
                     height: 120,
-                    background: song.album_art
-                      ? `url(${API_BASE}/${song.album_art}?t=${new Date().getTime()}) center/cover`
+                    backgroundImage: song.album_art
+                      ? `url("${encodeURI(`${API_BASE}/${song.album_art}?t=${new Date().getTime()}`)}")`
                       : "linear-gradient(135deg, rgba(14,165,233,0.2), rgba(8,47,73,0.5))",
+                    backgroundPosition: "center",
+                    backgroundSize: "cover",
                     border: "1px solid rgba(255,255,255,0.06)"
                   }}
                 />
