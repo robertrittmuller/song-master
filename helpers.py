@@ -289,10 +289,10 @@ def generate_album_art(
     
     # Use a timestamp to ensure unique filename for cache busting
     timestamp = datetime.now().strftime("%H%M%S")
-    output_file = f"songs/{title.replace(' ', '_')}_{timestamp}_cover.jpg"
+    output_file = f"images/{title.replace(' ', '_')}_{timestamp}_cover.jpg"
     print(f"[DEBUG] output_file (initial): {output_file}")
     
-    os.makedirs("songs", exist_ok=True)
+    os.makedirs("images", exist_ok=True)
     try:
         generate_album_art_image(artwork_prompt, output_file)
         # The actual file might have different extension (PNG/WebP) based on API response

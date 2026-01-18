@@ -25,9 +25,9 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
-    # Ensure songs directory exists for album art
-    songs_dir = Path("songs")
-    songs_dir.mkdir(exist_ok=True)
+    # Ensure songs and images directories exist
+    for d in ["songs", "images"]:
+        Path(d).mkdir(exist_ok=True)
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
@@ -46,3 +46,4 @@ app.include_router(progress_ws.router)
 # Mount static files for album art and other song assets
 # Use absolute path relative to backend app directory (/app)
 app.mount("/songs", StaticFiles(directory=str(Path(__file__).parent.parent.parent / "songs")), name="songs")
+app.mount("/images", StaticFiles(directory=str(Path(__file__).parent.parent.parent / "images")), name="images")
