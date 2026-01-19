@@ -1,6 +1,6 @@
-from typing import List
+from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, File, status, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.app.db.deps import get_db
@@ -10,6 +10,97 @@ from backend.app.services.persona_service import sync_persona_style_tags
 from backend.app.services.song_generator import generation_manager
 
 router = APIRouter(prefix="/api/songs", tags=["songs"])
+
+
+def _extract_section(markdown: str, heading: str, level: str = "##") -> str:
+    import re
+
+    pattern = rf"{re.escape(level)} {re.escape(heading)}\n(.*?)(?=\n## |\n### |\Z)"
+    match = re.search(pattern, markdown, flags=re.DOTALL)
+    if not match:
+        return ""
+    return match.group(1).strip()
+
+
+def _extract_metadata_value(block: str, label: str) -> Optional[str]:
+    import re
+
+    pattern = rf"- \*\*{re.escape(label)}\*\*:\s*(.*)"
+    match = re.search(pattern, block)
+    if not match:
+        return None
+    return match.group(1).strip()
+
+
+def _parse_song_markdown(markdown: str) -> Dict[str, Optional[str]]:
+    """Parse a Song Master markdown file into structured fields."""
+    import re
+
+    title = None
+    description = None
+    for line in markdown.splitlines():
+        stripped = line.strip()
+        if title is None and stripped.startswith("## "):
+            title = stripped[3:].strip()
+            continue
+        if description is None and stripped.startswith("### "):
+            heading = stripped[4:].strip()
+            if heading.lower().startswith("song lyrics") or heading.lower().startswith("clean lyrics"):
+                continue
+            description = heading
+            if title:
+                break
+
+    styles_block = _extract_section(markdown, "Suno Styles")
+    exclude_block = _extract_section(markdown, "Suno Exclude-styles")
+    metadata_block = _extract_section(markdown, "Additional Metadata")
+    lyrics_block = _extract_section(markdown, "Song Lyrics:", level="###")
+    clean_lyrics_block = _extract_section(markdown, "Clean Lyrics (No Style Tags):", level="###")
+
+    def parse_styles(block: str) -> List[str]:
+        styles_line = " ".join([line.strip() for line in block.splitlines() if line.strip()])
+        if not styles_line or styles_line.lower() == "none":
+            return []
+        return [style.strip() for style in styles_line.split(",") if style.strip()]
+
+    suno_styles = parse_styles(styles_block)
+    suno_exclude_styles = parse_styles(exclude_block)
+
+    emotional_arc = _extract_metadata_value(metadata_block, "Emotional Arc")
+    target_audience = _extract_metadata_value(metadata_block, "Target Audience")
+    commercial_potential = _extract_metadata_value(metadata_block, "Commercial Potential")
+    technical_notes = _extract_metadata_value(metadata_block, "Technical Notes")
+    user_prompt = _extract_metadata_value(metadata_block, "User Prompt")
+
+    tempo = None
+    key = None
+    instruments = None
+    if technical_notes:
+        tempo_match = re.search(r"BPM:\s*([^,]+)", technical_notes)
+        key_match = re.search(r"Key:\s*([^,]+)", technical_notes)
+        instruments_match = re.search(r"Instruments:\s*(.*)", technical_notes)
+        if tempo_match:
+            tempo = tempo_match.group(1).strip()
+        if key_match:
+            key = key_match.group(1).strip()
+        if instruments_match:
+            instruments = instruments_match.group(1).strip()
+
+    return {
+        "title": title,
+        "description": description,
+        "suno_styles": suno_styles,
+        "suno_exclude_styles": suno_exclude_styles,
+        "mood": emotional_arc,
+        "target_audience": target_audience,
+        "commercial_potential": commercial_potential,
+        "tempo": tempo,
+        "key": key,
+        "instruments": instruments,
+        "user_prompt": user_prompt,
+        "lyrics": lyrics_block,
+        "clean_lyrics": clean_lyrics_block,
+    }
 
 
 @router.get("", response_model=List[SongRead])
@@ -75,6 +166,71 @@ async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> Son
     db.commit()
     db.refresh(song)
     generation_manager.start_generation(song.id, payload)
+    return song
+
+
+@router.post("/import", response_model=SongDetail, status_code=status.HTTP_201_CREATED)
+async def import_song_markdown(
+    file: UploadFile = File(...), db: Session = Depends(get_db)
+) -> SongDetail:
+    """Import a song from a Song Master markdown file."""
+    if not file.filename or not file.filename.lower().endswith(".md"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only .md files are supported.")
+
+    raw_content = await file.read()
+    try:
+        markdown = raw_content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unable to decode markdown file. Please upload a UTF-8 .md file."
+        ) from exc
+
+    parsed = _parse_song_markdown(markdown)
+    title = parsed.get("title") or (file.filename.rsplit(".", 1)[0] if file.filename else "Untitled")
+    user_prompt = parsed.get("user_prompt") or "Imported from markdown"
+    lyrics = parsed.get("lyrics") or ""
+    clean_lyrics = parsed.get("clean_lyrics")
+
+    if not clean_lyrics and lyrics:
+        from helpers import strip_style_tags
+
+        clean_lyrics = strip_style_tags(lyrics)
+
+    import json
+
+    metadata: Dict[str, object] = {}
+    if parsed.get("description"):
+        metadata["description"] = parsed["description"]
+    if parsed.get("suno_styles") is not None:
+        metadata["suno_styles"] = parsed["suno_styles"]
+    if parsed.get("suno_exclude_styles") is not None:
+        metadata["suno_exclude_styles"] = parsed["suno_exclude_styles"]
+    if parsed.get("mood"):
+        metadata["mood"] = parsed["mood"]
+    if parsed.get("target_audience"):
+        metadata["target_audience"] = parsed["target_audience"]
+    if parsed.get("commercial_potential"):
+        metadata["commercial_potential"] = parsed["commercial_potential"]
+    if parsed.get("tempo"):
+        metadata["tempo"] = parsed["tempo"]
+    if parsed.get("key"):
+        metadata["key"] = parsed["key"]
+    if parsed.get("instruments"):
+        metadata["instruments"] = parsed["instruments"]
+
+    song = Song(
+        title=title,
+        user_prompt=user_prompt,
+        lyrics=lyrics,
+        clean_lyrics=clean_lyrics,
+        metadata_json=json.dumps(metadata) if metadata else None,
+        status="completed",
+        use_local=False,
+    )
+    db.add(song)
+    db.commit()
+    db.refresh(song)
     return song
 
 

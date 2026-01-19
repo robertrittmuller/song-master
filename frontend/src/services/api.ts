@@ -133,3 +133,12 @@ export async function uploadLiveFeedback(songId: number, file: File): Promise<So
   });
   return data;
 }
+
+export async function importSongMarkdown(file: File): Promise<Song> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const { data } = await client.post<Song>("/api/songs/import", formData, {
+    headers: { "Content-Type": "multipart/form-data" }
+  });
+  return data;
+}

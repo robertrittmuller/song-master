@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -9,7 +9,7 @@ import { AlbumList } from "../features/library/AlbumList";
 import { SearchBar } from "../features/library/SearchBar";
 import { FilterPanel } from "../features/library/FilterPanel";
 import { SortControls } from "../features/library/SortControls";
-import { fetchSongs, fetchPersonas } from "../services/api";
+import { fetchSongs, fetchPersonas, importSongMarkdown } from "../services/api";
 
 type SortOption = "newest" | "oldest" | "a-z" | "z-a";
 type ViewMode = "grid" | "list";
@@ -24,11 +24,26 @@ export function DashboardPage() {
   const [filters, setFilters] = useState<Filter>({});
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [visibleSongsCount, setVisibleSongsCount] = useState(12);
 
   const { data: songs = [] } = useQuery({ queryKey: ["songs"], queryFn: fetchSongs });
   const { data: personas = [] } = useQuery({ queryKey: ["personas"], queryFn: fetchPersonas });
+
+  const importMutation = useMutation({
+    mutationFn: importSongMarkdown,
+    onSuccess: (song) => {
+      queryClient.invalidateQueries({ queryKey: ["songs"] });
+      navigate(`/songs/${song.id}`);
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.detail || error?.message || "Failed to import song.";
+      alert(message);
+    }
+  });
 
   const personaNames = useMemo(() => personas.map((p) => p.name), [personas]);
 
@@ -94,9 +109,30 @@ export function DashboardPage() {
           <div style={{ color: "var(--gray-400)", fontSize: "var(--text-sm)" }}>Workspace</div>
           <h2>Albums & Songs</h2>
         </div>
-        <Button to="/generate" variant="ai-glow">
-          + New Song
-        </Button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".md,text/markdown"
+            style={{ display: "none" }}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              importMutation.mutate(file);
+              event.target.value = "";
+            }}
+          />
+          <Button
+            variant="ai-glow"
+            onClick={() => fileInputRef.current?.click()}
+            isLoading={importMutation.isPending}
+          >
+            Import
+          </Button>
+          <Button to="/generate" variant="ai-glow">
+            + New Song
+          </Button>
+        </div>
       </div>
 
       <Card title="Albums">
