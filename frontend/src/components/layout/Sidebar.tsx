@@ -2,8 +2,7 @@ import { Button } from "../ui/Button";
 
 const quickLinks = [
   { to: "/generate", label: "New Song", accent: true },
-  { to: "/dashboard", label: "Library" },
-  { to: "/settings", label: "Settings" }
+  { to: "/dashboard", label: "Library" }
 ];
 
 export function Sidebar() {
