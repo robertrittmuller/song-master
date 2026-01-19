@@ -5,4 +5,4 @@ Antidote
 80s hair metal, glam rock, arena rock, party anthem, high-energy, explosive guitar riffs, pounding drums, melodic hooks, gang vocals, power ballad dynamics, rock and roll lifestyle, catchy chorus, guitar solo, anthemic, festive, passionate, raw energy, stadium rock, glam metal swagger, Spatial Audio, Dolby Atmos mix, high-fidelity
 
 ## Visual styles
-Woodblock cartoon style with abstract concepts and obnoxious visuals. In the lower right corner the word "Antidote" should be stamped as 80s styled text.
+Woodblock cartoon style with abstract concepts and obnoxious visuals. In the lower right corner the word "Antidote" should be stamped as an 80s styled post mark.
