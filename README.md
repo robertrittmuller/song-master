@@ -31,10 +31,16 @@ The web UI now mirrors the CLI pipeline with richer editing, library management,
   <tr>
     <td valign="top">
       <img src="images/screencap02.png" alt="Generate" />
-      <p>Build a new song with persona selection, cover-art toggles, and detailed musical controls for tempo, key, mood, and instruments.</p>
     </td>
     <td valign="top">
       <img src="images/screencap03.png" alt="Library" />
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <p>Build a new song with persona selection, cover-art toggles, and detailed musical controls for tempo, key, mood, and instruments.</p>
+    </td>
+    <td valign="top">
       <p>Browse albums and songs with search, filters, and grid/list views. Import existing markdown and jump back into the workflow fast.</p>
     </td>
   </tr>
@@ -45,10 +51,16 @@ The web UI now mirrors the CLI pipeline with richer editing, library management,
   <tr>
     <td valign="top">
       <img src="images/screencap01.png" alt="Song Detail" />
-      <p>Edit titles and descriptions inline, manage lyrics and versions, upload or regenerate album art, and submit MP3s for "Live Listen" feedback.</p>
     </td>
     <td valign="top">
       <img src="images/screencap04.png" alt="Song Detail Expanded" />
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <p>Edit titles and descriptions inline, manage lyrics and versions, upload or regenerate album art, and submit MP3s for "Live Listen" feedback.</p>
+    </td>
+    <td valign="top">
       <p>Deep lyric navigation with section highlights, metadata chips, live feedback history, and album art previews.</p>
     </td>
   </tr>
