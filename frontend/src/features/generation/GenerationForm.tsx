@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
@@ -27,10 +27,29 @@ export function GenerationForm() {
   const [genre, setGenre] = useState("");
   const [tempo, setTempo] = useState("120");
   const [key, setKey] = useState("C");
-  const [selectedInstruments, setSelectedInstruments] = useState<Set<string>>(new Set(["guitar", "bass", "drums"]));
+  const [selectedInstruments, setSelectedInstruments] = useState<Set<string>>(new Set());
   const [customInstruments, setCustomInstruments] = useState("");
   const [mood, setMood] = useState("happy");
   const [vocalGender, setVocalGender] = useState("");
+
+  useEffect(() => {
+    if (settings?.generation) {
+      if (settings.generation.persona) setPersona(settings.generation.persona);
+      if (settings.generation.genre) {
+        setGenre(settings.generation.genre);
+        setStyle(settings.generation.genre);
+      }
+      if (settings.generation.tempo) setTempo(settings.generation.tempo);
+      if (settings.generation.key) setKey(settings.generation.key);
+      if (settings.generation.mood) setMood(settings.generation.mood);
+      if (settings.generation.vocal_gender) setVocalGender(settings.generation.vocal_gender);
+      
+      if (settings.generation.instruments !== undefined) {
+        const instList = settings.generation.instruments.split(",").map(i => i.trim()).filter(Boolean);
+        setSelectedInstruments(new Set(instList));
+      }
+    }
+  }, [settings]);
 
   const toggleInstrument = (inst: string) => {
     const next = new Set(selectedInstruments);
