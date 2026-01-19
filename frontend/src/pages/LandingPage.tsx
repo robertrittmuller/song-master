@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
+import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { SongGrid } from "../features/library/SongGrid";
 import { fetchSongs } from "../services/api";
@@ -32,12 +33,12 @@ export function LandingPage() {
               song from one streamlined workspace.
             </p>
             <div style={{ display: "flex", gap: 12 }}>
-              <Link to="/generate" className="btn">
+              <Button to="/generate" variant="ai-glow" size="lg">
                 Quick Start
-              </Link>
-              <Link to="/dashboard" className="btn secondary">
+              </Button>
+              <Button to="/dashboard" variant="secondary" size="lg">
                 View Albums
-              </Link>
+              </Button>
             </div>
           </div>
           <div className="glass" style={{ padding: 20 }}>

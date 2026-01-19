@@ -1,18 +1,60 @@
-import { ButtonHTMLAttributes, ReactNode } from "react";
+import { ButtonHTMLAttributes, ElementType, ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { Loader } from "../common/Loader";
 
-type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost";
+interface ButtonBaseProps {
+  variant?: "primary" | "secondary" | "ghost" | "ai-glow" | "danger";
+  size?: "sm" | "md" | "lg";
   iconLeft?: ReactNode;
-};
+  iconRight?: ReactNode;
+  isLoading?: boolean;
+  as?: ElementType;
+  to?: string; // For React Router Link
+  children: ReactNode;
+  className?: string;
+}
 
-export function Button({ variant = "primary", iconLeft, children, className: extraClassName, ...rest }: Props) {
-  const variantClass = variant === "primary" ? "" : variant;
-  const className = `btn ${variantClass} ${extraClassName || ""}`.trim();
+type ButtonProps = ButtonBaseProps & ButtonHTMLAttributes<HTMLButtonElement>;
+
+export function Button({
+  variant = "primary",
+  size = "md",
+  iconLeft,
+  iconRight,
+  isLoading = false,
+  as: Component = "button",
+  to,
+  children,
+  className: extraClassName,
+  disabled,
+  ...rest
+}: ButtonProps) {
+  
+  // If 'to' is provided, we use 'Link' from react-router-dom as the component
+  const FinalComponent = to ? Link : Component;
+  
+  const className = [
+    "btn",
+    variant,
+    size,
+    isLoading ? "loading" : "",
+    extraClassName
+  ].filter(Boolean).join(" ");
 
   return (
-    <button className={className} {...rest}>
-      {iconLeft && <span className="btn-icon">{iconLeft}</span>}
+    <FinalComponent 
+      className={className} 
+      to={to as any}
+      disabled={isLoading || disabled}
+      {...(rest as any)}
+    >
+      {isLoading ? (
+        <Loader size={size === "sm" ? 14 : size === "md" ? 18 : 22} />
+      ) : (
+        iconLeft && <span className="btn-icon">{iconLeft}</span>
+      )}
       <span className="btn-content">{children}</span>
-    </button>
+      {!isLoading && iconRight && <span className="btn-icon">{iconRight}</span>}
+    </FinalComponent>
   );
 }

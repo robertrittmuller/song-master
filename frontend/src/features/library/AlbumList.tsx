@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { deleteAlbum, fetchAlbums, createAlbum } from "../../services/api";
 import type { Album } from "../../types/api";
+import { ConfirmationModal } from "../../components/ui/ConfirmationModal";
 
 function AlbumItem({ album, onDelete }: { album: Album; onDelete: (id: number) => void }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -94,6 +95,7 @@ export function AlbumList() {
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const { data: albums = [], isLoading } = useQuery({ queryKey: ["albums"], queryFn: fetchAlbums });
 
@@ -115,11 +117,14 @@ export function AlbumList() {
   });
 
   const handleDelete = (id: number) => {
-    const album = albums.find(a => a.id === id);
-    if (!album) return;
-    if (deleteMutation.isPending) return;
-    if (!confirm(`Delete album "${album.name}"? This will NOT delete its songs, they will just be unassigned.`)) return;
-    deleteMutation.mutate(id);
+    setConfirmDeleteId(id);
+  };
+
+  const confirmDelete = () => {
+    if (confirmDeleteId !== null) {
+      deleteMutation.mutate(confirmDeleteId);
+      setConfirmDeleteId(null);
+    }
   };
 
   if (isLoading) {
@@ -171,6 +176,17 @@ export function AlbumList() {
           </div>
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={confirmDeleteId !== null}
+        onClose={() => setConfirmDeleteId(null)}
+        onConfirm={confirmDelete}
+        title="Delete Album"
+        message={`Are you sure you want to delete the album "${albums.find(a => a.id === confirmDeleteId)?.name}"? This will NOT delete its songs, they will just be unassigned.`}
+        confirmText="Delete"
+        variant="danger"
+        isConfirming={deleteMutation.isPending}
+      />
     </div>
   );
 }

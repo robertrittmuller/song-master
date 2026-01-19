@@ -4,7 +4,9 @@ import ReactMarkdown from "react-markdown";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 
+import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { ConfirmationModal } from "../components/ui/ConfirmationModal";
 import { LiveProgress } from "../features/progress/LiveProgress";
 import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
 import { LyricVersionTabs } from "../features/songViewer/LyricVersionTabs";
@@ -91,6 +93,34 @@ export function SongDetailPage() {
   const [selectedVersionId, setSelectedVersionId] = useState<number | "current">("current");
   const [isDiffMode, setIsDiffMode] = useState(false);
 
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    type: "regenerate_art" | "regenerate_lyrics" | "delete_song" | "live_listen" | null;
+  }>({
+    isOpen: false,
+    type: null,
+  });
+
+  const closeConfirmDialog = () => setConfirmDialog({ isOpen: false, type: null });
+
+  const handleConfirmAction = () => {
+    if (!confirmDialog.type || !song) return;
+
+    if (confirmDialog.type === "regenerate_art") {
+      regenerateArtMutation.mutate(song.id);
+    } else if (confirmDialog.type === "regenerate_lyrics") {
+      regenerateLyricsMutation.mutate(song.id);
+    } else if (confirmDialog.type === "delete_song") {
+      deleteMutation.mutate(song.id);
+    } else if (confirmDialog.type === "live_listen") {
+      // We'll trigger the form submission manually or move the logic here
+      // For now, let's keep it simple and just trigger the mutation if we had one
+      // but actually live listen uses a manual fetch call.
+      // I'll refactor this better.
+    }
+    closeConfirmDialog();
+  };
+
   const handleCopyStyles = async () => {
     if (!metadata?.suno_styles) return;
     const styles = Array.isArray(metadata.suno_styles)
@@ -140,45 +170,34 @@ export function SongDetailPage() {
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <div className="tag">{song.status}</div>
             {song.status === "completed" && !song.use_local && (
-              <button
-                type="button"
-                className="btn secondary"
-                style={{ padding: "10px 12px" }}
-                disabled={regenerateArtMutation.isPending}
-                onClick={() => {
-                  if (!confirm(`Are you sure you want to (re)generate the cover art for "${song.title}"?`)) return;
-                  regenerateArtMutation.mutate(song.id);
-                }}
+              <Button
+                variant="secondary"
+                size="sm"
+                isLoading={regenerateArtMutation.isPending}
+                onClick={() => setConfirmDialog({ isOpen: true, type: "regenerate_art" })}
               >
-                {regenerateArtMutation.isPending ? "Generating..." : song.album_art ? "Regenerate Art" : "Generate Art"}
-              </button>
+                {song.album_art ? "Regenerate Art" : "Generate Art"}
+              </Button>
             )}
             {song.status === "completed" && (
-              <button
-                type="button"
-                className="btn secondary"
-                style={{ padding: "10px 12px" }}
-                disabled={regenerateLyricsMutation.isPending}
-                onClick={() => {
-                  if (!confirm(`Are you sure you want to regenerate the lyrics for "${song.title}"? This will use the original request and keep the current album art.`)) return;
-                  regenerateLyricsMutation.mutate(song.id);
-                }}
+              <Button
+                variant="secondary"
+                size="sm"
+                isLoading={regenerateLyricsMutation.isPending}
+                onClick={() => setConfirmDialog({ isOpen: true, type: "regenerate_lyrics" })}
               >
-                {regenerateLyricsMutation.isPending ? "Regenerating..." : "Regenerate Lyrics"}
-              </button>
+                Regenerate Lyrics
+              </Button>
             )}
-            <button
-              type="button"
-              className="btn secondary"
-              style={{ padding: "10px 12px", background: "rgba(239, 68, 68, 0.1)", color: "#fca5a5", border: "1px solid rgba(239, 68, 68, 0.2)" }}
-              onClick={() => {
-                if (deleteMutation.isPending) return;
-                if (!confirm(`Delete song "${song.title}"? This cannot be undone.`)) return;
-                deleteMutation.mutate(song.id);
-              }}
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setConfirmDialog({ isOpen: true, type: "delete_song" })}
             >
               Delete
-            </button>
+            </Button>
+
+
           </div>
         </div>
 
@@ -392,15 +411,15 @@ export function SongDetailPage() {
                   <div className="stack" style={{ gap: 6 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gray-500)", textTransform: "uppercase" }}>Suno Styles</div>
-                      <button
-                        className="btn ghost"
-                        style={{ padding: "2px 6px", fontSize: 11, height: "auto", minHeight: 0 }}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        style={{ padding: "2px 6px", height: "auto", minHeight: 0 }}
                         onClick={handleCopyStyles}
-                        title="Copy Styles"
+                        iconLeft={copiedStyles ? <Check size={12} /> : <Copy size={12} />}
                       >
-                        {copiedStyles ? <Check size={12} /> : <Copy size={12} />}
                         {copiedStyles ? "Copied" : "Copy"}
-                      </button>
+                      </Button>
                     </div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {(Array.isArray(metadata.suno_styles) ? metadata.suno_styles : String(metadata.suno_styles).split(",")).map((s: any) => (
@@ -416,15 +435,15 @@ export function SongDetailPage() {
                   <div className="stack" style={{ gap: 6 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gray-500)", textTransform: "uppercase" }}>Exclude</div>
-                      <button
-                        className="btn ghost"
-                        style={{ padding: "2px 6px", fontSize: 11, height: "auto", minHeight: 0 }}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        style={{ padding: "2px 6px", height: "auto", minHeight: 0 }}
                         onClick={handleCopyExcludeStyles}
-                        title="Copy Exclude Styles"
+                        iconLeft={copiedExcludeStyles ? <Check size={12} /> : <Copy size={12} />}
                       >
-                        {copiedExcludeStyles ? <Check size={12} /> : <Copy size={12} />}
                         {copiedExcludeStyles ? "Copied" : "Copy"}
-                      </button>
+                      </Button>
                     </div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {(Array.isArray(metadata.suno_exclude_styles) ? metadata.suno_exclude_styles : String(metadata.suno_exclude_styles).split(",")).map((s: any) => (
@@ -475,6 +494,29 @@ export function SongDetailPage() {
           </div>
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={confirmDialog.isOpen}
+        onClose={closeConfirmDialog}
+        onConfirm={handleConfirmAction}
+        title={
+          confirmDialog.type === "regenerate_art" ? "Regenerate Album Art" :
+          confirmDialog.type === "regenerate_lyrics" ? "Regenerate Lyrics" :
+          "Delete Song"
+        }
+        message={
+          confirmDialog.type === "regenerate_art" ? `Are you sure you want to (re)generate the cover art for "${song.title}"?` :
+          confirmDialog.type === "regenerate_lyrics" ? `Are you sure you want to regenerate the lyrics for "${song.title}"? This will use the original request and keep the current album art.` :
+          `Are you sure you want to delete "${song.title}"? This action cannot be undone.`
+        }
+        confirmText={confirmDialog.type === "delete_song" ? "Delete" : "Regenerate"}
+        variant={confirmDialog.type === "delete_song" ? "danger" : "ai-glow"}
+        isConfirming={
+          confirmDialog.type === "regenerate_art" ? regenerateArtMutation.isPending :
+          confirmDialog.type === "regenerate_lyrics" ? regenerateLyricsMutation.isPending :
+          deleteMutation.isPending
+        }
+      />
     </div>
   );
 }

@@ -326,8 +326,13 @@ export function GenerationForm() {
       </Card>
 
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? "Generating..." : "Generate Song"}
+        <Button 
+          type="submit" 
+          variant="ai-glow" 
+          size="lg" 
+          isLoading={mutation.isPending}
+        >
+          Generate Song
         </Button>
         {mutation.isError && (
           <span style={{ color: "var(--error)" }}>Failed to start generation, try again.</span>

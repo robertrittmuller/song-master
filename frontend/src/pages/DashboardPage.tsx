@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
+import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { SongGrid } from "../features/library/SongGrid";
 import { AlbumList } from "../features/library/AlbumList";
@@ -93,9 +94,9 @@ export function DashboardPage() {
           <div style={{ color: "var(--gray-400)", fontSize: "var(--text-sm)" }}>Workspace</div>
           <h2>Albums & Songs</h2>
         </div>
-        <Link to="/generate" className="btn">
+        <Button to="/generate" variant="ai-glow">
           + New Song
-        </Link>
+        </Button>
       </div>
 
       <Card title="Albums">
@@ -132,9 +133,9 @@ export function DashboardPage() {
                 : "Get started by creating your first song"}
             </p>
             {!searchQuery && !Object.values(filters).some(Boolean) && (
-              <Link to="/generate" className="btn">
+              <Button to="/generate">
                 Create Your First Song
-              </Link>
+              </Button>
             )}
           </div>
         </Card>
@@ -143,13 +144,13 @@ export function DashboardPage() {
           <SongGrid songs={visibleSongs} viewMode={viewMode} />
 
           {filteredAndSortedSongs.length > visibleSongsCount && (
-            <button
-              className="btn secondary"
+            <Button
+              variant="secondary"
               style={{ alignSelf: "center", minWidth: 200 }}
               onClick={() => setVisibleSongsCount(prev => prev + 12)}
             >
               More Songs ({filteredAndSortedSongs.length - visibleSongsCount} remaining)
-            </button>
+            </Button>
           )}
         </div>
       )}

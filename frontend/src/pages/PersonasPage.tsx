@@ -5,6 +5,7 @@ import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { fetchPersonas, deletePersona, createPersona, updatePersona } from "../services/api";
 import { Persona } from "../types/api";
+import { ConfirmationModal } from "../components/ui/ConfirmationModal";
 
 export function PersonasPage() {
   const queryClient = useQueryClient();
@@ -15,6 +16,7 @@ export function PersonasPage() {
 
   const [editingPersona, setEditingPersona] = useState<Persona | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [confirmDeleteName, setConfirmDeleteName] = useState<string | null>(null);
 
   const deleteMutation = useMutation({
     mutationFn: deletePersona,
@@ -51,8 +53,13 @@ export function PersonasPage() {
   };
 
   const handleDelete = (name: string) => {
-    if (window.confirm(`Are you sure you want to delete the persona "${name}"?`)) {
-      deleteMutation.mutate(name);
+    setConfirmDeleteName(name);
+  };
+
+  const confirmDelete = () => {
+    if (confirmDeleteName) {
+      deleteMutation.mutate(confirmDeleteName);
+      setConfirmDeleteName(null);
     }
   };
 
@@ -164,8 +171,8 @@ export function PersonasPage() {
               </div>
               <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 8 }}>
                 <Button variant="secondary" type="button" onClick={() => { setEditingPersona(null); setIsCreating(false); }}>Cancel</Button>
-                <Button type="submit" disabled={saveMutation.isPending}>
-                  {saveMutation.isPending ? "Saving..." : isCreating ? "Create Persona" : "Save Changes"}
+                <Button type="submit" isLoading={saveMutation.isPending}>
+                  {isCreating ? "Create Persona" : "Save Changes"}
                 </Button>
                 </div>
               </form>
@@ -173,6 +180,17 @@ export function PersonasPage() {
           </div>
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={confirmDeleteName !== null}
+        onClose={() => setConfirmDeleteName(null)}
+        onConfirm={confirmDelete}
+        title="Delete Persona"
+        message={`Are you sure you want to delete the persona "${confirmDeleteName}"? This action cannot be undone.`}
+        confirmText="Delete"
+        variant="danger"
+        isConfirming={deleteMutation.isPending}
+      />
     </div>
   );
 }

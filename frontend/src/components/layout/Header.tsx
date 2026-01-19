@@ -4,7 +4,7 @@ const nav = [
   { path: "/", label: "Home" },
   { path: "/personas", label: "Personas" },
   { path: "/dashboard", label: "Albums" },
-  { path: "/generate", label: "Generate" },
+  { path: "/generate", label: "New Song" },
   { path: "/settings", label: "Settings" }
 ];
 

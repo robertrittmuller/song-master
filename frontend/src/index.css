@@ -144,7 +144,7 @@ a {
   background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-500) 100%);
   background-size: 200% auto;
   color: white;
-  padding: 12px 24px;
+  padding: 10px 20px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--rounded-sm);
   font-weight: var(--font-semibold);
@@ -158,19 +158,30 @@ a {
   overflow: hidden;
 }
 
-.btn:hover {
+.btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 20px rgba(14, 165, 233, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   background-position: right center;
+  border-color: rgba(14, 165, 233, 0.4);
 }
 
-.btn:active {
+.btn:active:not(:disabled) {
   transform: translateY(0);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.btn::after {
-  display: none;
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+
+.btn.sm { padding: 6px 12px; font-size: var(--text-xs); gap: 6px; }
+.btn.md { padding: 10px 20px; font-size: var(--text-sm); }
+.btn.lg { padding: 16px 32px; font-size: var(--text-base); gap: 12px; }
+
+.btn.primary {
+  background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-400) 100%);
 }
 
 .btn.secondary {
@@ -179,9 +190,10 @@ a {
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   text-shadow: none;
+  backdrop-filter: blur(4px);
 }
 
-.btn.secondary:hover {
+.btn.secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.2);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
@@ -195,11 +207,48 @@ a {
   text-shadow: none;
 }
 
-.btn.ghost:hover {
+.btn.ghost:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.05);
   color: var(--gray-100);
-  border-color: rgba(255, 255, 255, 0.05);
 }
+
+.btn.ai-glow {
+  background: linear-gradient(135deg, #0ea5e9 0%, #3b82f6 50%, #8b5cf6 100%);
+  background-size: 200% auto;
+  box-shadow: 0 0 15px rgba(14, 165, 233, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn.ai-glow:hover:not(:disabled) {
+  background-position: right center;
+  box-shadow: 0 0 25px rgba(14, 165, 233, 0.6), 0 0 40px rgba(139, 92, 246, 0.2);
+  transform: translateY(-2px) scale(1.02);
+}
+
+.btn.danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  text-shadow: none;
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fee2e2;
+  box-shadow: 0 8px 25px rgba(239, 68, 68, 0.15);
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 
 .section-title {
   font-size: 18px;
@@ -417,4 +466,66 @@ h3 {
   border-left: 3px solid var(--primary-500);
   color: var(--gray-400);
   font-style: italic;
+}
+
+/* Modal & Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: modalFadeIn var(--transition-normal);
+}
+
+.modal-container {
+  width: 100%;
+  max-width: 500px;
+  background: var(--gray-900);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--shadow);
+  padding: 0;
+  overflow: hidden;
+  animation: modalSlideUp var(--transition-normal);
+}
+
+.modal-header {
+  padding: 24px 24px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-body p {
+  margin: 0;
+  color: var(--gray-300);
+  line-height: 1.6;
+}
+
+.modal-footer {
+  padding: 16px 24px 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalSlideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
