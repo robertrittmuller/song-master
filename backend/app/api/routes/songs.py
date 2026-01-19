@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, File, status, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.app.db.deps import get_db
-from backend.app.models import GenerationSession, Song
-from backend.app.schemas import SongCreate, SongDetail, SongRead, SongStatus, SongUpdate
+from backend.app.models import GenerationSession, Song, SongVersion
+from backend.app.schemas import SongCreate, SongDetail, SongLyricsUpdate, SongRead, SongStatus, SongUpdate
 from backend.app.services.persona_service import sync_persona_style_tags
 from backend.app.services.song_generator import generation_manager
 
@@ -359,6 +359,42 @@ def update_song(
     for key, value in update_data.items():
         setattr(song, key, value)
 
+    db.add(song)
+    db.commit()
+    db.refresh(song)
+    return song
+
+
+@router.post("/{song_id}/lyrics", response_model=SongDetail)
+def update_song_lyrics(
+    song_id: int, payload: SongLyricsUpdate, db: Session = Depends(get_db)
+) -> SongDetail:
+    """Update song lyrics and snapshot the previous version."""
+    from sqlalchemy import func
+    from helpers import strip_style_tags
+
+    song = db.get(Song, song_id)
+    if not song:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+
+    new_lyrics = payload.lyrics
+    if song.lyrics and song.lyrics != new_lyrics:
+        max_version = (
+            db.query(func.max(SongVersion.version_number))
+            .filter(SongVersion.song_id == song_id)
+            .scalar()
+        )
+        next_version = (max_version or 0) + 1
+        db.add(
+            SongVersion(
+                song_id=song_id,
+                version_number=next_version,
+                lyrics=song.lyrics,
+            )
+        )
+
+    song.lyrics = new_lyrics
+    song.clean_lyrics = strip_style_tags(new_lyrics) if new_lyrics else None
     db.add(song)
     db.commit()
     db.refresh(song)

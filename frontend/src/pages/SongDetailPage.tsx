@@ -11,7 +11,7 @@ import { LiveProgress } from "../features/progress/LiveProgress";
 import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
 import { LyricVersionTabs } from "../features/songViewer/LyricVersionTabs";
 import { LyricDiffView } from "../features/songViewer/LyricDiffView";
-import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, regenerateLyrics, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
+import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, updateSongLyrics, regenerateLyrics, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -72,6 +72,7 @@ export function SongDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [editedDescription, setEditedDescription] = useState("");
+  const [editedLyrics, setEditedLyrics] = useState("");
   const editRef = useRef<HTMLDivElement>(null);
   const uploadArtInputRef = useRef<HTMLInputElement>(null);
 
@@ -110,6 +111,14 @@ export function SongDetailPage() {
     }
   });
 
+  const updateLyricsMutation = useMutation({
+    mutationFn: (lyrics: string) => updateSongLyrics(songId, lyrics),
+    onSuccess: (updatedSong) => {
+      setEditedLyrics(updatedSong.lyrics || "");
+      queryClient.invalidateQueries({ queryKey: ["song", songId] });
+    }
+  });
+
   const metadata = useMemo(() => {
     const rawMetadata = song?.metadata || song?.metadata_json;
     if (!rawMetadata) return null;
@@ -126,6 +135,16 @@ export function SongDetailPage() {
       setEditedDescription(metadata?.description || "");
     }
   }, [song, metadata, isEditing]);
+
+  useEffect(() => {
+    if (!song) {
+      return;
+    }
+    if (editedLyrics && editedLyrics !== (song.lyrics || "")) {
+      return;
+    }
+    setEditedLyrics(song.lyrics || "");
+  }, [song, editedLyrics]);
 
   const [copiedStyles, setCopiedStyles] = useState(false);
   const [copiedExcludeStyles, setCopiedExcludeStyles] = useState(false);
@@ -257,7 +276,7 @@ export function SongDetailPage() {
     return resultLines.join("\n");
   };
 
-  const buildSongMarkdown = () => {
+  const buildSongMarkdown = (lyrics: string) => {
     const description = metadata?.description || "Short description of the song's theme and style.";
     const sunoStyles = metadata?.suno_styles ?? metadata?.genre ?? "rock";
     const sunoExcludeStyles = metadata?.suno_exclude_styles ?? [];
@@ -270,7 +289,6 @@ export function SongDetailPage() {
     const key = metadata?.key || "C";
     const instruments = metadata?.instruments || "guitar,bass,drums";
     const userPrompt = song?.user_prompt || "";
-    const lyrics = song?.lyrics || "";
     const cleanLyrics = lyrics ? stripStyleTags(lyrics) : "";
     const albumArtLine = song?.album_art
       ? `![Album Art](${song.album_art.split("/").pop()})\n\n`
@@ -302,8 +320,8 @@ ${cleanLyrics}
   };
 
   const handleDownloadLyrics = () => {
-    if (!song?.lyrics) return;
-    const markdown = buildSongMarkdown();
+    if (!viewedLyrics) return;
+    const markdown = buildSongMarkdown(viewedLyrics);
     const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -315,6 +333,19 @@ ${cleanLyrics}
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   };
+
+  const canEditLyrics = song?.status === "completed" && selectedVersionId === "current" && !isDiffMode;
+  const lyricsChanged = editedLyrics !== (song?.lyrics || "");
+  const canSaveLyrics = lyricsChanged && editedLyrics.trim().length > 0;
+  const hasLyricsDraft = lyricsChanged;
+  const displayLyrics = hasLyricsDraft ? editedLyrics : (song?.lyrics || "");
+  const viewedLyrics = useMemo(() => {
+    if (!song) return "";
+    if (selectedVersionId === "current") {
+      return displayLyrics;
+    }
+    return song.versions?.find((version) => version.id === selectedVersionId)?.lyrics || "";
+  }, [displayLyrics, selectedVersionId, song]);
 
   if (isLoading) return <p style={{ color: "var(--gray-400)" }}>Loading...</p>;
   if (!song) return <p style={{ color: "var(--gray-400)" }}>Song not found.</p>;
@@ -476,15 +507,25 @@ ${cleanLyrics}
           <Card
             title="Song Lyrics"
             action={
-              <button
-                className="btn ghost"
-                style={{ padding: "4px 8px", fontSize: 12, height: "auto", minHeight: 0 }}
-                onClick={handleDownloadLyrics}
-                disabled={!song.lyrics}
-              >
-                <Download size={14} style={{ marginRight: 4 }} />
-                Download .md
-              </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  className="btn ghost"
+                  style={{ padding: "4px 8px", fontSize: 12, height: "auto", minHeight: 0 }}
+                  onClick={() => updateLyricsMutation.mutate(editedLyrics)}
+                  disabled={!canEditLyrics || !canSaveLyrics || updateLyricsMutation.isPending}
+                >
+                  Save as New Version
+                </button>
+                <button
+                  className="btn ghost"
+                  style={{ padding: "4px 8px", fontSize: 12, height: "auto", minHeight: 0 }}
+                  onClick={handleDownloadLyrics}
+                  disabled={!viewedLyrics}
+                >
+                  <Download size={14} style={{ marginRight: 4 }} />
+                  Download .md
+                </button>
+              </div>
             }
           >
             {song.versions && song.versions.length > 0 && (
@@ -498,8 +539,31 @@ ${cleanLyrics}
               />
             )}
 
+            {hasLyricsDraft && (
+              <div className="glass" style={{ padding: 10, marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <div style={{ fontSize: 12, color: "var(--gray-300)" }}>
+                    Draft changes are ready. Create a new version when you are done.
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      className="btn ghost"
+                      style={{ padding: "2px 8px", fontSize: 11, height: "auto", minHeight: 0 }}
+                      onClick={() => setEditedLyrics(song.lyrics || "")}
+                    >
+                      Discard
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {selectedVersionId === "current" ? (
-              <LyricsSectionView lyrics={song.lyrics || ""} />
+              <LyricsSectionView
+                lyrics={displayLyrics}
+                editable={canEditLyrics}
+                onDraftChange={setEditedLyrics}
+              />
             ) : isDiffMode ? (
               <LyricDiffView
                 oldLyrics={song.versions?.find(v => v.id === selectedVersionId)?.lyrics || ""}

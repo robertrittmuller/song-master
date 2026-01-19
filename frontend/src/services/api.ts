@@ -107,6 +107,11 @@ export async function updateSong(songId: number, payload: Partial<Song>): Promis
   return data;
 }
 
+export async function updateSongLyrics(songId: number, lyrics: string): Promise<Song> {
+  const { data } = await client.post<Song>(`/api/songs/${songId}/lyrics`, { lyrics });
+  return data;
+}
+
 export async function fetchSongStatus(songId: number): Promise<SongStatus> {
   const { data } = await client.get<SongStatus>(`/api/songs/${songId}/status`);
   return data;

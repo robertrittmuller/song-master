@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 
 interface LyricSection {
@@ -10,6 +10,8 @@ interface LyricSection {
 
 interface Props {
     lyrics: string;
+    editable?: boolean;
+    onDraftChange?: (lyrics: string) => void;
 }
 
 const SECTION_COLORS: Record<string, string> = {
@@ -200,11 +202,25 @@ function getSectionColor(type: string): string {
     return SECTION_COLORS.default;
 }
 
-export function LyricsSectionView({ lyrics }: Props) {
+function buildLyricsFromSections(sections: LyricSection[]): string {
+    return sections.map(section => {
+        let header = `[${section.type}]`;
+        const tags = [...section.tags, ...section.styles].map(t => `[${t}]`).join(" ");
+        if (tags) {
+            header += ` ${tags}`;
+        }
+        return `${header}\n${section.content}`.trimEnd();
+    }).join("\n\n");
+}
+
+export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: Props) {
     const [showTags, setShowTags] = useState(true);
     const [showEffectTags, setShowEffectTags] = useState(true);
     const [copied, setCopied] = useState(false);
-    const sections = parseLyrics(lyrics);
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [editedContent, setEditedContent] = useState("");
+    const sections = useMemo(() => parseLyrics(lyrics), [lyrics]);
+    const canEdit = editable && !!onDraftChange;
 
     const handleCopy = async () => {
         // Reconstruct lyrics from sections, which already skip the title line.
@@ -232,6 +248,11 @@ export function LyricsSectionView({ lyrics }: Props) {
             console.error("Failed to copy lyrics: ", err);
         }
     };
+
+    useEffect(() => {
+        setEditingIndex(null);
+        setEditedContent("");
+    }, [lyrics]);
 
     if (sections.length === 0) {
         return (
@@ -282,7 +303,15 @@ export function LyricsSectionView({ lyrics }: Props) {
                     style={{
                         borderLeft: `4px solid transparent`,
                         borderImageSource: getSectionColor(section.type),
-                        borderImageSlice: 1
+                        borderImageSlice: 1,
+                        cursor: canEdit ? "text" : "default"
+                    }}
+                    onClick={() => {
+                        if (!canEdit) {
+                            return;
+                        }
+                        setEditingIndex(index);
+                        setEditedContent(section.content);
                     }}
                 >
                     <div
@@ -330,35 +359,91 @@ export function LyricsSectionView({ lyrics }: Props) {
                         </div>
                     )}
 
-                    <div
-                        style={{
-                            whiteSpace: "pre-wrap",
-                            color: "var(--gray-100)",
-                            lineHeight: 1.6
-                        }}
-                    >
-                        {section.content.split("\n").map((line, lineIndex) => {
-                            const trimmed = line.trim();
-                            const isNonSung = isNonSungLine(trimmed);
-                            if (!trimmed) {
-                                return null;
-                            }
-                            if (!showEffectTags && isNonSung) {
-                                return null;
-                            }
-                            if (isNonSung) {
-                                return (
-                                    <div key={`non-sung-${lineIndex}`} style={{ margin: "6px 0" }}>
-                                        <span className="tag" style={NON_SUNG_TAG_STYLE}>
-                                            {stripNonSungMarkers(trimmed)}
-                                        </span>
-                                    </div>
-                                );
-                            }
+                    {editingIndex === index ? (
+                        <div className="stack" style={{ gap: 10 }}>
+                            <textarea
+                                className="input"
+                                style={{
+                                    width: "100%",
+                                    minHeight: 140,
+                                    fontSize: 14,
+                                    background: "rgba(255, 255, 255, 0.05)",
+                                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                                    borderRadius: "var(--rounded-sm)",
+                                    padding: "10px 12px",
+                                    resize: "vertical",
+                                    lineHeight: 1.6
+                                }}
+                                value={editedContent}
+                                onChange={(e) => setEditedContent(e.target.value)}
+                                autoFocus
+                                onClick={(event) => event.stopPropagation()}
+                            />
+                            <div style={{ display: "flex", gap: 8 }}>
+                                <button
+                                    className="btn ghost"
+                                    style={{ padding: "4px 10px", fontSize: 12, height: "auto", minHeight: 0 }}
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        if (!onDraftChange) {
+                                            return;
+                                        }
+                                        const updatedSections = sections.map((current, currentIndex) => (
+                                            currentIndex === index
+                                                ? { ...current, content: editedContent }
+                                                : current
+                                        ));
+                                        onDraftChange(buildLyricsFromSections(updatedSections));
+                                        setEditingIndex(null);
+                                        setEditedContent("");
+                                    }}
+                                >
+                                    Save Section
+                                </button>
+                                <button
+                                    className="btn ghost"
+                                    style={{ padding: "4px 10px", fontSize: 12, height: "auto", minHeight: 0 }}
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        setEditingIndex(null);
+                                        setEditedContent("");
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div
+                            style={{
+                                whiteSpace: "pre-wrap",
+                                color: "var(--gray-100)",
+                                lineHeight: 1.6
+                            }}
+                        >
+                            {section.content.split("\n").map((line, lineIndex) => {
+                                const trimmed = line.trim();
+                                const isNonSung = isNonSungLine(trimmed);
+                                if (!trimmed) {
+                                    return null;
+                                }
+                                if (!showEffectTags && isNonSung) {
+                                    return null;
+                                }
+                                if (isNonSung) {
+                                    return (
+                                        <div key={`non-sung-${lineIndex}`} style={{ margin: "6px 0" }}>
+                                            <span className="tag" style={NON_SUNG_TAG_STYLE}>
+                                                {stripNonSungMarkers(trimmed)}
+                                            </span>
+                                        </div>
+                                    );
+                                }
 
-                            return <div key={`line-${lineIndex}`}>{line}</div>;
-                        })}
-                    </div>
+                                return <div key={`line-${lineIndex}`}>{line}</div>;
+                            })}
+                        </div>
+                    )}
                 </div>
             ))}
         </div>

@@ -33,6 +33,10 @@ class SongUpdate(BaseModel):
     user_prompt: Optional[str] = None
 
 
+class SongLyricsUpdate(BaseModel):
+    lyrics: str
+
+
 class SongRead(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
