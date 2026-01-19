@@ -11,7 +11,7 @@ import { LiveProgress } from "../features/progress/LiveProgress";
 import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
 import { LyricVersionTabs } from "../features/songViewer/LyricVersionTabs";
 import { LyricDiffView } from "../features/songViewer/LyricDiffView";
-import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, regenerateLyrics, uploadLiveFeedback, fetchPersonas } from "../services/api";
+import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, regenerateLyrics, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -59,10 +59,21 @@ export function SongDetailPage() {
     }
   });
 
+  const uploadArtMutation = useMutation({
+    mutationFn: (file: File) => uploadSongArt(songId, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["song", songId] });
+      if (uploadArtInputRef.current) {
+        uploadArtInputRef.current.value = "";
+      }
+    }
+  });
+
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [editedDescription, setEditedDescription] = useState("");
   const editRef = useRef<HTMLDivElement>(null);
+  const uploadArtInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -499,10 +510,10 @@ ${cleanLyrics}
             )}
           </Card>
           <div className="stack" style={{ gap: 16 }}>
-            {song.album_art && (
-              <Card
-                title="Album Art"
-                action={
+            <Card
+              title="Album Art"
+              action={
+                song.album_art ? (
                   <button
                     className="btn ghost"
                     style={{ padding: "4px 8px", fontSize: 12, height: "auto", minHeight: 0 }}
@@ -529,8 +540,10 @@ ${cleanLyrics}
                     <Download size={14} style={{ marginRight: 4 }} />
                     Download
                   </button>
-                }
-              >
+                ) : null
+              }
+            >
+              {song.album_art ? (
                 <img
                   src={encodeURI(`${API_BASE}/${song.album_art}?t=${new Date().getTime()}`)}
                   alt={`${song.title} cover art`}
@@ -540,8 +553,51 @@ ${cleanLyrics}
                     border: "1px solid rgba(255,255,255,0.1)"
                   }}
                 />
-              </Card>
-            )}
+              ) : (
+                <div className="glass" style={{ padding: 16, textAlign: "center", color: "var(--gray-400)" }}>
+                  No album art yet.
+                </div>
+              )}
+
+              <form
+                style={{ marginTop: 12 }}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.target as HTMLFormElement;
+                  const fileInput = form.elements.namedItem("album_art") as HTMLInputElement;
+                  const file = fileInput.files?.[0];
+                  if (!file) return;
+
+                  const isValidType = ["image/jpeg", "image/png"].includes(file.type);
+                  const isValidName = /\.(jpe?g|png)$/i.test(file.name);
+                  if (!isValidType && !isValidName) {
+                    alert("Please upload a JPEG or PNG image.");
+                    return;
+                  }
+
+                  uploadArtMutation.mutate(file, {
+                    onError: (err: any) => {
+                      console.error(err);
+                      alert("Failed to upload album art.");
+                    }
+                  });
+                }}
+              >
+                <input
+                  ref={uploadArtInputRef}
+                  type="file"
+                  name="album_art"
+                  accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                  className="input"
+                  style={{ width: "100%", marginBottom: 10, fontSize: 13 }}
+                  disabled={uploadArtMutation.isPending}
+                  required
+                />
+                <button type="submit" className="btn primary" style={{ width: "100%" }} disabled={uploadArtMutation.isPending}>
+                  {uploadArtMutation.isPending ? "Uploading..." : "Upload Art"}
+                </button>
+              </form>
+            </Card>
 
             {!song.use_local && (
               <Card title="Live Listen Feedback">

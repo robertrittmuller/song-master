@@ -415,6 +415,57 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
     return song
 
 
+@router.post("/{song_id}/upload-art", response_model=SongDetail)
+async def upload_song_art(
+    song_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)
+) -> SongDetail:
+    """Upload a custom album art image (JPEG or PNG) for a song."""
+    song = db.get(Song, song_id)
+    if not song:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+
+    allowed_types = {"image/jpeg", "image/png"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only JPEG or PNG files are supported.")
+
+    filename = file.filename or ""
+    extension = ""
+    if filename and "." in filename:
+        extension = f".{filename.rsplit('.', 1)[-1].lower()}"
+
+    if extension not in {".jpg", ".jpeg", ".png"}:
+        extension = ".jpg" if file.content_type == "image/jpeg" else ".png"
+
+    from datetime import datetime
+    import os
+    from helpers import get_song_storage_info
+
+    song_date = song.created_at.strftime("%Y-%m-%d") if song.created_at else datetime.now().strftime("%Y-%m-%d")
+    storage = get_song_storage_info(song.title, song_date)
+    os.makedirs(storage["folder"], exist_ok=True)
+
+    file_path = f"{storage['image_base']}_custom{extension}"
+
+    try:
+        with open(file_path, "wb") as out_file:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                out_file.write(chunk)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save uploaded album art."
+        ) from exc
+
+    song.album_art = file_path
+    db.add(song)
+    db.commit()
+    db.refresh(song)
+    return song
+
+
 @router.post("/{song_id}/regenerate-lyrics", response_model=SongDetail)
 async def regenerate_song_lyrics(song_id: int, db: Session = Depends(get_db)) -> SongDetail:
     """Trigger lyric regeneration for an existing song."""

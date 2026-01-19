@@ -125,6 +125,15 @@ export async function regenerateLyrics(songId: number): Promise<Song> {
   return data;
 }
 
+export async function uploadSongArt(songId: number, file: File): Promise<Song> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const { data } = await client.post<Song>(`/api/songs/${songId}/upload-art`, formData, {
+    headers: { "Content-Type": "multipart/form-data" }
+  });
+  return data;
+}
+
 export async function uploadLiveFeedback(songId: number, file: File): Promise<Song> {
   const formData = new FormData();
   formData.append("file", file);
