@@ -274,6 +274,64 @@ def get_song_storage_info(title: str, date: Optional[str] = None) -> Dict[str, s
     }
 
 
+def rename_song_files(old_title: str, new_title: str, date: str) -> Dict[str, str]:
+    """
+    Rename the song folder and files when the title changes.
+    Returns the new storage info.
+    """
+    old_info = get_song_storage_info(old_title, date)
+    new_info = get_song_storage_info(new_title, date)
+
+    old_folder = old_info["folder"]
+    new_folder = new_info["folder"]
+
+    if os.path.exists(old_folder) and old_folder != new_folder:
+        # 1. Rename files inside first
+        old_base = os.path.basename(old_info["image_base"])
+        new_base = os.path.basename(new_info["image_base"])
+
+        for filename in os.listdir(old_folder):
+            if filename.startswith(old_base):
+                # Ensure we only rename files that belong to this song (exact base or base+suffix)
+                suffix = filename[len(old_base):]
+                if suffix and not (suffix.startswith(".") or suffix.startswith("_") or suffix.startswith("-")):
+                    continue
+
+                old_file_path = os.path.join(old_folder, filename)
+                new_file_name = filename.replace(old_base, new_base, 1)
+                new_file_path = os.path.join(old_folder, new_file_name)
+
+                # Update title in markdown if it's the .md file
+                if filename.endswith(".md"):
+                    try:
+                        with open(old_file_path, "r") as f:
+                            content = f.read()
+
+                        # Update title in markdown - usually ## Title
+                        old_md_title = f"## {old_title}"
+                        new_md_title = f"## {new_title}"
+                        if old_md_title in content:
+                            content = content.replace(old_md_title, new_md_title)
+
+                        with open(old_file_path, "w") as f:
+                            f.write(content)
+                    except Exception as e:
+                        print(f"Error updating markdown title: {e}")
+
+                try:
+                    os.rename(old_file_path, new_file_path)
+                except Exception as e:
+                    print(f"Error renaming file {old_file_path} to {new_file_name}: {e}")
+
+        # 2. Rename the folder
+        try:
+            os.rename(old_folder, new_folder)
+        except Exception as e:
+            print(f"Error renaming folder {old_folder} to {new_folder}: {e}")
+
+    return new_info
+
+
 def generate_album_art(
     title: str,
     user_input: str,

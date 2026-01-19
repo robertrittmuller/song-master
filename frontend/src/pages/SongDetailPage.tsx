@@ -181,6 +181,130 @@ export function SongDetailPage() {
     }
   };
 
+  const stripStyleTags = (lyrics: string) => {
+    const lines = lyrics.split(/\r?\n/);
+    const cleanLines: string[] = [];
+    const nonSungLinePattern = /^\*[^*]+\*$/;
+    const structuralPatterns = [
+      /\[Verse\s*\d*\]/i,
+      /\[Pre-Chorus\]/i,
+      /\[Chorus\]/i,
+      /\[Bridge\]/i,
+      /\[Outro\]/i,
+      /\[Intro\]/i,
+      /\[Final Chorus\]/i,
+      /\[Guitar Solo\]/i,
+      /\[Instrumental\]/i
+    ];
+
+    for (const line of lines) {
+      const strippedLine = line.trim();
+      if (!strippedLine) {
+        continue;
+      }
+
+      if (nonSungLinePattern.test(strippedLine)) {
+        continue;
+      }
+
+      let structuralHeader: string | null = null;
+      for (const pattern of structuralPatterns) {
+        const match = strippedLine.match(pattern);
+        if (match) {
+          structuralHeader = match[0];
+          break;
+        }
+      }
+
+      if (structuralHeader) {
+        cleanLines.push(structuralHeader);
+        continue;
+      }
+
+      if (/^\[.*\]$/.test(strippedLine)) {
+        continue;
+      }
+
+      const cleanLine = strippedLine.replace(/^\[.*?\]\s*/, "").trim();
+      if (cleanLine) {
+        cleanLines.push(cleanLine);
+      }
+    }
+
+    const resultLines: string[] = [];
+    for (let i = 0; i < cleanLines.length; i += 1) {
+      const line = cleanLines[i];
+      resultLines.push(line);
+      if (i < cleanLines.length - 1) {
+        const isHeader = structuralPatterns.some((pattern) => pattern.test(line));
+        if (isHeader && cleanLines[i + 1].trim()) {
+          resultLines.push("");
+        }
+      }
+    }
+
+    return resultLines.join("\n");
+  };
+
+  const buildSongMarkdown = () => {
+    const description = metadata?.description || "Short description of the song's theme and style.";
+    const sunoStyles = metadata?.suno_styles ?? metadata?.genre ?? "rock";
+    const sunoExcludeStyles = metadata?.suno_exclude_styles ?? [];
+    const stylesLine = Array.isArray(sunoStyles) ? sunoStyles.join(", ") : String(sunoStyles);
+    const excludeLine = Array.isArray(sunoExcludeStyles) ? sunoExcludeStyles.join(", ") : String(sunoExcludeStyles);
+    const targetAudience = metadata?.target_audience || "Suggested demographic";
+    const commercialPotential = metadata?.commercial_potential || "Assessment";
+    const mood = metadata?.mood || "happy";
+    const tempo = metadata?.tempo || "120";
+    const key = metadata?.key || "C";
+    const instruments = metadata?.instruments || "guitar,bass,drums";
+    const userPrompt = song?.user_prompt || "";
+    const lyrics = song?.lyrics || "";
+    const cleanLyrics = lyrics ? stripStyleTags(lyrics) : "";
+    const albumArtLine = song?.album_art
+      ? `![Album Art](${song.album_art.split("/").pop()})\n\n`
+      : "";
+
+    return `
+## ${song?.title || "Untitled"}
+### ${description}
+
+${albumArtLine}## Suno Styles
+${stylesLine}
+
+## Suno Exclude-styles
+${excludeLine || "None"}
+
+## Additional Metadata
+- **Emotional Arc**: ${mood}
+- **Target Audience**: ${targetAudience}
+- **Commercial Potential**: ${commercialPotential}
+- **Technical Notes**: BPM: ${tempo}, Key: ${key}, Instruments: ${instruments}
+- **User Prompt**: ${userPrompt}
+
+### Song Lyrics:
+${lyrics}
+
+### Clean Lyrics (No Style Tags):
+${cleanLyrics}
+`.trimStart();
+  };
+
+  const handleDownloadLyrics = () => {
+    if (!song?.lyrics) return;
+    const markdown = buildSongMarkdown();
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const safeTitle = song.title.replace(/[<>:"/\\|?*]+/g, "").replace(/\s+/g, "_").trim() || "song";
+    link.href = url;
+    link.download = `${safeTitle}_lyrics.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
   if (isLoading) return <p style={{ color: "var(--gray-400)" }}>Loading...</p>;
   if (!song) return <p style={{ color: "var(--gray-400)" }}>Song not found.</p>;
 
@@ -338,7 +462,20 @@ export function SongDetailPage() {
 
       {song.status === "completed" && (
         <div className="grid" style={{ gridTemplateColumns: "2fr 1fr", gap: 16 }}>
-          <Card title="Song Lyrics">
+          <Card
+            title="Song Lyrics"
+            action={
+              <button
+                className="btn ghost"
+                style={{ padding: "4px 8px", fontSize: 12, height: "auto", minHeight: 0 }}
+                onClick={handleDownloadLyrics}
+                disabled={!song.lyrics}
+              >
+                <Download size={14} style={{ marginRight: 4 }} />
+                Download .md
+              </button>
+            }
+          >
             {song.versions && song.versions.length > 0 && (
               <LyricVersionTabs
                 currentLyrics={song.lyrics || ""}

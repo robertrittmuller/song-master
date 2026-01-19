@@ -84,12 +84,59 @@ def update_song(
 ) -> SongDetail:
     """Update song metadata (e.g., move to an album, change persona)."""
     import json
+    from datetime import datetime
 
     song = db.get(Song, song_id)
     if not song:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
 
     update_data = payload.model_dump(exclude_unset=True)
+
+    # Handle title changes and rename files/folders
+    if "title" in update_data and update_data["title"] != song.title:
+        if song.status == "generating":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot rename song while it is generating"
+            )
+
+        from helpers import rename_song_files, get_song_storage_info
+        import os
+        
+        old_title = song.title
+        new_title = update_data["title"]
+        song_date = song.created_at.strftime("%Y-%m-%d") if song.created_at else datetime.now().strftime("%Y-%m-%d")
+        
+        old_info = get_song_storage_info(old_title, song_date)
+        new_info = get_song_storage_info(new_title, song_date)
+
+        # check if target already exists to avoid collisions
+        if os.path.exists(new_info["folder"]) and old_info["folder"] != new_info["folder"]:
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"A song folder already exists at {new_info['folder']}"
+            )
+
+        # Do the physical rename
+        rename_song_files(old_title, new_title, song_date)
+        
+        old_base = os.path.basename(old_info["image_base"])
+        new_base = os.path.basename(new_info["image_base"])
+        
+        # Update database fields that contain the path/filename strings
+        if song.album_art:
+            song.album_art = song.album_art.replace(old_info["folder"], new_info["folder"]).replace(old_base, new_base)
+             
+        for song_file in song.files:
+            # Update the path and filename in the database
+            if old_info["folder"] in song_file.file_path:
+                song_file.file_path = song_file.file_path.replace(old_info["folder"], new_info["folder"])
+            
+            if old_base in song_file.file_path:
+                song_file.file_path = song_file.file_path.replace(old_base, new_base)
+            
+            if old_base in song_file.file_name:
+                song_file.file_name = song_file.file_name.replace(old_base, new_base)
 
     # Handle description update (stored in metadata_json)
     if "description" in update_data:
