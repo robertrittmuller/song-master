@@ -66,6 +66,7 @@ export function SongDetailPage() {
       if (uploadArtInputRef.current) {
         uploadArtInputRef.current.value = "";
       }
+      setSelectedArtFileName("No file selected");
     }
   });
 
@@ -73,8 +74,11 @@ export function SongDetailPage() {
   const [editedTitle, setEditedTitle] = useState("");
   const [editedDescription, setEditedDescription] = useState("");
   const [editedLyrics, setEditedLyrics] = useState("");
+  const [selectedArtFileName, setSelectedArtFileName] = useState("No file selected");
+  const [selectedFeedbackFileName, setSelectedFeedbackFileName] = useState("No file selected");
   const editRef = useRef<HTMLDivElement>(null);
   const uploadArtInputRef = useRef<HTMLInputElement>(null);
+  const liveFeedbackInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -647,16 +651,34 @@ ${cleanLyrics}
                   });
                 }}
               >
-                <input
-                  ref={uploadArtInputRef}
-                  type="file"
-                  name="album_art"
-                  accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                  className="input"
-                  style={{ width: "100%", marginBottom: 10, fontSize: 13 }}
-                  disabled={uploadArtMutation.isPending}
-                  required
-                />
+                <div className={`file-field ${uploadArtMutation.isPending ? "is-disabled" : ""}`} style={{ marginBottom: 10 }}>
+                  <input
+                    ref={uploadArtInputRef}
+                    type="file"
+                    name="album_art"
+                    accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                    className="file-field__input"
+                    disabled={uploadArtMutation.isPending}
+                    required
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      setSelectedArtFileName(file ? file.name : "No file selected");
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="file-field__button"
+                    disabled={uploadArtMutation.isPending}
+                    onClick={() => uploadArtInputRef.current?.click()}
+                  >
+                    Choose Image
+                  </Button>
+                  <span className={`file-field__name ${selectedArtFileName === "No file selected" ? "is-empty" : ""}`}>
+                    {selectedArtFileName}
+                  </span>
+                </div>
                 <button type="submit" className="btn primary" style={{ width: "100%" }} disabled={uploadArtMutation.isPending}>
                   {uploadArtMutation.isPending ? "Uploading..." : "Upload Art"}
                 </button>
@@ -689,6 +711,7 @@ ${cleanLyrics}
                         .then(() => {
                           queryClient.invalidateQueries({ queryKey: ["song", songId] });
                           form.reset();
+                          setSelectedFeedbackFileName("No file selected");
                           alert("Feedback received and lyrics updated!");
                         })
                         .catch((err) => {
@@ -701,14 +724,32 @@ ${cleanLyrics}
                         });
                     }}
                   >
-                    <input
-                      type="file"
-                      name="file"
-                      accept=".mp3,audio/mpeg"
-                      className="input"
-                      style={{ width: "100%", marginBottom: 12, fontSize: 13 }}
-                      required
-                    />
+                    <div className="file-field" style={{ marginBottom: 12 }}>
+                      <input
+                        ref={liveFeedbackInputRef}
+                        type="file"
+                        name="file"
+                        accept=".mp3,audio/mpeg"
+                        className="file-field__input"
+                        required
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          setSelectedFeedbackFileName(file ? file.name : "No file selected");
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="file-field__button"
+                        onClick={() => liveFeedbackInputRef.current?.click()}
+                      >
+                        Choose MP3
+                      </Button>
+                      <span className={`file-field__name ${selectedFeedbackFileName === "No file selected" ? "is-empty" : ""}`}>
+                        {selectedFeedbackFileName}
+                      </span>
+                    </div>
                     <button type="submit" className="btn primary" style={{ width: "100%" }}>
                       Submit for Feedback
                     </button>

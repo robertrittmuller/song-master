@@ -253,6 +253,58 @@ a {
   border-color: rgba(16, 185, 129, 0.4);
 }
 
+.file-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--rounded-sm);
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.file-field__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  border: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.file-field__button.btn {
+  white-space: nowrap;
+}
+
+.file-field__name {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--gray-200);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.file-field__name.is-empty {
+  color: var(--gray-500);
+}
+
+.file-field.is-disabled {
+  opacity: 0.6;
+}
+
+.file-field.is-disabled .file-field__button {
+  pointer-events: none;
+}
+
 .animate-spin {
   animation: spin 1s linear infinite;
 }
@@ -383,6 +435,20 @@ h3 {
 
   h2 {
     font-size: var(--text-xl);
+  }
+
+  .file-field {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .file-field__button.btn {
+    width: 100%;
+  }
+
+  .file-field__name {
+    width: 100%;
+    text-align: center;
   }
 }
 
