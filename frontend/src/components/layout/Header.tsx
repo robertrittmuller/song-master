@@ -31,7 +31,7 @@ export function Header() {
             to={item.path}
             style={{
               padding: "10px 12px",
-              borderRadius: 12,
+              borderRadius: 999,
               background:
                 location.pathname === item.path ? "rgba(14,165,233,0.16)" : "rgba(255,255,255,0.04)",
               border: "1px solid rgba(255,255,255,0.06)",

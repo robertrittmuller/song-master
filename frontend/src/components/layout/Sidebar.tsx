@@ -1,8 +1,8 @@
-import { Link } from "react-router-dom";
+import { Button } from "../ui/Button";
 
 const quickLinks = [
   { to: "/generate", label: "New Song", accent: true },
-  { to: "/dashboard", label: "Album Library" },
+  { to: "/dashboard", label: "Library" },
   { to: "/settings", label: "Settings" }
 ];
 
@@ -21,9 +21,14 @@ export function Sidebar() {
           <p style={{ color: "var(--gray-300)", margin: "0 0 8px" }}>Quick actions</p>
           <div className="stack">
             {quickLinks.map((item) => (
-              <Link key={item.to} to={item.to} className="btn" style={{ width: "100%" }}>
+              <Button 
+                key={item.to} 
+                to={item.to} 
+                variant="ai-glow" 
+                style={{ width: "100%" }}
+              >
                 {item.label}
-              </Link>
+              </Button>
             ))}
           </div>
         </div>

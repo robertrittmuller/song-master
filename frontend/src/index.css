@@ -146,7 +146,7 @@ a {
   color: white;
   padding: 10px 20px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--rounded-sm);
+  border-radius: 999px;
   font-weight: var(--font-semibold);
   font-size: var(--text-sm);
   letter-spacing: 0.3px;
