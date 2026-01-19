@@ -21,24 +21,24 @@ Data is stored in `backend/data/song_master.db`. Personas/styles are read from t
 
 ### New Web GUI Features
 
-The latest release introduces a modern, feature-rich web interface with intuitive navigation and real-time progress tracking:
+The web UI now mirrors the CLI pipeline with richer editing, library management, and AI feedback tools:
 
-| **Dashboard Overview** | **Song Generation** |
+| **Song Detail + Live Listen** | **Song Generation** |
 |:---:|:---:|
-| ![Dashboard](images/screencapture-localhost-5173-dashboard-2026-01-13-22_08_25.png) | ![Generate](images/screencapture-localhost-5173-generate-2026-01-13-22_09_35.png) |
-| The centralized dashboard provides quick access to recent songs, generation statistics, and navigation to all major features. Track your creative workflow at a glance with an intuitive layout designed for efficiency. | The generation page offers a streamlined interface for creating new songs with style selection, persona customization, and real-time feedback during the AI songwriting process. |
+| ![Song Detail](images/screencap01.png) | ![Generate](images/screencap02.png) |
+| Edit titles and descriptions inline, manage lyrics and versions, upload or regenerate album art, and submit MP3s for "Live Listen" feedback. | Build a new song with persona selection, cover-art toggles, and detailed musical controls for tempo, key, mood, and instruments. |
 
-| **Song Edits - Live Listen** | **Song Library - List View** |
+| **Dashboard + Library** | **Expanded Song Detail** |
 |:---:|:---:|
-| ![Song Change Tracking](images/screencapture-localhost-5173-songs-22-2026-01-13-22_06_53.png) | ![Songs List](images/screencapture-localhost-5173-songs-22-2026-01-13-22_07_37.png) |
-| Use the "Live Listen" feature to get AI-powered feedback on your Suno generated song! | The detailed list view presents comprehensive song metadata including creation date, style tags, and status indicators, perfect for sorting and filtering your growing library. |
+| ![Library](images/screencap03.png) | ![Song Detail Expanded](images/screencap04.png) |
+| Browse albums and songs with search, filters, and grid/list views. Import existing markdown and jump back into the workflow fast. | Deep lyric navigation with section highlights, metadata chips, live feedback history, and album art previews. |
 
 **Key GUI Highlights:**
-- **Responsive Design**: Works seamlessly across desktop and tablet devices
-- **Real-time Progress**: Watch song generation progress with live updates
-- **Intuitive Navigation**: Quick access to dashboard, generation, library, and settings
-- **Smart Filtering**: Filter songs by style, date, or custom criteria
-- **Persona Management**: Configure and switch between AI personas easily
+- **Editable Song Detail**: Inline title/description updates, lyric versioning, and diff views
+- **Library Management**: Album grouping, search, filters, and grid/list toggles
+- **Persona Workflow**: Manage personas and apply them during generation
+- **Live Listen Feedback**: Upload MP3s for AI feedback and lyric refresh
+- **Album Art Controls**: Regenerate, upload, and download cover art assets
 
 ## Table of Contents
 
