@@ -854,14 +854,14 @@ ${cleanLyrics}
                   </div>
                 )}
 
-                <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                   {[
                     { key: "genre", label: "Genre" },
                     { key: "tempo", label: "Tempo / BPM" },
                     { key: "key", label: "Musical Key" },
                     { key: "mood", label: "Emotional Arc" }
                   ].map(item => metadata?.[item.key] && (
-                    <div key={item.key} className="glass" style={{ padding: "10px" }}>
+                    <div key={item.key} className="glass" style={{ padding: "10px", flex: "1 1 45%", minWidth: "200px" }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: "var(--gray-500)", textTransform: "uppercase", marginBottom: 2 }}>{item.label}</div>
                       <div style={{ fontSize: 13, color: "var(--gray-100)" }}>{metadata[item.key]}</div>
                     </div>
