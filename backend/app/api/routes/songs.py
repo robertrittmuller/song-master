@@ -91,6 +91,18 @@ def update_song(
 
     update_data = payload.model_dump(exclude_unset=True)
 
+    # Handle description update (stored in metadata_json)
+    if "description" in update_data:
+        description = update_data.pop("description")
+        metadata = {}
+        if song.metadata_json:
+            try:
+                metadata = json.loads(song.metadata_json)
+            except:
+                pass
+        metadata["description"] = description
+        song.metadata_json = json.dumps(metadata)
+
     # Handle persona changes and sync style tags
     if "persona" in update_data:
         new_persona = update_data["persona"]

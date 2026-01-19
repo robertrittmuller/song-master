@@ -26,6 +26,7 @@ export type Song = {
   status: string;
   score?: number;
   persona?: string;
+  description?: string;
   use_local: boolean;
   created_at: string;
   user_prompt?: string;

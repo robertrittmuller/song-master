@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Loader } from "../common/Loader";
 
 interface ButtonBaseProps {
-  variant?: "primary" | "secondary" | "ghost" | "ai-glow" | "danger";
+  variant?: "primary" | "secondary" | "ghost" | "ai-glow" | "danger" | "success";
   size?: "sm" | "md" | "lg";
   iconLeft?: ReactNode;
   iconRight?: ReactNode;

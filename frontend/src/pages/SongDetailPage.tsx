@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Copy, Check, Download } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Copy, Check, Download, Pencil } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
@@ -59,9 +59,31 @@ export function SongDetailPage() {
     }
   });
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedTitle, setEditedTitle] = useState("");
+  const [editedDescription, setEditedDescription] = useState("");
+  const editRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (editRef.current && !editRef.current.contains(event.target as Node)) {
+        setIsEditing(false);
+      }
+    }
+
+    if (isEditing) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isEditing]);
+
   const updateSongMutation = useMutation({
-    mutationFn: (payload: { album_id?: number | null; persona?: string | null }) => {
+    mutationFn: (payload: { title?: string; description?: string; album_id?: number | null; persona?: string | null }) => {
       const apiPayload: Record<string, unknown> = {};
+      if (payload.title !== undefined) apiPayload.title = payload.title;
+      if (payload.description !== undefined) apiPayload.description = payload.description;
       if (payload.album_id !== undefined) apiPayload.album_id = payload.album_id;
       if (payload.persona !== undefined) {
         // If payload.persona is null, we want to send null to the backend to clear it
@@ -73,6 +95,7 @@ export function SongDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["song", songId] });
       queryClient.invalidateQueries({ queryKey: ["songs"] });
+      setIsEditing(false);
     }
   });
 
@@ -85,6 +108,13 @@ export function SongDetailPage() {
       return null;
     }
   }, [song]);
+
+  useEffect(() => {
+    if (song && !isEditing) {
+      setEditedTitle(song.title);
+      setEditedDescription(metadata?.description || "");
+    }
+  }, [song, metadata, isEditing]);
 
   const [copiedStyles, setCopiedStyles] = useState(false);
   const [copiedExcludeStyles, setCopiedExcludeStyles] = useState(false);
@@ -160,11 +190,82 @@ export function SongDetailPage() {
         <div className="section-title" style={{ alignItems: "flex-start" }}>
           <div style={{ flex: 1 }}>
             <div style={{ color: "var(--gray-400)", fontSize: 13 }}>Song</div>
-            <h2 style={{ margin: "0 0 4px 0" }}>{song.title}</h2>
-            {metadata?.description && (
-              <p style={{ color: "var(--gray-300)", fontStyle: "italic", margin: 0, fontSize: 14, lineHeight: 1.4 }}>
-                {metadata.description}
-              </p>
+            {isEditing ? (
+              <div ref={editRef} className="stack" style={{ gap: 8, marginTop: 4 }}>
+                <input
+                  className="input"
+                  style={{
+                    fontSize: "var(--text-xl)",
+                    fontWeight: "var(--font-bold)",
+                    width: "100%",
+                    background: "rgba(255, 255, 255, 0.05)",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    borderRadius: "var(--rounded-sm)",
+                    padding: "4px 12px"
+                  }}
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  placeholder="Song Title"
+                  autoFocus
+                />
+                <textarea
+                  className="input"
+                  style={{
+                    width: "100%",
+                    minHeight: 60,
+                    fontSize: 14,
+                    fontStyle: "italic",
+                    background: "rgba(255, 255, 255, 0.05)",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    borderRadius: "var(--rounded-sm)",
+                    padding: "8px 12px",
+                    resize: "vertical",
+                    lineHeight: 1.4
+                  }}
+                  value={editedDescription}
+                  onChange={(e) => setEditedDescription(e.target.value)}
+                  placeholder="Add a description..."
+                />
+                <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                  <Button
+                    variant="success"
+                    size="sm"
+                    iconLeft={<Check size={16} />}
+                    onClick={() => updateSongMutation.mutate({ title: editedTitle, description: editedDescription })}
+                    isLoading={updateSongMutation.isPending}
+                    disabled={!editedTitle.trim() || (editedTitle === song.title && editedDescription === (metadata?.description || ""))}
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditing(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div 
+                className="editable-header" 
+                onClick={() => setIsEditing(true)}
+                style={{ cursor: "pointer" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <h2 style={{ margin: "0 0 4px 0" }}>{song.title}</h2>
+                  <Pencil size={14} style={{ color: "var(--gray-500)", opacity: 0.6 }} />
+                </div>
+                {metadata?.description ? (
+                  <p style={{ color: "var(--gray-300)", fontStyle: "italic", margin: 0, fontSize: 14, lineHeight: 1.4 }}>
+                    {metadata.description}
+                  </p>
+                ) : (
+                  <p style={{ color: "var(--gray-500)", fontStyle: "italic", margin: 0, fontSize: 13 }}>
+                    Click to add description...
+                  </p>
+                )}
+              </div>
             )}
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>

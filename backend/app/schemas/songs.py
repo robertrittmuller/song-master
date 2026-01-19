@@ -29,6 +29,8 @@ class SongUpdate(BaseModel):
     album_id: Optional[int] = None
     score: Optional[int] = None
     persona: Optional[str] = None
+    description: Optional[str] = None
+    user_prompt: Optional[str] = None
 
 
 class SongRead(BaseModel):

@@ -240,6 +240,19 @@ a {
   box-shadow: 0 8px 25px rgba(239, 68, 68, 0.15);
 }
 
+.btn.success {
+  background: linear-gradient(135deg, var(--success-dark) 0%, var(--success) 100%);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.btn.success:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--success) 0%, var(--success-dark) 100%);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
 .animate-spin {
   animation: spin 1s linear infinite;
 }
