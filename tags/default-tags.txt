@@ -291,6 +291,41 @@
 [Gospel Choir]
 
 # =================================
+# MULTI-VOICE ARRANGEMENT TAGS
+# =================================
+# Use these to direct multiple independent voices with stereo placement and roles.
+# Pair with lyric voice markers like (V1), (V2) in the lyrics.
+
+[Voices: Asynchronous overlapping]
+[Stereo Group: Left x4]
+[Stereo Group: Right x4]
+[Stereo Position: Center]
+[Stereo Position: Center-left]
+[Stereo Position: Center-right]
+[Stereo Position: Left]
+[Stereo Position: Right]
+[Voice Role: Lead]
+[Voice Role: Harmony]
+[Voice Role: Anchor]
+[Voice Role: Foundation]
+[Voice Color: Warm]
+[Voice Color: Bright]
+[Voice Color: Traditional]
+
+# Voice assignment format (use in style prompt)
+# Voice <#> <gender> <type> <frequency>Hz <stereo position> <role>
+# Example: Voice 1 male tenor 240Hz center lead traditional
+
+# Frequency guide (suggested)
+# Bass 120Hz | Baritone 180Hz | Alto (male) 200Hz | Contralto 220Hz
+# Tenor 240Hz | Mezzo 280Hz | Alto (female) 330Hz | Soprano 440Hz
+
+# Lyric notation examples
+# Single voice: (V1) Tenor lead I'll guide the way
+# Harmony: (V1) (V2) (V3) (V4) [Male harmony] We hold the line
+# Syllable split: Eight-(V1)-voi-(V2)-ces-(V3)-strong-(V4)
+
+# =================================
 # EFFECTS & PRODUCTION TAGS
 # =================================
 # Sound effects and production elements
@@ -299,6 +334,10 @@
 [Reverb tail, lasers and risers]
 [Syncopated Bass]
 [Melodic Bass]
+
+# Optional mix frequency placement (use in style prompt)
+# Kick 50Hz | Bongo drums 80-200Hz | Djembe bass 60Hz
+# Synth arpeggios 600Hz | Hi-hats 800Hz
 
 # =================================
 # NON-SUNG SOUND EFFECTS (ASTERISK SYNTAX)
