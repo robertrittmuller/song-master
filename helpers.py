@@ -132,12 +132,20 @@ def parse_persona(user_input: str, cli_persona: Optional[str]) -> Optional[str]:
     return user_input[start:].strip() if end == -1 else user_input[start:end].strip()
 
 
-def enhance_user_input(user_input: str, song_name: Optional[str], style: Optional[str] = None) -> str:
-    """Enhance the user's initial request by adding explicit song title if provided and style if selected."""
+def enhance_user_input(
+    user_input: str,
+    song_name: Optional[str],
+    style: Optional[str] = None,
+    vocal_gender: Optional[str] = None,
+) -> str:
+    """Enhance the user's initial request by adding explicit song title, style, or vocal guidance."""
     parts = []
     
     if song_name:
         parts.append(f"Song Title: {song_name}")
+
+    if vocal_gender:
+        parts.append(f"Requested Vocal Gender: {vocal_gender}")
     
     parts.append(user_input)
     
@@ -609,6 +617,7 @@ def get_instrument_tags() -> List[str]:
 
 class SongState(TypedDict, total=False):
     user_input: str
+    prompt_user_input: str
     song_name: Optional[str]
     persona: Optional[str]
     persona_name: Optional[str]
