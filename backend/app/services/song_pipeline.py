@@ -94,8 +94,11 @@ def generate_song_pipeline(
     max_rounds = int(os.getenv("REVIEW_MAX_ROUNDS", "3"))
     score_threshold = float(os.getenv("REVIEW_SCORE_THRESHOLD", "8.0"))
 
+    prompt_user_input = enhance_user_input(user_input, song_name, style, vocal_gender)
+
     initial_state: SongState = {
         "user_input": user_input,
+        "prompt_user_input": prompt_user_input,
         "song_name": song_name,
         "persona": persona,
         "persona_name": persona_name,
@@ -120,10 +123,9 @@ def generate_song_pipeline(
     def draft_node(state: SongState):
         """Generate initial song draft using AI."""
         notify("Generating initial draft", 20)
-        enhanced_input = enhance_user_input(state["user_input"], state.get("song_name"), state.get("style"))
         lyrics = draft_song(
             prompt_template=drafter_prompt,
-            enhanced_input=enhanced_input,
+            enhanced_input=state["prompt_user_input"],
             styles=state["resources"].styles,
             tags=state["resources"].tags,
             persona_styles=state["resources"].persona_styles,
@@ -143,7 +145,7 @@ def generate_song_pipeline(
             review_prompt,
             state["lyrics"],
             state["use_local"],
-            user_input=state["user_input"],
+            user_input=state["prompt_user_input"],
         )
         revised_lyrics = remove_thinking_tags(
             revise_lyrics(
@@ -151,7 +153,7 @@ def generate_song_pipeline(
                 state["lyrics"],
                 feedback,
                 state["use_local"],
-                user_input=state["user_input"],
+                user_input=state["prompt_user_input"],
             )
         )
         score = score_lyrics(scoring_prompt, revised_lyrics, state["use_local"])
@@ -172,7 +174,7 @@ def generate_song_pipeline(
                 revision_prompt,
                 state["lyrics"],
                 state["use_local"],
-                user_input=state["user_input"],
+                user_input=state["prompt_user_input"],
             )
         )
         notify("Critic feedback applied", 55)
@@ -185,7 +187,8 @@ def generate_song_pipeline(
             state["resources"].styles,
             state["resources"].tags,
             state["use_local"],
-            user_input=state["user_input"],
+            user_input=state["prompt_user_input"],
+            default_params=state["resources"].default_params,
         )
         triaged = triage_preflight(preflight_triage_prompt, raw, state["use_local"])
         passed = bool(triaged.get("pass", False))
@@ -208,7 +211,7 @@ def generate_song_pipeline(
                 state["lyrics"],
                 feedback,
                 state["use_local"],
-                user_input=state["user_input"],
+                user_input=state["prompt_user_input"],
             )
         )
         notify("Applied targeted fixes from preflight", 50)
@@ -218,7 +221,7 @@ def generate_song_pipeline(
         metadata = generate_metadata_summary(
             metadata_prompt,
             state["lyrics"],
-            state["user_input"],
+            state["prompt_user_input"],
             state["resources"].default_params,
             state["resources"].persona_styles,
             state["use_local"],

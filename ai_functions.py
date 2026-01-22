@@ -327,12 +327,13 @@ Lyrics: {{lyrics}}
     )
 
     song_preflight_prompt = PromptTemplate(
-        input_variables=["lyrics", "styles", "tags", "user_input"],
+        input_variables=["lyrics", "styles", "tags", "user_input", "default_params"],
         template=f"""
 {song_preflight_template}
 
 Styles: {{styles}}
 Tags: {{tags}}
+Default Song Parameters: {{default_params}}
 
 User Input: {{user_input}}
 
@@ -501,8 +502,15 @@ def preflight_song(
     tags: Dict[str, str],
     use_local: bool,
     user_input: str = "",
+    default_params: Optional[Dict[str, Optional[str]]] = None,
 ) -> str:
-    formatted_prompt = prompt_template.format(lyrics=lyrics, styles=str(styles), tags=str(tags), user_input=user_input)
+    formatted_prompt = prompt_template.format(
+        lyrics=lyrics,
+        styles=str(styles),
+        tags=str(tags),
+        user_input=user_input,
+        default_params=str(default_params or {}),
+    )
     return get_llm(use_local).invoke(formatted_prompt)
 
 
