@@ -79,6 +79,7 @@ export function SongDetailPage() {
   const editRef = useRef<HTMLDivElement>(null);
   const uploadArtInputRef = useRef<HTMLInputElement>(null);
   const liveFeedbackInputRef = useRef<HTMLInputElement>(null);
+  const liveFeedbackFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -153,6 +154,19 @@ export function SongDetailPage() {
   const [copiedStyles, setCopiedStyles] = useState(false);
   const [copiedExcludeStyles, setCopiedExcludeStyles] = useState(false);
   const [isLiveFeedbackOpen, setIsLiveFeedbackOpen] = useState(false);
+  const [isLiveFeedbackSubmitting, setIsLiveFeedbackSubmitting] = useState(false);
+  const [pendingLiveFeedbackFile, setPendingLiveFeedbackFile] = useState<File | null>(null);
+  const [liveFeedbackResponse, setLiveFeedbackResponse] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant: "primary" | "ai-glow" | "danger";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    variant: "primary",
+  });
 
   const [selectedVersionId, setSelectedVersionId] = useState<number | "current">("current");
   const [isDiffMode, setIsDiffMode] = useState(false);
@@ -165,7 +179,10 @@ export function SongDetailPage() {
     type: null,
   });
 
-  const closeConfirmDialog = () => setConfirmDialog({ isOpen: false, type: null });
+  const closeConfirmDialog = () => {
+    setConfirmDialog({ isOpen: false, type: null });
+    setPendingLiveFeedbackFile(null);
+  };
 
   const handleConfirmAction = () => {
     if (!confirmDialog.type || !song) return;
@@ -177,12 +194,40 @@ export function SongDetailPage() {
     } else if (confirmDialog.type === "delete_song") {
       deleteMutation.mutate(song.id);
     } else if (confirmDialog.type === "live_listen") {
-      // We'll trigger the form submission manually or move the logic here
-      // For now, let's keep it simple and just trigger the mutation if we had one
-      // but actually live listen uses a manual fetch call.
-      // I'll refactor this better.
+      if (pendingLiveFeedbackFile) {
+        void submitLiveFeedback(pendingLiveFeedbackFile);
+      }
     }
     closeConfirmDialog();
+  };
+
+  const submitLiveFeedback = async (file: File) => {
+    if (!song) return;
+    setIsLiveFeedbackSubmitting(true);
+
+    try {
+      await uploadLiveFeedback(song.id, file);
+      queryClient.invalidateQueries({ queryKey: ["song", songId] });
+      liveFeedbackFormRef.current?.reset();
+      setSelectedFeedbackFileName("No file selected");
+      setLiveFeedbackResponse({
+        isOpen: true,
+        title: "Live Listen Feedback",
+        message: "Feedback received and lyrics updated!",
+        variant: "ai-glow",
+      });
+    } catch (err: any) {
+      console.error(err);
+      setLiveFeedbackResponse({
+        isOpen: true,
+        title: "Live Listen Feedback",
+        message: "Failed to process feedback: " + (err.response?.data?.detail || err.message),
+        variant: "danger",
+      });
+    } finally {
+      setIsLiveFeedbackSubmitting(false);
+      setPendingLiveFeedbackFile(null);
+    }
   };
 
   const handleCopyStyles = async () => {
@@ -693,35 +738,15 @@ ${cleanLyrics}
                   </p>
 
                   <form
+                    ref={liveFeedbackFormRef}
                     onSubmit={(e) => {
                       e.preventDefault();
                       const form = e.target as HTMLFormElement;
                       const fileInput = form.elements.namedItem("file") as HTMLInputElement;
                       if (!fileInput.files?.length) return;
 
-                      if (!confirm("This will submit the audio to an external LLM for analysis and regenerate the lyrics based on feedback. Continue?")) return;
-
-                      const file = fileInput.files[0];
-                      const btn = form.querySelector("button[type=submit]") as HTMLButtonElement;
-                      const originalText = btn.textContent;
-                      btn.disabled = true;
-                      btn.textContent = "Analyzing...";
-
-                      uploadLiveFeedback(song.id, file)
-                        .then(() => {
-                          queryClient.invalidateQueries({ queryKey: ["song", songId] });
-                          form.reset();
-                          setSelectedFeedbackFileName("No file selected");
-                          alert("Feedback received and lyrics updated!");
-                        })
-                        .catch((err) => {
-                          console.error(err);
-                          alert("Failed to process feedback: " + (err.response?.data?.detail || err.message));
-                        })
-                        .finally(() => {
-                          btn.disabled = false;
-                          btn.textContent = originalText;
-                        });
+                      setPendingLiveFeedbackFile(fileInput.files[0]);
+                      setConfirmDialog({ isOpen: true, type: "live_listen" });
                     }}
                   >
                     <div className="file-field" style={{ marginBottom: 12 }}>
@@ -731,6 +756,7 @@ ${cleanLyrics}
                         name="file"
                         accept=".mp3,audio/mpeg"
                         className="file-field__input"
+                        disabled={isLiveFeedbackSubmitting}
                         required
                         onChange={(event) => {
                           const file = event.target.files?.[0];
@@ -742,6 +768,7 @@ ${cleanLyrics}
                         variant="secondary"
                         size="sm"
                         className="file-field__button"
+                        disabled={isLiveFeedbackSubmitting}
                         onClick={() => liveFeedbackInputRef.current?.click()}
                       >
                         Choose MP3
@@ -750,8 +777,8 @@ ${cleanLyrics}
                         {selectedFeedbackFileName}
                       </span>
                     </div>
-                    <button type="submit" className="btn primary" style={{ width: "100%" }}>
-                      Submit for Feedback
+                    <button type="submit" className="btn primary" style={{ width: "100%" }} disabled={isLiveFeedbackSubmitting}>
+                      {isLiveFeedbackSubmitting ? "Analyzing..." : "Submit for Feedback"}
                     </button>
                   </form>
 
@@ -901,20 +928,38 @@ ${cleanLyrics}
         title={
           confirmDialog.type === "regenerate_art" ? "Regenerate Album Art" :
           confirmDialog.type === "regenerate_lyrics" ? "Regenerate Lyrics" :
+          confirmDialog.type === "live_listen" ? "Live Listen Feedback" :
           "Delete Song"
         }
         message={
           confirmDialog.type === "regenerate_art" ? `Are you sure you want to (re)generate the cover art for "${song.title}"?` :
           confirmDialog.type === "regenerate_lyrics" ? `Are you sure you want to regenerate the lyrics for "${song.title}"? This will use the original request and keep the current album art.` :
+          confirmDialog.type === "live_listen" ? "This will submit the audio to an external LLM for analysis and regenerate the lyrics based on feedback. Continue?" :
           `Are you sure you want to delete "${song.title}"? This action cannot be undone.`
         }
-        confirmText={confirmDialog.type === "delete_song" ? "Delete" : "Regenerate"}
+        confirmText={
+          confirmDialog.type === "delete_song" ? "Delete" :
+          confirmDialog.type === "live_listen" ? "Submit" :
+          "Regenerate"
+        }
         variant={confirmDialog.type === "delete_song" ? "danger" : "ai-glow"}
         isConfirming={
           confirmDialog.type === "regenerate_art" ? regenerateArtMutation.isPending :
           confirmDialog.type === "regenerate_lyrics" ? regenerateLyricsMutation.isPending :
+          confirmDialog.type === "live_listen" ? isLiveFeedbackSubmitting :
           deleteMutation.isPending
         }
+      />
+
+      <ConfirmationModal
+        isOpen={liveFeedbackResponse.isOpen}
+        onClose={() => setLiveFeedbackResponse({ isOpen: false, title: "", message: "", variant: "primary" })}
+        onConfirm={() => setLiveFeedbackResponse({ isOpen: false, title: "", message: "", variant: "primary" })}
+        title={liveFeedbackResponse.title}
+        message={liveFeedbackResponse.message}
+        confirmText="OK"
+        variant={liveFeedbackResponse.variant}
+        showCancel={false}
       />
     </div>
   );

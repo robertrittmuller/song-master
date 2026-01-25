@@ -150,6 +150,8 @@ def delete_song(song_id: int, db: Session = Depends(get_db)) -> None:
 @router.post("/generate", response_model=SongDetail, status_code=status.HTTP_201_CREATED)
 async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> SongDetail:
     """Persist a new song record and start an async generation task."""
+    import json
+
     title = payload.title or "Untitled"
     song = Song(
         title=title,
@@ -160,7 +162,7 @@ async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> Son
         use_local=payload.use_local,
         album_id=payload.album_id,
         status="pending",
-        generation_config=None if not payload.generation_config else str(payload.generation_config),
+        generation_config=json.dumps(payload.generation_config) if payload.generation_config else None,
     )
     db.add(song)
     db.commit()
@@ -408,12 +410,11 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
     if not song:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
 
-    from helpers import extract_title, generate_album_art, resolve_storage_path
+    from helpers import extract_title, generate_album_art
     import json
-    import os
 
     title = extract_title(song.lyrics or "", song.title)
-    
+
     # Extract mood from metadata_json if available
     metadata = {}
     if song.metadata_json:
@@ -424,10 +425,6 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
             
     mood = metadata.get("mood")
     
-    # DEBUG: Log paths for diagnosis
-    print(f"[DEBUG] Current working directory: {os.getcwd()}")
-    print(f"[DEBUG] Song album_art before: {song.album_art}")
-    
     artwork_path = generate_album_art(
         title,
         song.user_prompt,
@@ -437,13 +434,7 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
         vocal_gender=song.vocal_gender
     )
 
-    print(f"[DEBUG] Generated artwork_path: {artwork_path}")
-    
     if artwork_path:
-        # Check if file exists
-        abs_path = resolve_storage_path(artwork_path)
-        print(f"[DEBUG] Absolute path: {abs_path}, exists: {os.path.exists(abs_path)}")
-        
         song.album_art = artwork_path
         db.commit()
         db.refresh(song)
@@ -516,7 +507,7 @@ async def regenerate_song_lyrics(song_id: int, db: Session = Depends(get_db)) ->
 
 @router.post("/{song_id}/live-feedback", response_model=SongDetail)
 async def live_listen_feedback(
-    song_id: int, file: UploadFile = UploadFile(...), db: Session = Depends(get_db)
+    song_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)
 ) -> SongDetail:
     """Submit an audio file for live feedback from a multimodal LLM."""
     song = db.get(Song, song_id)

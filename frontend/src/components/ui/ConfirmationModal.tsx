@@ -12,6 +12,7 @@ interface ConfirmationModalProps {
   cancelText?: string;
   isConfirming?: boolean;
   variant?: "primary" | "ai-glow" | "danger";
+  showCancel?: boolean;
 }
 
 export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
@@ -24,6 +25,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   cancelText = "Cancel",
   isConfirming = false,
   variant = "primary",
+  showCancel = true,
 }) => {
   return (
     <Modal
@@ -32,9 +34,11 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
       title={title}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={isConfirming}>
-            {cancelText}
-          </Button>
+          {showCancel && (
+            <Button variant="ghost" onClick={onClose} disabled={isConfirming}>
+              {cancelText}
+            </Button>
+          )}
           <Button
             variant={variant}
             isLoading={isConfirming}

@@ -6,8 +6,12 @@ from backend.app.db.base import Base
 
 settings = get_settings()
 
-# SQLite needs the check_same_thread flag disabled when used with async tasks
-engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
+connect_args = {}
+if settings.database_url.startswith("sqlite"):
+    # SQLite needs the check_same_thread flag disabled when used with async tasks
+    connect_args["check_same_thread"] = False
+
+engine = create_engine(settings.database_url, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
