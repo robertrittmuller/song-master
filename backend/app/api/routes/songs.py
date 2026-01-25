@@ -267,7 +267,7 @@ def update_song(
         new_info = get_song_storage_info(new_title, song_date)
 
         # check if target already exists to avoid collisions
-        if os.path.exists(new_info["folder"]) and old_info["folder"] != new_info["folder"]:
+        if os.path.exists(new_info["abs_folder"]) and old_info["folder"] != new_info["folder"]:
              raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"A song folder already exists at {new_info['folder']}"
@@ -408,7 +408,7 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
     if not song:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
 
-    from helpers import extract_title, generate_album_art
+    from helpers import extract_title, generate_album_art, resolve_storage_path
     import json
     import os
 
@@ -441,7 +441,7 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
     
     if artwork_path:
         # Check if file exists
-        abs_path = os.path.abspath(artwork_path)
+        abs_path = resolve_storage_path(artwork_path)
         print(f"[DEBUG] Absolute path: {abs_path}, exists: {os.path.exists(abs_path)}")
         
         song.album_art = artwork_path
@@ -478,9 +478,10 @@ async def upload_song_art(
 
     song_date = song.created_at.strftime("%Y-%m-%d") if song.created_at else datetime.now().strftime("%Y-%m-%d")
     storage = get_song_storage_info(song.title, song_date)
-    os.makedirs(storage["folder"], exist_ok=True)
+    os.makedirs(storage["abs_folder"], exist_ok=True)
 
-    file_path = f"{storage['image_base']}_custom{extension}"
+    file_path_rel = f"{storage['image_base']}_custom{extension}"
+    file_path = f"{storage['abs_image_base']}_custom{extension}"
 
     try:
         with open(file_path, "wb") as out_file:
@@ -495,7 +496,7 @@ async def upload_song_art(
             detail="Failed to save uploaded album art."
         ) from exc
 
-    song.album_art = file_path
+    song.album_art = file_path_rel
     db.add(song)
     db.commit()
     db.refresh(song)

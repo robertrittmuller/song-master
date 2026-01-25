@@ -12,7 +12,7 @@ from backend.app.db.database import SessionLocal
 from backend.app.models import GenerationSession, Song, SongFile, SongVersion
 from backend.app.schemas import GenerationLog, SongCreate, SongStatus
 from backend.app.services.song_pipeline import generate_song_pipeline
-from helpers import strip_style_tags
+from helpers import resolve_storage_path, strip_style_tags
 
 
 class SongGenerationManager:
@@ -175,12 +175,13 @@ class SongGenerationManager:
             # Save files to SongFile records
             if filename:
                 path = Path(filename)
+                abs_path = Path(resolve_storage_path(filename))
                 song_file = SongFile(
                     song_id=song_id,
                     file_type="lyrics",
                     file_path=str(path),
                     file_name=path.name,
-                    file_size=path.stat().st_size if path.exists() else None,
+                    file_size=abs_path.stat().st_size if abs_path.exists() else None,
                     mime_type="text/markdown",
                     is_primary=True,
                 )
@@ -188,12 +189,13 @@ class SongGenerationManager:
 
             if album_art:
                 art_path = Path(album_art)
+                abs_art_path = Path(resolve_storage_path(album_art))
                 art_file = SongFile(
                     song_id=song_id,
                     file_type="artwork",
                     file_path=str(art_path),
                     file_name=art_path.name,
-                    file_size=art_path.stat().st_size if art_path.exists() else None,
+                    file_size=abs_art_path.stat().st_size if abs_art_path.exists() else None,
                     mime_type="image/png" if art_path.suffix.lower() == ".png" else "image/jpeg",
                     is_primary=True,
                 )

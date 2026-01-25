@@ -2,6 +2,7 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict
 
 from tools.create_album_art import generate_album_art_image
@@ -250,6 +251,25 @@ def remove_title_from_lyrics(lyrics: str) -> str:
     return "\n".join(new_lines).strip()
 
 
+def get_repo_root() -> str:
+    """Return the absolute path to the repository root."""
+    return str(Path(__file__).resolve().parent)
+
+
+def resolve_storage_path(relative_path: str) -> str:
+    """Resolve a repo-relative storage path to an absolute filesystem path."""
+    return str((Path(get_repo_root()) / relative_path).resolve())
+
+
+def relativize_storage_path(path: str) -> str:
+    """Convert an absolute path to a repo-relative storage path when possible."""
+    root = Path(get_repo_root()).resolve()
+    try:
+        return str(Path(path).resolve().relative_to(root))
+    except ValueError:
+        return path
+
+
 def get_song_storage_info(title: str, date: Optional[str] = None) -> Dict[str, str]:
     """
     Generate consistent folder and filenames for a song.
@@ -275,10 +295,18 @@ def get_song_storage_info(title: str, date: Optional[str] = None) -> Dict[str, s
     md_path = os.path.join(folder_path, f"{base_name}.md")
     image_base_path = os.path.join(folder_path, base_name)
     
+    repo_root = get_repo_root()
+    abs_folder = os.path.abspath(os.path.join(repo_root, folder_path))
+    abs_md = os.path.abspath(os.path.join(repo_root, md_path))
+    abs_image_base = os.path.abspath(os.path.join(repo_root, image_base_path))
+
     return {
         "folder": folder_path,
         "md": md_path,
-        "image_base": image_base_path
+        "image_base": image_base_path,
+        "abs_folder": abs_folder,
+        "abs_md": abs_md,
+        "abs_image_base": abs_image_base,
     }
 
 
@@ -290,8 +318,8 @@ def rename_song_files(old_title: str, new_title: str, date: str) -> Dict[str, st
     old_info = get_song_storage_info(old_title, date)
     new_info = get_song_storage_info(new_title, date)
 
-    old_folder = old_info["folder"]
-    new_folder = new_info["folder"]
+    old_folder = old_info["abs_folder"]
+    new_folder = new_info["abs_folder"]
 
     if os.path.exists(old_folder) and old_folder != new_folder:
         # 1. Rename files inside first
@@ -387,17 +415,17 @@ def generate_album_art(
     
     # Use storage info helper for consistent paths
     storage = get_song_storage_info(title)
-    os.makedirs(storage["folder"], exist_ok=True)
+    os.makedirs(storage["abs_folder"], exist_ok=True)
     
     # Initial output file, format may vary based on API
-    output_file = f"{storage['image_base']}.jpg"
+    output_file = f"{storage['abs_image_base']}.jpg"
     print(f"[DEBUG] output_file (initial): {output_file}")
     
     try:
         generate_album_art_image(artwork_prompt, output_file)
         # The actual file might have different extension (PNG/WebP) based on API response
         # Check for the actual file
-        base_path = storage["image_base"]
+        base_path = storage["abs_image_base"]
         actual_file = None
         for ext in [".png", ".jpg", ".webp"]:
             check_path = f"{base_path}{ext}"
@@ -409,10 +437,10 @@ def generate_album_art(
         if actual_file:
             # Overwrite check - if we have multiple extensions, we might want to clean up others
             # but for now we just return the actual one found.
-            return actual_file
+            return relativize_storage_path(actual_file)
         else:
             print(f"[DEBUG] Image generation completed, checking file exists: {os.path.exists(output_file)}")
-            return output_file if os.path.exists(output_file) else None
+            return relativize_storage_path(output_file) if os.path.exists(output_file) else None
     except Exception as e:
         print(f"Warning: Failed to generate album art: {e}")
         return None
@@ -568,11 +596,11 @@ def save_song(title: str, user_input: str, lyrics: str, default_params: Dict[str
 {clean_lyrics}
 """
     storage = get_song_storage_info(title)
-    os.makedirs(storage["folder"], exist_ok=True)
-    filename = storage["md"]
+    os.makedirs(storage["abs_folder"], exist_ok=True)
+    filename = storage["abs_md"]
     with open(filename, "w") as file:
         file.write(final_md)
-    return filename
+    return storage["md"]
 
 
 @dataclass
