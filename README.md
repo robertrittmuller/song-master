@@ -13,7 +13,7 @@ An initial web experience now lives alongside the CLI. The backend is a FastAPI 
 
 Quick start:
 - Backend: `uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000`
-- Frontend: `cd frontend && npm install && npm run dev` (set `VITE_API_BASE` if the API is not on `http://localhost:8000`)
+- Frontend: `cd frontend && npm install && npm run dev` (set `VITE_API_URL` if the API is not on `http://localhost:8000`)
 - API docs: `http://localhost:8000/docs`
 - CLI generation now delegates to the backend API, so start the FastAPI server first (set `SONG_MASTER_API_BASE` in `.env` or pass `--api-base` to override).
 
@@ -127,7 +127,7 @@ cp .env.example .env
 
 3. Start all services with Docker Compose:
 ```bash
-docker-compose up --dev
+docker-compose up
 ```
 
 4. Access the application:
@@ -444,14 +444,22 @@ Create a `.env` file with the following variables:
 # OpenRouter API Key (optional, for OpenRouter provider)
 OPENROUTER_API_KEY=your_api_key_here
 
-# Local Model Configuration
-LOCAL_MODEL_PATH=path/to/your/model
-LOCAL_MODEL_HOST=localhost
-LOCAL_MODEL_PORT=8080
+# LiteLLM Configuration (preferred for remote usage)
+LITELLM_MODEL=openrouter/openai/gpt-5.1-chat
+LITELLM_API_KEY=your_api_key_here
+LITELLM_API_BASE=https://openrouter.ai/api/v1
 
-# Output Configuration
-OUTPUT_DIR=./output
-EXAMPLES_DIR=./examples
+# Local Model Configuration (LM Studio)
+LMSTUDIO_API_KEY=lm-studio
+LMSTUDIO_BASE_URL=http://localhost:1234/v1
+LMSTUDIO_LLM_MODEL=your_model_name
+
+# Generation Settings
+LLM_MAX_TOKENS=4096
+LLM_TEMPERATURE=0.1
+
+# API base for CLI/HTTP clients (FastAPI)
+SONG_MASTER_API_BASE=http://localhost:8000
 ```
 
 ### Custom Styles
