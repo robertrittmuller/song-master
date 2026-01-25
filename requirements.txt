@@ -3,6 +3,7 @@ uvicorn[standard]
 jinja2
 httpx
 pydantic
+pydantic-settings
 python-dotenv
 sqlalchemy
 aiosqlite
@@ -33,3 +34,4 @@ langchain
 langchain_openai
 langchain_community
 langgraph
+langfuse

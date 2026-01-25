@@ -1,9 +1,50 @@
 import os
 import sys
 import base64
-from openai import OpenAI
+from typing import Optional
 
-base_prompt = "You are an AI that generates album cover art based on textual descriptions in portrait aspect ratio. Create a visually striking and unique album cover art image based on the following description: "
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def _is_truthy_env(value: Optional[str]) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _is_real_langfuse_key(value: Optional[str]) -> bool:
+    if not value:
+        return False
+    trimmed = value.strip()
+    if not trimmed:
+        return False
+    lowered = trimmed.lower()
+    return not lowered.startswith("your_langfuse_")
+
+
+_LANGFUSE_ACTIVE = (
+    _is_truthy_env(os.getenv("LANGFUSE_ENABLED"))
+    and _is_real_langfuse_key(os.getenv("LANGFUSE_PUBLIC_KEY"))
+    and _is_real_langfuse_key(os.getenv("LANGFUSE_SECRET_KEY"))
+)
+
+if _LANGFUSE_ACTIVE:
+    from langfuse.openai import OpenAI
+else:
+    from openai import OpenAI
+
+def _load_album_art_prompt() -> str:
+    prompt_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, "prompts", "album_art.txt"))
+    if not os.path.isfile(prompt_path):
+        raise FileNotFoundError(f"Album art prompt not found: {prompt_path}")
+    with open(prompt_path, "r") as file:
+        return file.read().strip()
+
+
+def _build_album_art_prompt(user_prompt: str) -> str:
+    base_prompt = _load_album_art_prompt()
+    separator = "" if base_prompt.endswith((" ", "\n", "\t")) else " "
+    return f"{base_prompt}{separator}{user_prompt}"
 
 def generate_album_art_image(prompt: str, output_file: str) -> None:
     """
@@ -30,7 +71,7 @@ def generate_album_art_image(prompt: str, output_file: str) -> None:
     # Request image
     response = client.chat.completions.create(
         model="google/gemini-3-pro-image-preview",
-        messages=[{"role": "user", "content": base_prompt + prompt}],
+        messages=[{"role": "user", "content": _build_album_art_prompt(prompt)}],
         extra_body={"modalities": ["image", "text"]},
     )
 
@@ -41,11 +82,32 @@ def generate_album_art_image(prompt: str, output_file: str) -> None:
 
     # Extract base64 image
     image_data_url = message.images[0]["image_url"]["url"]
-    base64_data = image_data_url.split(",", 1)[1]  # strip "data:image/jpeg;base64,"
-
+    print(f"[DEBUG] image_data_url: {image_data_url[:100]}..." if len(image_data_url) > 100 else f"[DEBUG] image_data_url: {image_data_url}")
+    
+    # Handle different image formats (jpeg, png, webp, etc.)
+    if "," not in image_data_url:
+        raise RuntimeError(f"Unexpected image URL format (no comma): {image_data_url[:100]}")
+    
+    mime_type, base64_data = image_data_url.split(",", 1)
+    print(f"[DEBUG] MIME type: {mime_type}")
+    
+    # Determine file extension from MIME type
+    if "png" in mime_type:
+        output_file = output_file.replace(".jpg", ".png")
+    elif "webp" in mime_type:
+        output_file = output_file.replace(".jpg", ".webp")
+    
     # Decode + write to file
+    try:
+        decoded_data = base64.b64decode(base64_data)
+        print(f"[DEBUG] Decoded {len(decoded_data)} bytes")
+    except Exception as e:
+        raise RuntimeError(f"Failed to decode base64 image: {e}")
+    
     with open(output_file, "wb") as f:
-        f.write(base64.b64decode(base64_data))
+        f.write(decoded_data)
+    
+    print(f"[DEBUG] Image saved to {output_file}, size: {len(decoded_data)} bytes")
 
 def main():
     if len(sys.argv) < 3:

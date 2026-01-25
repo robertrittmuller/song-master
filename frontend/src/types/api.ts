@@ -1,0 +1,71 @@
+export type Persona = {
+  name: string;
+  description?: string;
+  styles?: string;
+  visual_styles?: string;
+};
+
+export type Album = {
+  id: number;
+  name: string;
+  description?: string;
+  created_at: string;
+  songs: Song[];
+};
+
+export type SongVersion = {
+  id: number;
+  version_number: number;
+  lyrics: string;
+  created_at: string;
+};
+
+export type Song = {
+  id: number;
+  title: string;
+  status: string;
+  score?: number;
+  persona?: string;
+  description?: string;
+  use_local: boolean;
+  created_at: string;
+  user_prompt?: string;
+  lyrics?: string;
+  metadata?: string;
+  metadata_json?: string;
+  album_art?: string;
+  album_id?: number | null;
+  vocal_gender?: string;
+  generation_config?: string;
+  error_message?: string;
+  live_feedback?: string;
+  versions?: SongVersion[];
+};
+
+export type SongStatus = {
+  song_id: number;
+  progress: number;
+  current_stage?: string;
+  status: string;
+  estimated_seconds_remaining?: number | null;
+  logs: { timestamp: string; message: string }[];
+  error_message?: string | null;
+};
+
+export type Settings = {
+  llm_provider: string;
+  model: string;
+  temperature: number;
+  max_tokens: number;
+  use_local: boolean;
+  local_url?: string | null;
+  generation: {
+    genre?: string;
+    persona?: string;
+    tempo?: string;
+    key?: string;
+    instruments?: string;
+    mood?: string;
+  };
+  ui: Record<string, unknown>;
+};

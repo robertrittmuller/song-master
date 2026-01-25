@@ -1,0 +1,24 @@
+# Frontend Dockerfile - React/Vite
+FROM node:20-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY frontend/package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy application code
+COPY frontend/ .
+
+# Expose port
+EXPOSE 5173
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:5173 || exit 1
+
+# Start the frontend development server
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

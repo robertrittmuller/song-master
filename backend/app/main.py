@@ -1,0 +1,49 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+
+from backend.app.api.routes import health, personas, albums, settings as settings_routes, songs, styles, instruments
+from backend.app.core.config import get_settings
+from backend.app.db.database import init_db
+from backend.app.websocket import progress as progress_ws
+from backend.app.services.song_generator import generation_manager
+
+app_settings = get_settings()
+
+app = FastAPI(title=app_settings.app_name, version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=app_settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    init_db()
+    # Ensure songs and images directories exist
+    for d in ["songs", "images"]:
+        Path(d).mkdir(exist_ok=True)
+
+@app.on_event("shutdown")
+async def on_shutdown() -> None:
+    await generation_manager.shutdown()
+
+
+app.include_router(health.router)
+app.include_router(albums.router)
+app.include_router(songs.router)
+app.include_router(personas.router)
+app.include_router(settings_routes.router)
+app.include_router(styles.router)
+app.include_router(instruments.router)
+app.include_router(progress_ws.router)
+
+# Mount static files for album art and other song assets
+# Use absolute path relative to backend app directory (/app)
+app.mount("/songs", StaticFiles(directory=str(Path(__file__).parent.parent.parent / "songs")), name="songs")
+app.mount("/images", StaticFiles(directory=str(Path(__file__).parent.parent.parent / "images")), name="images")

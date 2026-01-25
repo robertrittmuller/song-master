@@ -291,6 +291,41 @@
 [Gospel Choir]
 
 # =================================
+# MULTI-VOICE ARRANGEMENT TAGS
+# =================================
+# Use these to direct multiple independent voices with stereo placement and roles.
+# Pair with lyric voice markers like (V1), (V2) in the lyrics.
+
+[Voices: Asynchronous overlapping]
+[Stereo Group: Left x4]
+[Stereo Group: Right x4]
+[Stereo Position: Center]
+[Stereo Position: Center-left]
+[Stereo Position: Center-right]
+[Stereo Position: Left]
+[Stereo Position: Right]
+[Voice Role: Lead]
+[Voice Role: Harmony]
+[Voice Role: Anchor]
+[Voice Role: Foundation]
+[Voice Color: Warm]
+[Voice Color: Bright]
+[Voice Color: Traditional]
+
+# Voice assignment format (use in style prompt)
+# Voice <#> <gender> <type> <frequency>Hz <stereo position> <role>
+# Example: Voice 1 male tenor 240Hz center lead traditional
+
+# Frequency guide (suggested)
+# Bass 120Hz | Baritone 180Hz | Alto (male) 200Hz | Contralto 220Hz
+# Tenor 240Hz | Mezzo 280Hz | Alto (female) 330Hz | Soprano 440Hz
+
+# Lyric notation examples
+# Single voice: (V1) Tenor lead I'll guide the way
+# Harmony: (V1) (V2) (V3) (V4) [Male harmony] We hold the line
+# Syllable split: Eight-(V1)-voi-(V2)-ces-(V3)-strong-(V4)
+
+# =================================
 # EFFECTS & PRODUCTION TAGS
 # =================================
 # Sound effects and production elements
@@ -299,6 +334,90 @@
 [Reverb tail, lasers and risers]
 [Syncopated Bass]
 [Melodic Bass]
+
+# Optional mix frequency placement (use in style prompt)
+# Kick 50Hz | Bongo drums 80-200Hz | Djembe bass 60Hz
+# Synth arpeggios 600Hz | Hi-hats 800Hz
+
+# =================================
+# NON-SUNG SOUND EFFECTS (ASTERISK SYNTAX)
+# =================================
+# Use asterisks for sound events that should NOT be sung.
+# Example: *crowd roaring* or *thunder*
+# These are written directly in lyrics/sections; they are not bracket tags.
+
+# Live Atmospheres
+# Syntax	Effect
+# *crowd cheering*	Applause and screams
+# *crowd chanting*	Rhythmic chant
+# *crowd whistle*	Whistles and whoops
+# *audience singalong*	Crowd singing along
+# *festival roar*	Stadium/festival roar
+# *mosh pit surge*	Chaotic surge
+# *crowd hush*	Sudden silence drop
+# *applause*	Final applause
+
+# Dramatic Effects
+# Syntax	Effect
+# *thunder*	Thunder for epic moments
+# *alarm siren*	Urgent tension
+# *police siren*	Urban danger
+# *gunshots*	For rap/trap/metal
+# *explosion*	For EDM drops
+# *airhorn blast*	Hype accent
+# *record scratch*	Hard stop or rewind
+# *tape rewind*	Memory rewind effect
+# *camera shutter*	Flash of memory
+# *glass breaking*	Breaking glass
+
+# Environments
+# Syntax	Effect
+# *cafe ambience*	Coffee shop chatter
+# *city traffic*	Street noise and bustle
+# *subway rumble*	Underground grind
+# *rain falling*	Melancholic atmosphere
+# *ocean waves*	Coastal calm
+# *wind howling*	Isolated, cold feeling
+# *fire crackle*	Fireside warmth
+# *night crickets*	Nighttime stillness
+# *forest birds*	Morning light
+
+# Narrative
+# Syntax	Effect
+# *phone ringing*	Phone ring
+# *dial tone*	Call ends
+# *text notification*	Incoming message
+# *door slamming*	Door slam
+# *door creak*	Slow reveal
+# *footsteps*	Footsteps
+# *keys jangling*	Keys in hand
+# *lock click*	Locking in or out
+# *heartbeat*	Heartbeat pulse
+# *breath in*	Tension or intimacy
+# *sigh*	Emotional release
+# *kiss*	Romantic beat
+# *laughter*	Lighten the mood
+
+# Objects & Moments
+# Syntax	Effect
+# *glass clink*	Toast or memory
+# *bottle pop*	Celebration
+# *match strike*	Ignite the scene
+# *page turn*	Turning point
+# *pen scribble*	Writing a line
+# *cash register*	Money moment
+# *dice roll*	Risk or gamble
+# *slot machine*	Casino vibe
+
+# Transportation
+# Syntax	Effect
+# *engine rev*	Getaway energy
+# *tire screech*	Sudden exit
+# *car door slam*	Goodbye or arrival
+# *train whistle*	Leaving town
+# *train crossing bell*	Warning at the tracks
+# *plane takeoff*	Escape rise
+# *motorcycle pass*	Speed streak
 
 # =================================
 # EXAMPLE COMBINATIONS FOR AI

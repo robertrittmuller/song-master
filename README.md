@@ -1,3 +1,4 @@
+![Header Image](images/header.png)
 # Song Master
 
 A powerful (yet easy to use) script for generating song lyrics using AI models, specifically designed for creating Suno AI-compatible songs with custom styles, metadata, and structured formatting.
@@ -5,6 +6,72 @@ A powerful (yet easy to use) script for generating song lyrics using AI models, 
 ## Overview
 
 Song Master is a Python script that leverages AI models (both local and OpenRouter) to generate complete song lyrics with proper formatting, style tags, and metadata for Suno AI. It includes pre-flight checks, song drafting, and review processes to ensure high-quality output.
+
+## Web GUI (FastAPI + React)
+
+An initial web experience now lives alongside the CLI. The backend is a FastAPI app that mirrors the CLI pipeline, and the frontend is a Vite + React TypeScript UI shaped by the wireframes in `docs/`.
+
+Quick start:
+- Backend: `uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000`
+- Frontend: `cd frontend && npm install && npm run dev` (set `VITE_API_URL` if the API is not on `http://localhost:8000`)
+- API docs: `http://localhost:8000/docs`
+- CLI generation now delegates to the backend API, so start the FastAPI server first (set `SONG_MASTER_API_BASE` in `.env` or pass `--api-base` to override).
+
+Data is stored in `backend/data/song_master.db`. Personas/styles are read from the existing repo assets so the web app matches the CLI outputs.
+
+### New Web GUI Features
+
+The web UI now mirrors the CLI pipeline with richer editing, library management, and AI feedback tools:
+
+<table>
+  <tr>
+    <th>Song Generation</th>
+    <th>Dashboard + Library</th>
+  </tr>
+  <tr>
+    <td valign="top">
+      <img src="images/screencap02.png" alt="Generate" />
+    </td>
+    <td valign="top">
+      <img src="images/screencap03.png" alt="Library" />
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <p>Build a new song with persona selection, cover-art toggles, and detailed musical controls for tempo, key, mood, and instruments.</p>
+    </td>
+    <td valign="top">
+      <p>Browse albums and songs with search, filters, and grid/list views. Import existing markdown and jump back into the workflow fast.</p>
+    </td>
+  </tr>
+  <tr>
+    <th>Song Detail + Live Listen</th>
+    <th>Expanded Song Detail</th>
+  </tr>
+  <tr>
+    <td valign="top">
+      <img src="images/screencap01.png" alt="Song Detail" />
+    </td>
+    <td valign="top">
+      <img src="images/screencap04.png" alt="Song Detail Expanded" />
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <p>Edit titles and descriptions inline, manage lyrics and versions, upload or regenerate album art, and submit MP3s for "Live Listen" feedback.</p>
+    </td>
+    <td valign="top">
+      <p>Deep lyric navigation with section highlights, metadata chips, live feedback history, and album art previews.</p>
+    </td>
+  </tr>
+</table>
+
+**Key GUI Highlights:**
+- **Editable Song Detail**: Inline title/description updates, lyric versioning, and diff views
+- **Library Management**: Album grouping, search, filters, and grid/list toggles
+- **Persona Workflow**: Manage personas and apply them during generation
+- **Live Listen Feedback**: Upload MP3s for AI feedback and lyric refresh
+- **Album Art Controls**: Regenerate, upload, and download cover art assets
 
 ## Table of Contents
 
@@ -28,7 +95,7 @@ Song Master is a Python script that leverages AI models (both local and OpenRout
   - [Environment Variables](#environment-variables)
   - [Custom Styles](#custom-styles)
 - [Technical Deep Dive: Agentic Songwriting Flow](#technical-deep-dive-agentic-songwriting-flow)
-- [Project Structure](#project-structure)
+- [Album Structure](#album-structure)
 - [Contributing](#contributing)
 - [License](#license)
 - [Support](#support)
@@ -44,21 +111,62 @@ Song Master is a Python script that leverages AI models (both local and OpenRout
 
 ## Installation
 
+### Option 1: Docker Compose (Recommended)
+
 1. Clone the repository:
 ```bash
 git clone https://github.com/your-username/song-master.git
 cd song-master
 ```
 
-2. Install dependencies:
+2. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your API keys and configuration
+```
+
+3. Start all services with Docker Compose:
+```bash
+docker-compose up
+```
+
+4. Access the application:
+   - Frontend: http://localhost:5173
+   - Backend API: http://localhost:8000
+   - API Documentation: http://localhost:8000/docs
+
+### Option 2: Local Development
+
+1. Clone the repository:
+```bash
+git clone https://github.com/your-username/song-master.git
+cd song-master
+```
+
+2. Install Python dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Set up environment variables:
+3. Install frontend dependencies:
+```bash
+cd frontend && npm install
+```
+
+4. Set up environment variables:
 ```bash
 cp .env.example .env
 # Edit .env with your API keys and configuration
+```
+
+5. Start the backend:
+```bash
+uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+6. Start the frontend (in a new terminal):
+```bash
+cd frontend && npm run dev
 ```
 
 ## Usage
@@ -336,14 +444,22 @@ Create a `.env` file with the following variables:
 # OpenRouter API Key (optional, for OpenRouter provider)
 OPENROUTER_API_KEY=your_api_key_here
 
-# Local Model Configuration
-LOCAL_MODEL_PATH=path/to/your/model
-LOCAL_MODEL_HOST=localhost
-LOCAL_MODEL_PORT=8080
+# LiteLLM Configuration (preferred for remote usage)
+LITELLM_MODEL=openrouter/openai/gpt-5.1-chat
+LITELLM_API_KEY=your_api_key_here
+LITELLM_API_BASE=https://openrouter.ai/api/v1
 
-# Output Configuration
-OUTPUT_DIR=./output
-EXAMPLES_DIR=./examples
+# Local Model Configuration (LM Studio)
+LMSTUDIO_API_KEY=lm-studio
+LMSTUDIO_BASE_URL=http://localhost:1234/v1
+LMSTUDIO_LLM_MODEL=your_model_name
+
+# Generation Settings
+LLM_MAX_TOKENS=4096
+LLM_TEMPERATURE=0.1
+
+# API base for CLI/HTTP clients (FastAPI)
+SONG_MASTER_API_BASE=http://localhost:8000
 ```
 
 ### Custom Styles
@@ -405,7 +521,7 @@ flowchart TD
 ```
 
 
-## Project Structure
+## Album Structure
 
 ```
 song-master/
@@ -435,7 +551,7 @@ song-master/
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This album is licensed under the MIT License - see the LICENSE file for details.
 
 ## Support
 

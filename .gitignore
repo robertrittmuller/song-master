@@ -1,6 +1,11 @@
 /songs
 /ideas
+/plans
 .DS_Store
 .env
 __pycache__/
 *.pyc
+node_modules/
+.roo/
+backend/data
+frontend/dist/
