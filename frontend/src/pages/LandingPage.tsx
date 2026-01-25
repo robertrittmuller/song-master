@@ -9,9 +9,6 @@ import { fetchSongs } from "../services/api";
 export function LandingPage() {
   const { data: songs = [] } = useQuery({ queryKey: ["songs"], queryFn: fetchSongs });
 
-  // Show only the 12 most recent songs on the landing page
-  const recentSongs = songs.slice(0, 12);
-
   return (
     <div className="stack" style={{ gap: 20 }}>
       <Card>
@@ -52,7 +49,7 @@ export function LandingPage() {
         </div>
       </Card>
 
-      <SongGrid songs={recentSongs} />
+      <SongGrid songs={songs} maxRows={2} />
 
       <Card title="Feature Highlights">
         <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))" }}>
