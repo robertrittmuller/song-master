@@ -1,4 +1,4 @@
-![Header Image](images/header.png)
+![Header Image](images/header.jpg)
 # Song Master
 
 A powerful (yet easy to use) script for generating song lyrics using AI models, specifically designed for creating Suno AI-compatible songs with custom styles, metadata, and structured formatting.
@@ -30,10 +30,10 @@ The web UI now mirrors the CLI pipeline with richer editing, library management,
   </tr>
   <tr>
     <td valign="top">
-      <img src="images/screencap02.png" alt="Generate" />
+      <img src="images/screencap02.jpg" alt="Generate" />
     </td>
     <td valign="top">
-      <img src="images/screencap03.png" alt="Library" />
+      <img src="images/screencap03.jpg" alt="Library" />
     </td>
   </tr>
   <tr>
@@ -50,10 +50,10 @@ The web UI now mirrors the CLI pipeline with richer editing, library management,
   </tr>
   <tr>
     <td valign="top">
-      <img src="images/screencap01.png" alt="Song Detail" />
+      <img src="images/screencap01.jpg" alt="Song Detail" />
     </td>
     <td valign="top">
-      <img src="images/screencap04.png" alt="Song Detail Expanded" />
+      <img src="images/screencap04.jpg" alt="Song Detail Expanded" />
     </td>
   </tr>
   <tr>
