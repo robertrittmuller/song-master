@@ -9,7 +9,7 @@ type Props = {
 };
 
 export function AppLayout({ children, withSidebar = true }: Props) {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
 
   // Load saved preference from localStorage on mount
   useEffect(() => {
