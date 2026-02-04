@@ -95,6 +95,28 @@ a {
   display: grid;
   grid-template-columns: 260px 1fr;
   min-height: 100vh;
+  transition: grid-template-columns 0.3s ease;
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 80px 1fr;
+}
+
+/* Sidebar styles */
+.sidebar {
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.sidebar--collapsed {
+  /* Additional collapsed styles if needed */
+}
+
+/* Sidebar toggle button hover effect */
+.sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  color: var(--gray-100) !important;
 }
 
 .page {
