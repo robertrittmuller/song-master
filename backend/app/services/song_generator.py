@@ -54,6 +54,7 @@ class SongGenerationManager:
             key=metadata.get("key"),
             instruments=metadata.get("instruments"),
             mood=metadata.get("mood"),
+            rhyme_scheme=metadata.get("rhyme_scheme"),
             vocal_gender=song.vocal_gender,
             use_local=song.use_local,
             album_id=song.album_id,
@@ -138,6 +139,7 @@ class SongGenerationManager:
                     instruments=payload.instruments,
                     mood=payload.mood,
                     vocal_gender=payload.vocal_gender,
+                    rhyme_scheme=payload.rhyme_scheme,
                     progress_callback=add_log,
                 ),
             )

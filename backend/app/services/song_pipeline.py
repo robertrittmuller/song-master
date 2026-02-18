@@ -49,6 +49,7 @@ def generate_song_pipeline(
     instruments: Optional[str] = None,
     mood: Optional[str] = None,
     vocal_gender: Optional[str] = None,
+    rhyme_scheme: Optional[str] = None,
     progress_callback: Optional[ProgressCallback] = None,
 ) -> SongState:
     """
@@ -90,11 +91,13 @@ def generate_song_pipeline(
         resources.default_params["mood"] = mood
     if vocal_gender:
         resources.default_params["vocal_gender"] = vocal_gender
+    if rhyme_scheme:
+        resources.default_params["rhyme_scheme"] = rhyme_scheme
 
     max_rounds = int(os.getenv("REVIEW_MAX_ROUNDS", "3"))
     score_threshold = float(os.getenv("REVIEW_SCORE_THRESHOLD", "8.0"))
 
-    prompt_user_input = enhance_user_input(user_input, song_name, style, vocal_gender)
+    prompt_user_input = enhance_user_input(user_input, song_name, style, vocal_gender, rhyme_scheme)
 
     initial_state: SongState = {
         "user_input": user_input,

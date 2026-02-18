@@ -118,6 +118,7 @@ def get_default_song_params() -> Dict[str, Optional[str]]:
         "instruments": os.getenv("DEFAULT_INSTRUMENTS", "guitar,bass,drums"),
         "mood": os.getenv("DEFAULT_MOOD", "happy"),
         "vocal_gender": os.getenv("DEFAULT_VOCAL_GENDER"),
+        "rhyme_scheme": os.getenv("DEFAULT_RHYME_SCHEME"),
     }
 
 
@@ -138,6 +139,7 @@ def enhance_user_input(
     song_name: Optional[str],
     style: Optional[str] = None,
     vocal_gender: Optional[str] = None,
+    rhyme_scheme: Optional[str] = None,
 ) -> str:
     """Enhance the user's initial request by adding explicit song title, style, or vocal guidance."""
     parts = []
@@ -147,6 +149,9 @@ def enhance_user_input(
 
     if vocal_gender:
         parts.append(f"Requested Vocal Gender: {vocal_gender}")
+    
+    if rhyme_scheme and rhyme_scheme != "Auto":
+        parts.append(f"Rhyme Scheme: {rhyme_scheme}")
     
     parts.append(user_input)
     
