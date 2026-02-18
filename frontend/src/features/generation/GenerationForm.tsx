@@ -31,6 +31,18 @@ export function GenerationForm() {
   const [customInstruments, setCustomInstruments] = useState("");
   const [mood, setMood] = useState("happy");
   const [vocalGender, setVocalGender] = useState("");
+  const [rhymeScheme, setRhymeScheme] = useState("");
+
+  // Rhyme scheme options
+  const RHYME_SCHEMES = [
+    { value: "", label: "Auto - AI Choice" },
+    { value: "AABB", label: "AABB - Couplet Rhyme" },
+    { value: "ABAB", label: "ABAB - Alternate Rhyme" },
+    { value: "ABBA", label: "ABBA - Enclosed Rhyme" },
+    { value: "AAAA", label: "AAAA - Monorhyme" },
+    { value: "AABCCB", label: "AABCCB - Ballad Stanza" },
+    { value: "Free Verse", label: "Free Verse - No Rhyme" },
+  ];
 
   useEffect(() => {
     if (settings?.generation) {
@@ -43,6 +55,7 @@ export function GenerationForm() {
       if (settings.generation.key) setKey(settings.generation.key);
       if (settings.generation.mood) setMood(settings.generation.mood);
       if (settings.generation.vocal_gender) setVocalGender(settings.generation.vocal_gender);
+      if (settings.generation.rhyme_scheme) setRhymeScheme(settings.generation.rhyme_scheme);
       
       if (settings.generation.instruments !== undefined) {
         const instList = settings.generation.instruments.split(",").map(i => i.trim()).filter(Boolean);
@@ -85,6 +98,7 @@ export function GenerationForm() {
       ].filter(Boolean).join(", "),
       mood,
       vocal_gender: vocalGender || undefined,
+      rhyme_scheme: rhymeScheme || undefined,
       use_local: useLocal,
       album_id: albumId,
       generate_album_art: useLocal ? false : generateCoverArt
@@ -241,6 +255,26 @@ export function GenerationForm() {
               <option value="Male">Male</option>
               <option value="Female">Female</option>
               <option value="Duet">Duet</option>
+            </select>
+          </div>
+
+          <div className="stack">
+            <label style={{ color: "var(--gray-300)", fontSize: 13 }}>Rhyme Scheme</label>
+            <select
+              className="input"
+              value={rhymeScheme}
+              onChange={(e) => setRhymeScheme(e.target.value)}
+              style={{
+                padding: "12px 14px",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.04)",
+                color: "var(--gray-50)"
+              }}
+            >
+              {RHYME_SCHEMES.map(rs => (
+                <option key={rs.value} value={rs.value}>{rs.label}</option>
+              ))}
             </select>
           </div>
 

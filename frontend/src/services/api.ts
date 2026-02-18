@@ -96,6 +96,7 @@ export async function createSong(payload: {
   use_local?: boolean;
   album_id?: number;
   vocal_gender?: string;
+  rhyme_scheme?: string;
   generate_album_art?: boolean;
 }) {
   const { data } = await client.post<Song>("/api/songs/generate", payload);
