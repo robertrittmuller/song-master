@@ -69,8 +69,9 @@ def generate_album_art_image(prompt: str, output_file: str) -> None:
     )
 
     # Request image
+    image_model = os.environ.get("LITELLM_IMAGE_MODEL", "google/gemini-3-pro-image-preview")
     response = client.chat.completions.create(
-        model="google/gemini-3-pro-image-preview",
+        model=image_model,
         messages=[{"role": "user", "content": _build_album_art_prompt(prompt)}],
         extra_body={"modalities": ["image", "text"]},
     )
