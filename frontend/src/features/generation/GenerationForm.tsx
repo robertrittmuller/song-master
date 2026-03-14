@@ -22,7 +22,7 @@ export function GenerationForm() {
   const [style, setStyle] = useState("");
   const [albumId, setAlbumId] = useState<number | undefined>(undefined);
   const [useLocal, setUseLocal] = useState(false);
-  const [generateCoverArt, setGenerateCoverArt] = useState(true);
+  const [generateCoverArt, setGenerateCoverArt] = useState(false);
 
   const [genre, setGenre] = useState("");
   const [tempo, setTempo] = useState("120");
