@@ -2,7 +2,7 @@ import { GenerationForm } from "../features/generation/GenerationForm";
 
 export function GeneratePage() {
   return (
-    <div className="stack" style={{ gap: 20 }}>
+    <div className="stack generate-page">
       <div className="section-title">
         <div>
           <div style={{ color: "var(--gray-400)", fontSize: 13 }}>Create</div>
