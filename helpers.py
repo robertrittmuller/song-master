@@ -122,6 +122,14 @@ def get_default_song_params() -> Dict[str, Optional[str]]:
     }
 
 
+def coalesce_song_setting(*values: Optional[str], fallback: str = "Auto") -> str:
+    """Return the first non-empty song setting, otherwise a display fallback."""
+    for value in values:
+        if value:
+            return value
+    return fallback
+
+
 def parse_persona(user_input: str, cli_persona: Optional[str]) -> Optional[str]:
     """Extract persona name from user input or CLI argument."""
     if cli_persona:
@@ -560,12 +568,21 @@ def strip_style_tags(lyrics: str) -> str:
 def save_song(title: str, user_input: str, lyrics: str, default_params: Dict[str, Optional[str]], metadata: Dict[str, object], album_art_path: Optional[str] = None) -> str:
     """Save the generated song to a markdown file with metadata."""
     description = metadata.get("description", "Short description of the song's theme and style.")
-    suno_styles = metadata.get("suno_styles", [default_params.get("genre", "rock")])
+    suno_styles = metadata.get("suno_styles")
     suno_exclude_styles = metadata.get("suno_exclude_styles", [])
-    styles_line = ", ".join(suno_styles) if isinstance(suno_styles, list) else str(suno_styles)
+    if isinstance(suno_styles, list):
+        styles_line = ", ".join(str(style) for style in suno_styles if style) or "Auto"
+    elif suno_styles:
+        styles_line = str(suno_styles)
+    else:
+        styles_line = coalesce_song_setting(default_params.get("genre"))
     exclude_line = ", ".join(suno_exclude_styles) if isinstance(suno_exclude_styles, list) else str(suno_exclude_styles)
     target_audience = metadata.get("target_audience", "Suggested demographic")
     commercial_potential = metadata.get("commercial_potential", "Assessment")
+    mood_value = coalesce_song_setting(metadata.get("mood"), default_params.get("mood"))
+    tempo_value = coalesce_song_setting(metadata.get("tempo"), default_params.get("tempo"))
+    key_value = coalesce_song_setting(metadata.get("key"), default_params.get("key"))
+    instruments_value = coalesce_song_setting(metadata.get("instruments"), default_params.get("instruments"))
 
     # Generate clean lyrics without style tags
     clean_lyrics = strip_style_tags(lyrics)
@@ -588,10 +605,10 @@ def save_song(title: str, user_input: str, lyrics: str, default_params: Dict[str
 {exclude_line if exclude_line else "None"}
 
 ## Additional Metadata
-- **Emotional Arc**: {metadata.get("mood", default_params.get("mood", "happy"))}
+- **Emotional Arc**: {mood_value}
 - **Target Audience**: {target_audience}
 - **Commercial Potential**: {commercial_potential}
-- **Technical Notes**: BPM: {metadata.get("tempo", default_params.get("tempo", "120"))}, Key: {metadata.get("key", default_params.get("key", "C"))}, Instruments: {metadata.get("instruments", default_params.get("instruments", "guitar,bass,drums"))}
+- **Technical Notes**: BPM: {tempo_value}, Key: {key_value}, Instruments: {instruments_value}
 - **User Prompt**: {user_input}
 
 ### Song Lyrics:

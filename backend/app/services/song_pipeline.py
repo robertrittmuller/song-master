@@ -1,6 +1,6 @@
 import os
 from contextlib import nullcontext
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from dotenv import load_dotenv
 from langgraph.graph import END, StateGraph
@@ -50,6 +50,7 @@ def generate_song_pipeline(
     mood: Optional[str] = None,
     vocal_gender: Optional[str] = None,
     rhyme_scheme: Optional[str] = None,
+    generation_config: Optional[dict[str, Any]] = None,
     progress_callback: Optional[ProgressCallback] = None,
 ) -> SongState:
     """
@@ -64,6 +65,37 @@ def generate_song_pipeline(
             prefix = "✓ " if progress is not None else ""
             tqdm.write(f"{prefix}{message}")
 
+    def is_invalid_lyrics_output(text: Optional[str]) -> bool:
+        cleaned = remove_thinking_tags(text or "").strip()
+        if not cleaned:
+            return True
+
+        lowered = cleaned.lower()
+        invalid_markers = (
+            "no lyrics were provided",
+            "lyrics were not provided",
+            "please provide the lyrics",
+            "please provide lyrics",
+            "i need the lyrics",
+        )
+        if any(marker in lowered for marker in invalid_markers):
+            return True
+
+        non_empty_lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
+        if len(non_empty_lines) <= 1 and any(
+            line.lower().startswith(("title:", "song title:", "## song title"))
+            for line in non_empty_lines
+        ):
+            return True
+
+        return False
+
+    def coerce_lyrics_output(candidate: Optional[str], fallback: Optional[str] = None) -> str:
+        cleaned = remove_thinking_tags(candidate or "").strip()
+        if is_invalid_lyrics_output(cleaned):
+            return remove_thinking_tags(fallback or "").strip()
+        return cleaned
+
     (
         drafter_prompt,
         review_prompt,
@@ -77,7 +109,17 @@ def generate_song_pipeline(
 
     persona_name = parse_persona(user_input, persona)
     resources = load_resources(persona_name)
-    
+
+    auto_select_fields = set()
+    if generation_config:
+        raw_auto_fields = generation_config.get("auto_select_fields")
+        if isinstance(raw_auto_fields, list):
+            auto_select_fields = {str(field) for field in raw_auto_fields}
+
+    for field in auto_select_fields:
+        if field in resources.default_params:
+            resources.default_params[field] = None
+
     # Override default parameters with user selections if provided
     if genre:
         resources.default_params["genre"] = genre
@@ -126,7 +168,7 @@ def generate_song_pipeline(
     def draft_node(state: SongState):
         """Generate initial song draft using AI."""
         notify("Generating initial draft", 20)
-        lyrics = draft_song(
+        raw_lyrics = draft_song(
             prompt_template=drafter_prompt,
             enhanced_input=state["prompt_user_input"],
             styles=state["resources"].styles,
@@ -136,11 +178,17 @@ def generate_song_pipeline(
             use_local=state["use_local"],
         )
         notify("Draft generated", 25)
-        
+
+        raw_lyrics = coerce_lyrics_output(raw_lyrics)
+        if is_invalid_lyrics_output(raw_lyrics):
+            raise ValueError("The model did not return usable lyrics for the initial draft.")
+
         # Extract title and clean lyrics
-        title = extract_title(lyrics, state.get("song_name"))
-        clean_lyrics = remove_title_from_lyrics(lyrics)
-        
+        title = extract_title(raw_lyrics, state.get("song_name"))
+        clean_lyrics = remove_title_from_lyrics(raw_lyrics).strip()
+        if is_invalid_lyrics_output(clean_lyrics):
+            clean_lyrics = raw_lyrics
+
         return {"lyrics": clean_lyrics, "song_name": title}
 
     def review_node(state: SongState):
@@ -150,14 +198,15 @@ def generate_song_pipeline(
             state["use_local"],
             user_input=state["prompt_user_input"],
         )
-        revised_lyrics = remove_thinking_tags(
+        revised_lyrics = coerce_lyrics_output(
             revise_lyrics(
                 revision_prompt,
                 state["lyrics"],
                 feedback,
                 state["use_local"],
                 user_input=state["prompt_user_input"],
-            )
+            ),
+            fallback=state["lyrics"],
         )
         score = score_lyrics(scoring_prompt, revised_lyrics, state["use_local"])
         round_complete = state["round"] + 1
@@ -171,14 +220,15 @@ def generate_song_pipeline(
         return "go_critic"
 
     def critic_node(state: SongState):
-        revised = remove_thinking_tags(
+        revised = coerce_lyrics_output(
             critique_song(
                 critic_prompt,
                 revision_prompt,
                 state["lyrics"],
                 state["use_local"],
                 user_input=state["prompt_user_input"],
-            )
+            ),
+            fallback=state["lyrics"],
         )
         notify("Critic feedback applied", 55)
         return {"lyrics": revised}
@@ -208,14 +258,15 @@ def generate_song_pipeline(
         """Revise lyrics specifically to address preflight issues."""
         issues = state.get("preflight_issues", [])
         feedback = "Fix these preflight issues:\n" + "\n".join(f"- {issue}" for issue in issues)
-        revised = remove_thinking_tags(
+        revised = coerce_lyrics_output(
             revise_lyrics(
                 revision_prompt,
                 state["lyrics"],
                 feedback,
                 state["use_local"],
                 user_input=state["prompt_user_input"],
-            )
+            ),
+            fallback=state["lyrics"],
         )
         notify("Applied targeted fixes from preflight", 50)
         return {"lyrics": revised, "feedback": feedback, "round": state["round"] + 1}

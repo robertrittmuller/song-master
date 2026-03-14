@@ -44,6 +44,13 @@ class SongGenerationManager:
                 pass
 
         # Create a payload from existing song data, preserving original settings
+        generation_config = None
+        if song.generation_config:
+            try:
+                generation_config = json.loads(song.generation_config)
+            except json.JSONDecodeError:
+                generation_config = None
+
         payload = SongCreate(
             user_prompt=song.user_prompt,
             title=song.title,
@@ -58,6 +65,7 @@ class SongGenerationManager:
             vocal_gender=song.vocal_gender,
             use_local=song.use_local,
             album_id=song.album_id,
+            generation_config=generation_config,
             generate_album_art=False, # Explicitly disable art regeneration
         )
         
@@ -140,6 +148,7 @@ class SongGenerationManager:
                     mood=payload.mood,
                     vocal_gender=payload.vocal_gender,
                     rhyme_scheme=payload.rhyme_scheme,
+                    generation_config=payload.generation_config,
                     progress_callback=add_log,
                 ),
             )
