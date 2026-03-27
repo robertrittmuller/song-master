@@ -179,6 +179,17 @@ export function SongDetailPage() {
     type: null,
   });
 
+  useEffect(() => {
+    setIsEditing(false);
+    setEditedTitle("");
+    setEditedDescription("");
+    setEditedLyrics("");
+    setSelectedVersionId("current");
+    setIsDiffMode(false);
+    setConfirmDialog({ isOpen: false, type: null });
+    setPendingLiveFeedbackFile(null);
+  }, [songId]);
+
   const closeConfirmDialog = () => {
     setConfirmDialog({ isOpen: false, type: null });
     setPendingLiveFeedbackFile(null);

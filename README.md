@@ -456,7 +456,7 @@ LMSTUDIO_LLM_MODEL=your_model_name
 
 # Generation Settings
 LLM_MAX_TOKENS=4096
-LLM_TEMPERATURE=0.1
+LLM_TEMPERATURE=0.7
 
 # API base for CLI/HTTP clients (FastAPI)
 SONG_MASTER_API_BASE=http://localhost:8000

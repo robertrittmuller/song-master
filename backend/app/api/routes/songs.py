@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, File, status, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.app.db.deps import get_db
-from backend.app.models import GenerationSession, Song, SongVersion
+from backend.app.models import GenerationSession, Song, SongFile, SongVersion
 from backend.app.schemas import SongCreate, SongDetail, SongLyricsUpdate, SongRead, SongStatus, SongUpdate
 from backend.app.services.persona_service import sync_persona_style_tags
 from backend.app.services.song_generator import generation_manager
@@ -141,8 +141,11 @@ def delete_song(song_id: int, db: Session = Depends(get_db)) -> None:
     if not song:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
 
-    # Clean up progress sessions first to avoid FK issues in SQLite
+    # Clean up dependent rows explicitly so SQLite dev databases do not retain
+    # orphaned records if foreign key enforcement was previously disabled.
     db.query(GenerationSession).filter(GenerationSession.song_id == song_id).delete()
+    db.query(SongVersion).filter(SongVersion.song_id == song_id).delete()
+    db.query(SongFile).filter(SongFile.song_id == song_id).delete()
     db.delete(song)
     db.commit()
 
