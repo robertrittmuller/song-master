@@ -16,7 +16,7 @@ Create a visually stunning and functional web-based GUI for the Song Master Pyth
 ### Technical Stack
 - **Backend**: Python with FastAPI (already in requirements)
 - **Frontend**: React with TypeScript
-- **Database**: SQLite with SQLAlchemy (aiosqlite in requirements)
+- **Database**: SQLite with SQLAlchemy
 - **Real-time Communication**: WebSockets
 - **State Management**: React Context/Redux
 - **Styling**: Tailwind CSS with custom components

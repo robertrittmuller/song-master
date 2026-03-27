@@ -13,7 +13,7 @@ An initial web experience now lives alongside the CLI. The backend is a FastAPI 
 
 Quick start:
 - Backend: `uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000`
-- Frontend: `cd frontend && npm install && npm run dev` (set `VITE_API_URL` if the API is not on `http://localhost:8000`)
+- Frontend: `cd frontend && npm install && npm run dev` (set `VITE_API_BASE` if the API is not on `http://localhost:8000`)
 - API docs: `http://localhost:8000/docs`
 - CLI generation now delegates to the backend API, so start the FastAPI server first (set `SONG_MASTER_API_BASE` in `.env` or pass `--api-base` to override).
 
