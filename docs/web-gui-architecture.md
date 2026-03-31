@@ -2,472 +2,275 @@
 
 ## System Overview
 
-The Song Master Web GUI is a full-stack web application that transforms the CLI tool into a modern, user-friendly web interface. The architecture follows a client-server pattern with real-time capabilities for progress tracking.
+Song Master currently ships as a small full-stack application:
 
-## Technology Stack
+- A FastAPI backend under `backend/app` exposes song, album, persona, settings, style, and progress endpoints.
+- A Vite + React TypeScript frontend under `frontend/src` consumes that API.
+- The CLI in `song_master.py` is now a thin HTTP client that submits work to the backend instead of running the LangGraph pipeline locally.
+- The lyric-generation pipeline itself lives in `backend/app/services/song_pipeline.py` and is shared by the backend runtime.
 
-### Backend Stack
-- **Framework**: FastAPI (Python)
-  - High performance async framework
-  - Automatic API documentation
-  - Built-in validation and serialization
-  - WebSocket support
-- **Database**: SQLite with SQLAlchemy ORM
-  - Simple deployment and maintenance
-  - ACID compliance for data integrity
-  - JSON support for metadata storage
-- **Authentication**: JWT tokens with FastAPI security
-- **File Storage**: Local filesystem with organized directory structure
-- **Real-time**: WebSockets for progress updates
-- **Background Tasks**: Celery with Redis for long-running operations
+This document describes the implementation that exists in the repository today. Future-state ideas should be documented separately so they are not confused with the shipped stack.
 
-### Frontend Stack
+## Current Technology Stack
+
+### Backend
+
+- **Framework**: FastAPI
+- **Validation**: Pydantic / pydantic-settings
+- **Database**: SQLite via SQLAlchemy
+- **Generation runtime**: in-process asyncio task manager plus thread-executed pipeline work
+- **Real-time updates**: native WebSocket endpoint at `/ws/songs/{song_id}/progress`
+- **Static assets**: FastAPI `StaticFiles` mounts for generated song folders and images
+
+### Frontend
+
 - **Framework**: React 18 with TypeScript
-  - Component-based architecture
-  - Type safety and better developer experience
-  - Large ecosystem and community support
-- **Build Tool**: Vite
-  - Fast development server and hot reload
-  - Optimized production builds
-  - Modern ES modules support
-- **Styling**: Tailwind CSS + Headless UI
-  - Utility-first CSS framework
-  - Rapid prototyping and consistent design
-  - Accessible component primitives
-- **State Management**: React Query + Zustand
-  - Server state synchronization
-  - Client-side state management
-  - Caching and background updates
-- **Real-time**: Socket.io-client
-  - Reliable WebSocket communication
-  - Automatic reconnection
-  - Event-based architecture
+- **Build tool**: Vite
+- **Routing**: React Router
+- **Server state**: TanStack React Query
+- **HTTP client**: Axios
+- **Styling**: repo-owned CSS in `frontend/src/index.css` plus component-level inline styles
+- **Real-time updates**: browser-native `WebSocket`
 
-### Development Tools
-- **Package Manager**: pnpm (faster, disk efficient)
-- **Code Quality**: ESLint + Prettier + TypeScript
-- **Testing**: Vitest + React Testing Library + Playwright
-- **API Documentation**: OpenAPI/Swagger (auto-generated)
+### Development Tooling
 
-## Architecture Patterns
+- **Frontend package manager**: npm (`package-lock.json` is committed)
+- **Backend dependencies**: `requirements.txt`
+- **Local orchestration**: `docker-compose.yml`
 
-### 1. Backend Architecture
+## Runtime Architecture
 
-#### Layered Architecture
-```
-┌─────────────────────────────────────┐
-│           Presentation Layer         │  ← FastAPI Routes & WebSockets
-├─────────────────────────────────────┤
-│            Business Logic           │  ← Service Layer & CLI Integration
-├─────────────────────────────────────┤
-│            Data Access              │  ← SQLAlchemy Models & Repositories
-├─────────────────────────────────────┤
-│            Infrastructure           │  ← Database, File System, External APIs
-└─────────────────────────────────────┘
+```mermaid
+flowchart LR
+    A["CLI or React UI"] --> B["FastAPI API"]
+    B --> C["SQLAlchemy + SQLite"]
+    B --> D["SongGenerationManager"]
+    D --> E["song_pipeline.generate_song_pipeline"]
+    E --> F["AI helpers + prompts + repo assets"]
+    D --> G["Progress cache + generation_sessions"]
+    G --> H["WebSocket progress stream"]
+    E --> I["songs/ and images/ output files"]
 ```
 
-#### Core Components
+### Request Flow
 
-**1. API Layer (FastAPI Routes)**
-```python
-# Main application structure
-app/
-├── main.py                 # FastAPI app initialization
-├── api/
-│   ├── __init__.py
-│   ├── deps.py            # Dependencies and authentication
-│   ├── songs.py           # Song-related endpoints
-│   ├── albums.py        # Album management endpoints
-│   ├── personas.py        # Persona management
-│   ├── styles.py          # Style and tag endpoints
-│   ├── settings.py        # User settings endpoints
-│   └── websocket.py       # WebSocket handlers
-├── core/
-│   ├── config.py          # Application configuration
-│   ├── security.py        # Authentication & authorization
-│   └── database.py        # Database connection
-├── models/
-│   ├── __init__.py
-│   ├── song.py            # Song data models
-│   ├── album.py         # Album models
-│   └── user.py            # User models
-├── schemas/
-│   ├── __init__.py
-│   ├── song.py            # Pydantic schemas for API
-│   └── album.py
+1. The frontend or CLI sends a request to FastAPI.
+2. FastAPI stores the initial song record in SQLite.
+3. `SongGenerationManager` starts an in-process background task.
+4. The manager runs `generate_song_pipeline(...)` in a worker thread.
+5. Progress messages are cached in memory and exposed over HTTP status polling plus WebSocket updates.
+6. Final lyrics, metadata, versions, and file references are persisted back into SQLite and the filesystem.
+
+## Backend Structure
+
+### Application Entry Point
+
+- `backend/app/main.py`
+  - Configures FastAPI and CORS
+  - Initializes the database on startup
+  - Registers routers
+  - Mounts static folders for generated song and image assets
+
+### API Routes
+
+- `backend/app/api/routes/health.py`
+  - Health endpoint
+- `backend/app/api/routes/albums.py`
+  - List, create, fetch, and delete albums
+- `backend/app/api/routes/songs.py`
+  - List songs
+  - Fetch song details and status
+  - Start generation
+  - Import markdown
+  - Update metadata and lyrics
+  - Regenerate art or lyrics
+  - Upload custom art
+  - Submit Live Listen feedback
+- `backend/app/api/routes/personas.py`
+  - CRUD operations for persona markdown-backed content
+- `backend/app/api/routes/settings.py`
+  - Read-only consolidated settings payload for the frontend
+- `backend/app/api/routes/styles.py`
+  - List available core styles from `styles/styles.json`
+- `backend/app/api/routes/instruments.py`
+  - List available instruments
+
+### Services
+
+- `backend/app/services/song_generator.py`
+  - Owns background task lifecycle
+  - Caches live status
+  - Persists generation sessions, song versions, and file records
+- `backend/app/services/song_pipeline.py`
+  - Owns the LangGraph-powered generation flow
+  - Loads prompts and resources
+  - Runs draft, review, critic, preflight, metadata, art, and save stages
+- `backend/app/services/persona_service.py`
+  - Reads and writes persona files
+- `backend/app/services/settings_service.py`
+  - Builds the frontend settings payload from environment variables and defaults
+- `backend/app/services/live_listen_service.py`
+  - Processes uploaded audio feedback and returns revised lyrics
+
+### Data Layer
+
+- `backend/app/db/`
+  - SQLAlchemy base, session, and dependency wiring
+- `backend/app/models/`
+  - `Album`
+  - `Song`
+  - `SongFile`
+  - `SongVersion`
+  - `GenerationSession`
+  - `User`
+  - `UserSetting`
+- `backend/app/schemas/`
+  - Pydantic request and response models for the API
+
+## Frontend Structure
+
+```text
+frontend/src/
+├── components/
+│   ├── common/
+│   ├── layout/
+│   └── ui/
+├── features/
+│   ├── generation/
+│   ├── library/
+│   ├── progress/
+│   └── songViewer/
+├── pages/
 ├── services/
-│   ├── __init__.py
-│   ├── song_generator.py  # CLI integration service
-│   ├── file_manager.py    # File operations
-│   └── progress_tracker.py # Real-time progress
-└── utils/
-    ├── cli_wrapper.py     # CLI tool integration
-    └── file_utils.py      # File handling utilities
+├── types/
+├── App.tsx
+├── index.css
+└── main.tsx
 ```
 
-**2. Service Layer**
-- **SongGeneratorService**: Orchestrates the CLI song generation process
-- **ProgressTrackerService**: Manages real-time progress updates
-- **FileManagerService**: Handles file operations and storage
-- **PersonaService**: Manages persona loading and application
-- **SettingsService**: User configuration management
+### Page-Level Responsibilities
 
-**3. Data Layer**
-- **SQLAlchemy Models**: Database entity definitions
-- **Repository Pattern**: Data access abstraction
-- **Migration System**: Database schema evolution
+- `LandingPage`
+  - Recent songs and high-level product entry
+- `DashboardPage`
+  - Album list, song library, import, search, filter, sort, and view toggles
+- `GeneratePage`
+  - Hosts the generation form
+- `SongDetailPage`
+  - Inline edits, lyric versions, diff view, album art actions, and Live Listen feedback
+- `PersonasPage`
+  - Persona management UI
 
-### 2. Frontend Architecture
+### Frontend State Model
 
-#### Component Architecture
-```
-┌─────────────────────────────────────┐
-│              App                    │
-├─────────────────────────────────────┤
-│           Layout Components         │
-├─────────────────────────────────────┤
-│         Feature Components          │
-├─────────────────────────────────────┤
-│          Shared Components          │
-├─────────────────────────────────────┤
-│           Hooks & Utils             │
-└─────────────────────────────────────┘
-```
+- **Server state**: React Query for songs, albums, personas, styles, instruments, settings, and status polling
+- **Component state**: local React state for form controls, editing sessions, modal state, selected versions, and upload flows
+- **Progress updates**: native `WebSocket` with HTTP polling fallback when no WebSocket payload has arrived yet
 
-#### Directory Structure
-```
-frontend/
-├── src/
-│   ├── components/
-│   │   ├── ui/              # Reusable UI components
-│   │   ├── layout/          # Layout components
-│   │   ├── features/        # Feature-specific components
-│   │   └── shared/          # Shared components
-│   ├── pages/               # Page components
-│   ├── hooks/               # Custom React hooks
-│   ├── services/            # API client services
-│   ├── stores/              # State management
-│   ├── types/               # TypeScript type definitions
-│   ├── utils/               # Utility functions
-│   └── styles/              # Global styles and Tailwind config
-├── public/                  # Static assets
-└── tests/                   # Test files
-```
+## Generation Pipeline Ownership
 
-#### State Management Strategy
+The core songwriting flow is not owned by the CLI anymore.
 
-**1. Server State (React Query)**
-- Songs, albums, personas data
-- Caching and background updates
-- Optimistic updates
-- Error handling and retry logic
+- `song_master.py`
+  - Parses CLI flags
+  - Sends `/api/songs/generate`
+  - Polls `/api/songs/{id}/status`
+  - Fetches the final song record
+  - Saves a local markdown copy for convenience
+- `backend/app/services/song_pipeline.py`
+  - Owns the LangGraph `StateGraph`
+  - Loads personas, styles, tags, and prompt templates
+  - Runs drafting, review rounds, critic pass, preflight, metadata, album art, and save steps
 
-**2. Client State (Zustand)**
-- UI state (modals, notifications)
-- User preferences
-- Form data
-- Real-time connection status
+This separation means the web app and CLI now share the same backend execution path.
 
-**3. Component State**
-- Local component state
-- Form state management
-- Loading and error states
+## Current Data Model
 
-### 3. Real-time Communication
+### Implemented Tables
 
-#### WebSocket Architecture
-```
-Client ←→ WebSocket Server ←→ Background Tasks
-   ↓           ↓                    ↓
-React App ←→ FastAPI ←→ Song Generation Pipeline
-```
+- `albums`
+  - Album container rows
+  - `user_id` is currently nullable
+- `songs`
+  - Primary record for prompts, lyrics, metadata, score, status, and album assignment
+  - `album_id` is currently nullable
+- `song_files`
+  - Tracks persisted lyric and artwork files
+- `song_versions`
+  - Snapshot history for lyric edits and regenerations
+- `generation_sessions`
+  - Stores progress and log history for generation runs
+- `users`
+  - Present in the model layer, but not currently exposed through an authentication API
+- `user_settings`
+  - Present in the model layer; current frontend settings are served from environment-derived config rather than a writeable user-settings workflow
 
-#### Event Types
-- **progress**: Stage updates with percentage and status
-- **log**: Detailed logging information
-- **error**: Error notifications with recovery options
-- **complete**: Generation completion with results
-- **notification**: System-wide notifications
+### Relationship Notes
 
-### 4. Database Design
+- Deleting an album preserves songs by allowing `songs.album_id` to become `NULL`.
+- Song versions are appended when lyrics are edited or regenerated.
+- Generation progress is available both from in-memory status cache and from persisted `generation_sessions` records.
 
-#### Entity Relationship Model
-```
-Users (1) ←→ (M) Albums (1) ←→ (M) Songs (1) ←→ (M) SongFiles
-    ↓              ↓              ↓              ↓
-Settings        Metadata       Lyrics         Album Art
-```
+## File and Asset Storage
 
-#### Core Tables
+### Current Storage Locations
 
-**1. Users Table**
-```sql
-CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+- Database: `backend/data/song_master.db`
+- Generated song markdown and related assets: `songs/`
+- Generated and uploaded artwork: `images/` plus song-specific asset paths
+- Personas: `personas/`
+- Styles: `styles/styles.json`
+- Prompt templates: `prompts/`
 
-**2. Albums Table**
-```sql
-CREATE TABLE albums (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT,
-    settings JSON, -- Album-specific settings
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users (id)
-);
-```
+### Runtime Behavior
 
-**3. Songs Table**
-```sql
-CREATE TABLE songs (
-    id INTEGER PRIMARY KEY,
-    album_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    user_prompt TEXT NOT NULL,
-    persona TEXT,
-    use_local BOOLEAN DEFAULT FALSE,
-    lyrics TEXT,
-    metadata JSON, -- AI-generated metadata
-    score REAL,
-    status TEXT DEFAULT 'pending', -- pending, generating, completed, failed
-    generation_config JSON, -- Generation parameters
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (album_id) REFERENCES albums (id)
-);
-```
+- The backend ensures `songs/` and `images/` exist on startup.
+- Generated songs are saved to the repository filesystem, not an object store.
+- FastAPI mounts `/songs` and `/images` so the frontend can render generated assets directly.
 
-**4. SongFiles Table**
-```sql
-CREATE TABLE song_files (
-    id INTEGER PRIMARY KEY,
-    song_id INTEGER NOT NULL,
-    file_type TEXT NOT NULL, -- 'lyrics', 'metadata', 'artwork', 'audio'
-    file_path TEXT NOT NULL,
-    file_size INTEGER,
-    mime_type TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (song_id) REFERENCES songs (id)
-);
-```
+## Real-Time Progress Model
 
-**5. UserSettings Table**
-```sql
-CREATE TABLE user_settings (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    key TEXT NOT NULL,
-    value JSON NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users (id),
-    UNIQUE(user_id, key)
-);
-```
+### Backend
 
-### 5. File Storage Strategy
+- `SongGenerationManager` maintains an in-memory `progress_cache`.
+- Each generation also writes a `generation_sessions` row.
+- The WebSocket route sends the latest cached status every 500 ms while connected.
 
-#### Directory Structure
-```
-storage/
-├── users/
-│   └── {user_id}/
-│       ├── albums/
-│       │   └── {album_id}/
-│       │       ├── songs/
-│       │       │   └── {song_id}/
-│       │       │       ├── lyrics.md
-│       │       │       ├── metadata.json
-│       │       │       ├── artwork.jpg
-│       │       │       └── audio.mp3 (future)
-│       │       └── exports/
-│       └── temp/
-└── system/
-    ├── personas/
-    ├── styles/
-    └── templates/
-```
+### Frontend
 
-#### File Management
-- **Naming Convention**: UUID-based filenames for uniqueness
-- **Metadata Storage**: JSON files alongside content files
-- **Cleanup Strategy**: Automatic cleanup of temporary files
-- **Backup System**: Regular backups of user data
+- `LiveProgress` opens a native `WebSocket`.
+- If the socket has not produced a payload yet, the UI falls back to polling `/api/songs/{id}/status`.
+- Logs, current stage, progress percentage, and failure state are rendered from the same status model.
 
-### 6. Security Architecture
+## Local Development and Deployment
 
-#### Authentication & Authorization
-- **JWT Tokens**: Stateless authentication
-- **Password Security**: bcrypt hashing with salt
-- **Session Management**: Secure token storage and refresh
-- **API Security**: Rate limiting and input validation
+### Docker Compose
 
-#### Data Protection
-- **Input Validation**: Pydantic schemas for all inputs
-- **SQL Injection Prevention**: SQLAlchemy ORM with parameterized queries
-- **XSS Protection**: Content sanitization and CSP headers
-- **File Upload Security**: Type validation and size limits
+The checked-in `docker-compose.yml` starts:
 
-#### API Security
-```python
-# Security middleware
-@app.middleware("http")
-async def security_headers(request, call_next):
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    return response
-```
+- `backend`
+  - FastAPI container
+  - Mounts `backend`, `backend/data`, `personas`, `styles`, `prompts`, `songs`, and `images`
+- `frontend`
+  - Vite dev server container
+  - Mounts `frontend`
 
-### 7. Performance Optimization
+There is currently no Redis, Celery worker, or separate queue service in the repository's default runtime.
 
-#### Backend Optimizations
-- **Async/Await**: Non-blocking I/O operations
-- **Connection Pooling**: Database connection management
-- **Caching**: Redis for frequently accessed data
-- **Background Tasks**: Celery for long-running operations
-- **File Streaming**: Efficient large file handling
+### Direct Local Run
 
-#### Frontend Optimizations
-- **Code Splitting**: Route-based and component-based splitting
-- **Lazy Loading**: Dynamic imports for non-critical components
-- **Image Optimization**: WebP format with fallbacks
-- **Bundle Optimization**: Tree shaking and minification
-- **Caching Strategy**: Service worker for offline capability
+- Backend: `uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000`
+- Frontend: `cd frontend && npm install && npm run dev`
 
-#### Database Optimizations
-- **Indexing**: Strategic indexes on frequently queried columns
-- **Query Optimization**: Efficient SQLAlchemy queries
-- **Pagination**: Limit-offset for large datasets
-- **Connection Pooling**: Reuse database connections
+## Current Gaps and Future Work
 
-### 8. Deployment Architecture
+The repository has room to grow, but these items are not implemented today:
 
-#### Development Environment
-```
-┌─────────────────────────────────────┐
-│              Docker Compose         │
-├─────────────────────────────────────┤
-│  Frontend (Vite Dev Server)         │
-│  Backend (FastAPI)                  │
-│  Database (SQLite)                  │
-│  Redis (Cache & Queue)              │
-│  Celery Worker                      │
-└─────────────────────────────────────┘
-```
+- JWT-based authentication and multi-user session flows
+- External task queue / worker separation
+- Redis-backed caching or pub-sub
+- Writeable settings persistence from the frontend
+- Notification WebSocket channels beyond song progress
+- Production-specific deployment topology beyond the current local Docker setup
 
-#### Production Environment
-```
-┌─────────────────────────────────────┐
-│              Load Balancer          │
-├─────────────────────────────────────┤
-│  Frontend (Nginx + Static Files)    │
-├─────────────────────────────────────┤
-│  Backend (Gunicorn + FastAPI)       │
-├─────────────────────────────────────┤
-│  Database (PostgreSQL)              │
-├─────────────────────────────────────┤
-│  Cache (Redis)                      │
-├─────────────────────────────────────┤
-│  Queue (Redis + Celery)             │
-└─────────────────────────────────────┘
-```
-
-#### Container Configuration
-```dockerfile
-# Backend Dockerfile
-FROM python:3.11-slim
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-EXPOSE 8000
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
-### 9. Monitoring & Observability
-
-#### Application Monitoring
-- **Logging**: Structured logging with correlation IDs
-- **Metrics**: Performance and business metrics
-- **Health Checks**: Application and dependency health
-- **Error Tracking**: Centralized error reporting
-
-#### Performance Monitoring
-- **Response Times**: API endpoint performance
-- **Database Performance**: Query execution times
-- **Memory Usage**: Application memory consumption
-- **Background Tasks**: Queue processing metrics
-
-### 10. Development Workflow
-
-#### Code Organization
-- **Feature Branches**: Git flow for feature development
-- **Code Review**: Pull request review process
-- **Testing**: Automated testing in CI/CD pipeline
-- **Documentation**: API documentation and code comments
-
-#### Quality Assurance
-- **Type Safety**: TypeScript and Python type hints
-- **Linting**: ESLint and Pylint for code quality
-- **Testing**: Unit, integration, and E2E tests
-- **Security Scanning**: Dependency vulnerability scanning
-
-## Integration with CLI Tool
-
-### CLI Wrapper Service
-The web application integrates with the existing CLI tool through a dedicated service layer:
-
-```python
-class SongGeneratorService:
-    def __init__(self):
-        self.cli_path = Path(__file__).parent.parent.parent / "song_master.py"
-    
-    async def generate_song(
-        self, 
-        user_input: str, 
-        song_name: Optional[str] = None,
-        persona: Optional[str] = None,
-        use_local: bool = False,
-        progress_callback: Optional[Callable] = None
-    ) -> SongResult:
-        # Convert web parameters to CLI arguments
-        # Execute CLI tool as subprocess
-        # Stream output for progress updates
-        # Parse results and return structured data
-```
-
-### Progress Tracking Integration
-- **Subprocess Monitoring**: Real-time output capture from CLI
-- **Stage Detection**: Parse CLI output to identify generation stages
-- **Progress Calculation**: Map CLI stages to web progress percentages
-- **Error Handling**: Capture and categorize CLI errors
-
-## Scalability Considerations
-
-### Horizontal Scaling
-- **Stateless Design**: No server-side session storage
-- **Database Scaling**: Read replicas for query distribution
-- **Background Processing**: Distributed task queue
-- **File Storage**: Cloud storage for large files
-
-### Performance Scaling
-- **Caching Layers**: Multiple levels of caching
-- **Database Optimization**: Query optimization and indexing
-- **CDN Integration**: Static asset delivery optimization
-- **Load Balancing**: Traffic distribution across instances
-
-This architecture provides a solid foundation for building a scalable, maintainable, and user-friendly web interface for the Song Master CLI tool.
+Those can be documented as roadmap items when they are introduced, but they should not be treated as part of the present architecture until the code exists.
