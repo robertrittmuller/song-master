@@ -1,4 +1,4 @@
-![Header Image](images/header.png)
+![Header Image](images/header.jpg)
 # Song Master
 
 A powerful (yet easy to use) script for generating song lyrics using AI models, specifically designed for creating Suno AI-compatible songs with custom styles, metadata, and structured formatting.
@@ -13,7 +13,7 @@ An initial web experience now lives alongside the CLI. The backend is a FastAPI 
 
 Quick start:
 - Backend: `uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000`
-- Frontend: `cd frontend && npm install && npm run dev` (set `VITE_API_URL` if the API is not on `http://localhost:8000`)
+- Frontend: `cd frontend && npm install && npm run dev` (set `VITE_API_BASE` if the API is not on `http://localhost:8000`)
 - API docs: `http://localhost:8000/docs`
 - CLI generation now delegates to the backend API, so start the FastAPI server first (set `SONG_MASTER_API_BASE` in `.env` or pass `--api-base` to override).
 
@@ -30,10 +30,10 @@ The web UI now mirrors the CLI pipeline with richer editing, library management,
   </tr>
   <tr>
     <td valign="top">
-      <img src="images/screencap02.png" alt="Generate" />
+      <img src="images/screencap02.jpg" alt="Generate" />
     </td>
     <td valign="top">
-      <img src="images/screencap03.png" alt="Library" />
+      <img src="images/screencap03.jpg" alt="Library" />
     </td>
   </tr>
   <tr>
@@ -50,10 +50,10 @@ The web UI now mirrors the CLI pipeline with richer editing, library management,
   </tr>
   <tr>
     <td valign="top">
-      <img src="images/screencap01.png" alt="Song Detail" />
+      <img src="images/screencap01.jpg" alt="Song Detail" />
     </td>
     <td valign="top">
-      <img src="images/screencap04.png" alt="Song Detail Expanded" />
+      <img src="images/screencap04.jpg" alt="Song Detail Expanded" />
     </td>
   </tr>
   <tr>
@@ -456,7 +456,7 @@ LMSTUDIO_LLM_MODEL=your_model_name
 
 # Generation Settings
 LLM_MAX_TOKENS=4096
-LLM_TEMPERATURE=0.1
+LLM_TEMPERATURE=0.7
 
 # API base for CLI/HTTP clients (FastAPI)
 SONG_MASTER_API_BASE=http://localhost:8000
@@ -479,9 +479,13 @@ Edit `styles/styles.json` to add custom style definitions:
 ```
 
 ## Technical Deep Dive: Agentic Songwriting Flow
-The agentic process implemented via LangGraph produces superior results through its structured, multi-stage approach to song creation. Unlike single-shot generation methods, this agentic workflow breaks down the complex task of songwriting into specialized subtasks, each handled by dedicated AI agents with specific expertise. The parallel review system ensures multiple perspectives are considered simultaneously, while the iterative refinement loop allows for continuous improvement based on quantitative scoring. This architecture mimics human collaborative songwriting processes, where different specialists contribute their strengths—drafting, critiquing, revising, and polishing—resulting in lyrics that are more coherent, stylistically consistent, and emotionally resonant. The state management provided by LangGraph ensures that context and quality metrics are preserved throughout the entire workflow, enabling the system to make intelligent decisions about when to continue refining versus when to finalize the output.
+The agentic process implemented via LangGraph still powers Song Master, but the ownership boundary has changed. The CLI is now a thin client that submits work to the FastAPI backend; the backend owns the real generation lifecycle and persists progress, lyrics, metadata, and assets for both the web UI and CLI callers.
 
-- **Orchestration (`song_master.py`)**: A LangGraph `StateGraph` wires together the agentic steps and keeps shared state (lyrics, score, metadata, persona, resources, round counters). The CLI parses prompt/name/persona/local-mode flags and seeds the graph with defaults from `.env`.
+- **CLI client (`song_master.py`)**: Parses prompt/name/persona/local flags, calls `/api/songs/generate`, polls `/api/songs/{id}/status`, fetches the final record, and optionally saves a local markdown copy for convenience.
+
+- **Backend task manager (`backend/app/services/song_generator.py`)**: Creates the initial song row, starts an in-process background task, caches progress updates, and writes final results back to the database and filesystem.
+
+- **Pipeline orchestration (`backend/app/services/song_pipeline.py`)**: A LangGraph `StateGraph` wires together the agentic steps and keeps shared state (lyrics, score, metadata, persona, resources, and round counters).
 
 - **Resource loading (`helpers.load_resources`)**: Styles from `styles/styles.json`, tag snippets in `tags/*.txt`, persona-specific style tokens from `personas/*.md`, and baseline song params (genre/tempo/key/instruments/mood). Persona style tokens get re-used later to bias metadata and tags.
 
@@ -495,29 +499,31 @@ The agentic process implemented via LangGraph produces superior results through 
 
 - **Preflight + targeted fixes (`preflight_node` → `targeted_revise_node`)**: Lyrics are validated against style/tag rules. `triage_preflight` distills LLM feedback into a boolean pass + issue list; any issues trigger a targeted revision loop (and another review cycle) until resolved or rounds are exhausted.
 
-- **Metadata + cover art (`metadata_node` → `album_art_node`)**: The metadata agent emits JSON (description, Suno styles/exclude, target audience, commercial potential) and injects persona style tokens to keep the song “on persona.” Album art is generated unless `--local` is set; regeneration can be run directly with `--regen-cover`.
+- **Metadata + cover art (`metadata_node` → `album_art_node`)**: The metadata agent emits JSON (description, Suno styles/exclude, target audience, commercial potential) and injects persona style tokens to keep the song "on persona." Album art is generated unless `--local` is set; regeneration can be run directly with `--regen-cover`.
 
 - **Persistence (`save_node`)**: The final song, metadata, and user prompt are saved to `songs/{YYYYMMDD}_{Title}.md`, with optional `{Title}_cover.jpg` beside it.
 
 
 ```mermaid
 flowchart TD
-    A[CLI prompt/name/persona] --> B[Load styles, tags, persona tokens, defaults]
-    B --> C[Build prompts and enhance input]
-    C --> D[Draft song]
-    D --> E[Parallel reviews x3]
-    E --> F[Revise and score]
-    F -->|below threshold and rounds left| E
-    F --> G[Critic revision]
-    G --> H[Preflight checks]
-    H -->|issues and rounds left| I[Targeted fixes]
-    I --> E
-    H --> J[Metadata summary]
-    J --> K{Local mode}
-    K -->|yes| L[Skip cover art]
-    K -->|no| M[Generate cover art]
-    L --> N[Save song and metadata]
-    M --> N
+    A[CLI or Web UI request] --> B[FastAPI create song]
+    B --> C[Background generation task]
+    C --> D[Load styles, tags, persona tokens, defaults]
+    D --> E[Build prompts and enhance input]
+    E --> F[Draft song]
+    F --> G[Parallel reviews x3]
+    G --> H[Revise and score]
+    H -->|below threshold and rounds left| G
+    H --> I[Critic revision]
+    I --> J[Preflight checks]
+    J -->|issues and rounds left| K[Targeted fixes]
+    K --> G
+    J --> L[Metadata summary]
+    L --> M{Local mode}
+    M -->|yes| N[Skip cover art]
+    M -->|no| O[Generate cover art]
+    N --> P[Save song, metadata, and status]
+    O --> P
 ```
 
 

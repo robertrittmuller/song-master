@@ -17,10 +17,8 @@ services:
     environment:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - LMSTUDIO_API_KEY=${LMSTUDIO_API_KEY}
-      - LMSTUDIO_API_BASE=${LMSTUDIO_API_BASE}
+      - LMSTUDIO_BASE_URL=${LMSTUDIO_BASE_URL}
       - DATABASE_URL=sqlite:///./backend/data/song_master.db
-    networks:
-      - song-master-network
     restart: unless-stopped
 
   frontend:
@@ -33,17 +31,7 @@ services:
     volumes:
       - ./frontend:/app
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_API_BASE=http://localhost:8000
     depends_on:
       - backend
-    networks:
-      - song-master-network
     restart: unless-stopped
-
-networks:
-  song-master-network:
-    driver: bridge
-
-volumes:
-  backend-data:
-    driver: local

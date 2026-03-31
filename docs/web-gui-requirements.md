@@ -16,10 +16,10 @@ Create a visually stunning and functional web-based GUI for the Song Master Pyth
 ### Technical Stack
 - **Backend**: Python with FastAPI (already in requirements)
 - **Frontend**: React with TypeScript
-- **Database**: SQLite with SQLAlchemy (aiosqlite in requirements)
+- **Database**: SQLite with SQLAlchemy
 - **Real-time Communication**: WebSockets
-- **State Management**: React Context/Redux
-- **Styling**: Tailwind CSS with custom components
+- **State Management**: React Query + local React state
+- **Styling**: Custom CSS plus component-level styling
 - **Build Tool**: Vite
 
 ## Functional Requirements
@@ -53,7 +53,6 @@ Create a visually stunning and functional web-based GUI for the Song Master Pyth
   8. Generating album artwork
   9. Formatting and saving final song
 - Live updates via WebSocket
-- Estimated time remaining
 - Current stage details and logs
 
 #### 1.4 Results Display
@@ -158,31 +157,39 @@ Create a visually stunning and functional web-based GUI for the Song Master Pyth
 
 #### 1.1 API Endpoints
 ```
+GET  /api/songs - List songs
 POST /api/songs/generate - Start song generation
+POST /api/songs/import - Import a markdown song
 GET  /api/songs/{id} - Get song details
 GET  /api/songs/{id}/status - Get generation status
-GET  /api/songs/{id}/lyrics - Get song lyrics
-GET  /api/songs/{id}/metadata - Get song metadata
-GET  /api/songs/{id}/artwork - Get album art
+PATCH /api/songs/{id} - Update song metadata
+POST /api/songs/{id}/lyrics - Update lyrics
+POST /api/songs/{id}/regenerate-art - Regenerate album art
+POST /api/songs/{id}/upload-art - Upload custom album art
+POST /api/songs/{id}/regenerate-lyrics - Regenerate lyrics
+POST /api/songs/{id}/live-feedback - Submit audio for Live Listen feedback
 DELETE /api/songs/{id} - Delete song
 
 GET  /api/personas - List all personas
 GET  /api/personas/{name} - Get persona details
+POST /api/personas - Create persona
+PUT  /api/personas/{name} - Update persona
+DELETE /api/personas/{name} - Delete persona
 
 GET  /api/styles - List available styles
-GET  /api/tags - List available tags
+GET  /api/instruments - List available instruments
 
-GET  /api/settings - Get user settings
-PUT  /api/settings - Update settings
+GET  /api/settings - Get frontend settings payload
 
-GET  /api/albums - List user albums
+GET  /api/albums - List albums
 POST /api/albums - Create new album
+GET  /api/albums/{id} - Get album details
+DELETE /api/albums/{id} - Delete album
 ```
 
 #### 1.2 WebSocket Endpoints
 ```
 WS /ws/songs/{id}/progress - Real-time generation updates
-WS /ws/notifications - System notifications
 ```
 
 #### 1.3 Database Schema
@@ -190,42 +197,89 @@ WS /ws/notifications - System notifications
 -- Albums table
 CREATE TABLE albums (
     id INTEGER PRIMARY KEY,
+    user_id INTEGER, -- nullable in the current implementation
     name TEXT NOT NULL,
     description TEXT,
+    settings TEXT, -- JSON string
+    is_public BOOLEAN DEFAULT FALSE,
+    tags TEXT, -- JSON string
     created_at TIMESTAMP,
-    updated_at TIMESTAMP
+    updated_at TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users (id)
 );
 
 -- Songs table
 CREATE TABLE songs (
     id INTEGER PRIMARY KEY,
-    album_id INTEGER,
+    album_id INTEGER, -- nullable so songs can survive album deletion
     title TEXT NOT NULL,
-    user_prompt TEXT,
+    user_prompt TEXT NOT NULL,
+    persona TEXT,
+    style TEXT,
+    vocal_gender TEXT,
+    use_local BOOLEAN DEFAULT FALSE,
     lyrics TEXT,
+    clean_lyrics TEXT,
     metadata TEXT, -- JSON
-    score REAL,
+    album_art TEXT,
+    score INTEGER,
     status TEXT,
+    generation_config TEXT, -- JSON
+    error_message TEXT,
+    live_feedback TEXT,
+    generation_started_at TIMESTAMP,
+    generation_completed_at TIMESTAMP,
     created_at TIMESTAMP,
-    FOREIGN KEY (album_id) REFERENCES albums (id)
+    updated_at TIMESTAMP,
+    FOREIGN KEY (album_id) REFERENCES albums (id) ON DELETE SET NULL
 );
 
 -- Song files table
 CREATE TABLE song_files (
     id INTEGER PRIMARY KEY,
-    song_id INTEGER,
-    file_type TEXT, -- 'lyrics', 'metadata', 'artwork'
-    file_path TEXT,
+    song_id INTEGER NOT NULL,
+    file_type TEXT NOT NULL, -- 'lyrics', 'metadata', 'artwork'
+    file_path TEXT NOT NULL,
+    file_name TEXT NOT NULL,
     file_size INTEGER,
+    mime_type TEXT,
     created_at TIMESTAMP,
+    FOREIGN KEY (song_id) REFERENCES songs (id)
+);
+
+-- Song versions table
+CREATE TABLE song_versions (
+    id INTEGER PRIMARY KEY,
+    song_id INTEGER NOT NULL,
+    version_number INTEGER NOT NULL,
+    lyrics TEXT NOT NULL,
+    created_at TIMESTAMP,
+    FOREIGN KEY (song_id) REFERENCES songs (id)
+);
+
+-- Generation sessions table
+CREATE TABLE generation_sessions (
+    id INTEGER PRIMARY KEY,
+    song_id INTEGER NOT NULL,
+    session_id TEXT UNIQUE NOT NULL,
+    current_stage TEXT,
+    progress_percentage INTEGER DEFAULT 0,
+    stage_details TEXT, -- JSON
+    logs TEXT, -- JSON
+    error_log TEXT,
+    started_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    completed_at TIMESTAMP,
     FOREIGN KEY (song_id) REFERENCES songs (id)
 );
 
 -- User settings table
 CREATE TABLE user_settings (
     id INTEGER PRIMARY KEY,
-    key TEXT UNIQUE,
-    value TEXT -- JSON
+    user_id INTEGER NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT, -- JSON
+    FOREIGN KEY (user_id) REFERENCES users (id)
 );
 ```
 
@@ -267,16 +321,15 @@ App
 ```
 
 #### 2.2 State Management
-- **Global State**: User settings, current album, notifications
+- **Global State**: React Query cache plus route-driven page state
 - **Component State**: Form data, UI preferences, loading states
-- **Server State**: Songs, albums, personas, styles (React Query)
+- **Server State**: Songs, albums, personas, styles, instruments, and settings (React Query)
 
 ### 3. Real-time Features
 
 #### 3.1 WebSocket Implementation
 - Connection management and reconnection
 - Progress event handling
-- Notification system
 - Error handling and recovery
 
 #### 3.2 Progress Tracking
@@ -312,7 +365,7 @@ App
 - Backend API setup
 - Database schema implementation
 - Basic React app structure
-- Authentication system
+- Shared backend generation flow for web and CLI
 
 ### Phase 2: Song Generation
 - Input form and validation

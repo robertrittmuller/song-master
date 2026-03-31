@@ -66,6 +66,8 @@ export type Settings = {
     key?: string;
     instruments?: string;
     mood?: string;
+    vocal_gender?: string;
+    rhyme_scheme?: string;
   };
   ui: Record<string, unknown>;
 };

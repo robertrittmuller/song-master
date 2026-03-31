@@ -134,6 +134,8 @@ export function SongDetailPage() {
     }
   }, [song]);
 
+  const hasAlbumArt = Boolean(song?.album_art);
+
   useEffect(() => {
     if (song && !isEditing) {
       setEditedTitle(song.title);
@@ -178,6 +180,17 @@ export function SongDetailPage() {
     isOpen: false,
     type: null,
   });
+
+  useEffect(() => {
+    setIsEditing(false);
+    setEditedTitle("");
+    setEditedDescription("");
+    setEditedLyrics("");
+    setSelectedVersionId("current");
+    setIsDiffMode(false);
+    setConfirmDialog({ isOpen: false, type: null });
+    setPendingLiveFeedbackFile(null);
+  }, [songId]);
 
   const closeConfirmDialog = () => {
     setConfirmDialog({ isOpen: false, type: null });
@@ -492,7 +505,7 @@ ${cleanLyrics}
                 isLoading={regenerateArtMutation.isPending}
                 onClick={() => setConfirmDialog({ isOpen: true, type: "regenerate_art" })}
               >
-                {song.album_art ? "Regenerate Art" : "Generate Art"}
+                {hasAlbumArt ? "Regenerate Art" : "Generate Art"}
               </Button>
             )}
             {song.status === "completed" && (
@@ -926,13 +939,13 @@ ${cleanLyrics}
         onClose={closeConfirmDialog}
         onConfirm={handleConfirmAction}
         title={
-          confirmDialog.type === "regenerate_art" ? "Regenerate Album Art" :
+          confirmDialog.type === "regenerate_art" ? (hasAlbumArt ? "Regenerate Album Art" : "Generate Album Art") :
           confirmDialog.type === "regenerate_lyrics" ? "Regenerate Lyrics" :
           confirmDialog.type === "live_listen" ? "Live Listen Feedback" :
           "Delete Song"
         }
         message={
-          confirmDialog.type === "regenerate_art" ? `Are you sure you want to (re)generate the cover art for "${song.title}"?` :
+          confirmDialog.type === "regenerate_art" ? `Are you sure you want to ${hasAlbumArt ? "regenerate" : "generate"} the cover art for "${song.title}"?` :
           confirmDialog.type === "regenerate_lyrics" ? `Are you sure you want to regenerate the lyrics for "${song.title}"? This will use the original request and keep the current album art.` :
           confirmDialog.type === "live_listen" ? "This will submit the audio to an external LLM for analysis and regenerate the lyrics based on feedback. Continue?" :
           `Are you sure you want to delete "${song.title}"? This action cannot be undone.`
@@ -940,6 +953,7 @@ ${cleanLyrics}
         confirmText={
           confirmDialog.type === "delete_song" ? "Delete" :
           confirmDialog.type === "live_listen" ? "Submit" :
+          confirmDialog.type === "regenerate_art" ? (hasAlbumArt ? "Regenerate" : "Generate") :
           "Regenerate"
         }
         variant={confirmDialog.type === "delete_song" ? "danger" : "ai-glow"}

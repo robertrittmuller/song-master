@@ -14,7 +14,7 @@ def get_settings_payload() -> SettingsResponse:
     defaults = get_default_song_params()
     llm_provider = os.getenv("LITELLM_API_BASE", "openrouter")
     model = os.getenv("LITELLM_MODEL", "gpt-4o-mini")
-    temperature = float(os.getenv("LITELLM_TEMPERATURE", "0.6"))
+    temperature = float(os.getenv("LITELLM_TEMPERATURE") or os.getenv("LLM_TEMPERATURE", "0.7"))
     max_tokens = int(os.getenv("LLM_MAX_TOKENS", "4096"))
     use_local = os.getenv("USE_LOCAL_LLM", "false").lower() == "true"
     local_url = os.getenv("LMSTUDIO_BASE_URL") or None

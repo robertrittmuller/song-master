@@ -16,6 +16,7 @@ class SongCreate(BaseModel):
     key: Optional[str] = Field(default=None, description="Musical key")
     instruments: Optional[str] = Field(default=None, description="Instruments to include")
     mood: Optional[str] = Field(default=None, description="Mood of the song")
+    rhyme_scheme: Optional[str] = Field(default=None, description="Rhyme scheme pattern: AABB, ABAB, ABBA, AAAA, AABCCB, or Free Verse")
     use_local: bool = Field(default=False, description="Whether to use local LLM mode")
     album_id: Optional[int] = Field(default=None, description="Associated album ID")
     generation_config: Optional[dict[str, Any]] = Field(

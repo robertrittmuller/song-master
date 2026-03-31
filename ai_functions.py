@@ -217,7 +217,7 @@ class LiteLLMWrapper:
 
 def get_llm(use_local: bool = False):
 
-    temperature = float(os.getenv("LLM_TEMPERATURE", "0.1"))
+    temperature = float(os.getenv("LLM_TEMPERATURE", "0.7"))
     max_tokens = int(os.getenv("LLM_MAX_TOKENS", "4096"))
 
     if use_local:
@@ -539,9 +539,10 @@ def generate_metadata_summary(prompt_template: PromptTemplate, lyrics: str, user
     from helpers import parse_persona_styles_list
 
     persona_style_tokens = parse_persona_styles_list(persona_styles)
+    fallback_styles = [token for token in [default_params.get("genre"), *persona_style_tokens] if token]
     fallback = {
         "description": "Short description of the song's theme and style.",
-        "suno_styles": [default_params.get("genre", "rock"), *persona_style_tokens],
+        "suno_styles": fallback_styles,
         "suno_exclude_styles": [],
         "target_audience": "Suggested demographic",
         "commercial_potential": "Assessment",
