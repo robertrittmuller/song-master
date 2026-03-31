@@ -2,7 +2,7 @@
 
 ## Overview
 
-The database schema is designed to support a multi-user song generation platform with album management, real-time progress tracking, and comprehensive metadata storage. The schema uses SQLite with JSON support for flexible metadata storage.
+The database schema is designed to support the current Song Master web application with album management, real-time progress tracking, versioned lyrics, and flexible metadata storage. User-related tables exist in the model layer, but the current app flow is primarily a single-workspace experience and does not yet expose authentication.
 
 ## Entity Relationship Diagram
 
@@ -66,7 +66,7 @@ CREATE INDEX idx_users_created ON users(created_at);
 ```sql
 CREATE TABLE albums (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
+    user_id INTEGER, -- nullable in the current implementation
     name VARCHAR(255) NOT NULL,
     description TEXT,
     settings JSON, -- Album-specific settings and preferences
@@ -87,23 +87,27 @@ CREATE INDEX idx_albums_public ON albums(is_public);
 ```sql
 CREATE TABLE songs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    album_id INTEGER NOT NULL,
+    album_id INTEGER, -- nullable so songs can remain when an album is deleted
     title VARCHAR(255) NOT NULL,
     user_prompt TEXT NOT NULL,
     persona VARCHAR(100),
+    style VARCHAR(100),
+    vocal_gender VARCHAR(50),
     use_local BOOLEAN DEFAULT FALSE,
     lyrics TEXT,
     clean_lyrics TEXT, -- Lyrics without style tags
     metadata JSON, -- AI-generated metadata (description, styles, etc.)
+    album_art TEXT,
     score REAL,
     status VARCHAR(50) DEFAULT 'pending', -- pending, generating, completed, failed, cancelled
     generation_config JSON, -- Generation parameters and settings
     error_message TEXT,
+    live_feedback TEXT,
     generation_started_at TIMESTAMP,
     generation_completed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE
+    FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE SET NULL
 );
 
 -- Indexes
@@ -260,7 +264,7 @@ class Album(Base):
     __tablename__ = "albums"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     name = Column(String(255), nullable=False)
     description = Column(Text)
     settings = Column(Text)  # JSON string
@@ -271,7 +275,7 @@ class Album(Base):
     
     # Relationships
     user = relationship("User", back_populates="albums")
-    songs = relationship("Song", back_populates="album", cascade="all, delete-orphan")
+    songs = relationship("Song", back_populates="album")
 ```
 
 ### 3. Song Model
@@ -280,18 +284,22 @@ class Song(Base):
     __tablename__ = "songs"
     
     id = Column(Integer, primary_key=True, index=True)
-    album_id = Column(Integer, ForeignKey("albums.id", ondelete="CASCADE"), nullable=False)
+    album_id = Column(Integer, ForeignKey("albums.id", ondelete="SET NULL"), nullable=True)
     title = Column(String(255), nullable=False)
     user_prompt = Column(Text, nullable=False)
     persona = Column(String(100))
+    style = Column(String(100))
+    vocal_gender = Column(String(50))
     use_local = Column(Boolean, default=False)
     lyrics = Column(Text)
     clean_lyrics = Column(Text)
     metadata = Column(Text)  # JSON string
+    album_art = Column(Text)
     score = Column(Integer)  # Store as integer (0-100)
     status = Column(String(50), default="pending")
     generation_config = Column(Text)  # JSON string
     error_message = Column(Text)
+    live_feedback = Column(Text)
     generation_started_at = Column(DateTime(timezone=True))
     generation_completed_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -301,6 +309,7 @@ class Song(Base):
     album = relationship("Album", back_populates="songs")
     files = relationship("SongFile", back_populates="song", cascade="all, delete-orphan")
     generation_session = relationship("GenerationSession", back_populates="song", uselist=False)
+    versions = relationship("SongVersion", back_populates="song", cascade="all, delete-orphan")
 ```
 
 ### 4. SongFile Model
@@ -323,7 +332,21 @@ class SongFile(Base):
     song = relationship("Song", back_populates="files")
 ```
 
-### 5. UserSetting Model
+### 5. SongVersion Model
+```python
+class SongVersion(Base):
+    __tablename__ = "song_versions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
+    version_number = Column(Integer, nullable=False)
+    lyrics = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    song = relationship("Song", back_populates="versions")
+```
+
+### 6. UserSetting Model
 ```python
 class UserSetting(Base):
     __tablename__ = "user_settings"
@@ -347,7 +370,7 @@ class UserSetting(Base):
     )
 ```
 
-### 6. GenerationSession Model
+### 7. GenerationSession Model
 ```python
 class GenerationSession(Base):
     __tablename__ = "generation_sessions"
@@ -368,7 +391,7 @@ class GenerationSession(Base):
     song = relationship("Song", back_populates="generation_session")
 ```
 
-### 7. Persona Model
+### 8. Persona Model
 ```python
 class Persona(Base):
     __tablename__ = "personas"
@@ -385,7 +408,7 @@ class Persona(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 ```
 
-### 8. SystemSetting Model
+### 9. SystemSetting Model
 ```python
 class SystemSetting(Base):
     __tablename__ = "system_settings"
@@ -441,6 +464,13 @@ INSERT INTO user_settings (user_id, key, value, category) VALUES
 (1, 'theme', '"dark"', 'ui'),
 (1, 'auto_save', 'true', 'ui');
 ```
+
+### Current Ownership Semantics
+
+- Albums may exist without a linked user in the current implementation.
+- Songs may exist without a linked album.
+- Deleting an album preserves its songs by setting `songs.album_id` to `NULL`.
+- Lyric edits and regenerations create `song_versions` history rows.
 
 ## Performance Optimizations
 
@@ -609,4 +639,4 @@ class SongCreate(BaseModel):
         return v
 ```
 
-This comprehensive database schema provides a solid foundation for the Song Master Web GUI with proper relationships, indexing, constraints, and security considerations.
+This schema reflects the current Song Master implementation closely enough to serve as engineering reference documentation while still leaving room for future multi-user expansion.
