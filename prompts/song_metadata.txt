@@ -1,5 +1,6 @@
 You are preparing concise metadata for a Suno song render.
 - Provide a 1-2 sentence description of the song's theme and style.
+- Use the creative brief's planned Suno style tokens unless the final lyrics clearly contradict them.
 - Suggest 3-6 Suno style tokens that best fit the song (concise, lower case).
 - Suggest 0-3 Suno style tokens to avoid if any conflict appears.
 - Suggest a concise target audience and a one-line commercial potential assessment.

@@ -29,7 +29,8 @@ async def process_live_listen_feedback(song_id: int, file: UploadFile, song_data
         feedback = review_song_with_audio(current_lyrics, tmp_path, use_local)
 
         # Get revision prompt template
-        _, _, _, _, revision_prompt, _, _, _ = build_prompts()
+        prompts = build_prompts()
+        revision_prompt = prompts["revision"]
 
         # Revise lyrics based on feedback
         revised_lyrics = remove_thinking_tags(
@@ -39,6 +40,7 @@ async def process_live_listen_feedback(song_id: int, file: UploadFile, song_data
                 feedback,
                 use_local,
                 user_input=song_data.get("user_prompt", ""),
+                brief=None,
             )
         )
 

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -33,6 +34,251 @@ def read_tags() -> Dict[str, str]:
             with open(f"tags/{filename}", "r") as file:
                 tags[filename] = file.read()
     return tags
+
+
+_CONTEXT_STOPWORDS = {
+    "a",
+    "about",
+    "after",
+    "all",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "give",
+    "in",
+    "into",
+    "it",
+    "make",
+    "of",
+    "on",
+    "or",
+    "song",
+    "that",
+    "the",
+    "this",
+    "to",
+    "up",
+    "use",
+    "with",
+    "write",
+}
+
+
+def _tokenize_context_text(text: str) -> List[str]:
+    tokens = re.findall(r"[a-z0-9+#-]+", (text or "").lower())
+    return [token for token in tokens if len(token) >= 3 and token not in _CONTEXT_STOPWORDS]
+
+
+def _build_context_phrases(
+    user_input: str,
+    default_params: Dict[str, Optional[str]],
+    persona_styles: str,
+    style: Optional[str] = None,
+) -> List[str]:
+    phrases = [user_input, persona_styles, style or ""]
+    phrases.extend(str(value) for value in default_params.values() if value)
+    return [phrase.strip().lower() for phrase in phrases if phrase and phrase.strip()]
+
+
+def _score_context_line(line: str, keywords: List[str], phrases: List[str]) -> int:
+    lowered = line.lower()
+    score = 0
+    for phrase in phrases:
+        if phrase and phrase in lowered:
+            score += 8
+    for keyword in keywords:
+        if keyword in lowered:
+            score += 2
+    return score
+
+
+def _select_top_context_lines(
+    lines: List[str],
+    keywords: List[str],
+    phrases: List[str],
+    limit: int,
+) -> List[str]:
+    scored_lines: List[tuple[int, int, str]] = []
+    for index, raw_line in enumerate(lines):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        score = _score_context_line(line, keywords, phrases)
+        if score > 0:
+            scored_lines.append((score, index, line))
+
+    scored_lines.sort(key=lambda item: (-item[0], item[1]))
+    return [line for _, _, line in scored_lines[:limit]]
+
+
+def _choose_tempo_tag(tempo: Optional[str]) -> Optional[str]:
+    if not tempo:
+        return None
+
+    match = re.search(r"\d{2,3}", str(tempo))
+    if not match:
+        return f"[Tempo: {tempo}]"
+
+    requested = int(match.group(0))
+    available_tempos = [70, 75, 80, 85, 90, 95, 100, 110, 120, 128, 130, 140, 150, 160, 180]
+    closest = min(available_tempos, key=lambda value: abs(value - requested))
+    return f"[Tempo: {closest} BPM]"
+
+
+def _choose_key_tag(key: Optional[str]) -> Optional[str]:
+    if not key:
+        return None
+    normalized = str(key).strip()
+    if not normalized:
+        return None
+    if normalized.startswith("[") and normalized.endswith("]"):
+        return normalized
+    return f"[Key: {normalized}]"
+
+
+def _choose_vocal_tag(vocal_gender: Optional[str]) -> Optional[str]:
+    if not vocal_gender:
+        return None
+
+    lowered = vocal_gender.strip().lower()
+    mapping = {
+        "male": "[Male Vocal]",
+        "female": "[Female Vocal]",
+        "duet": "[Male-Female Duet]",
+    }
+    for key, tag in mapping.items():
+        if key == lowered:
+            return tag
+    if "duet" in lowered:
+        return "[Male-Female Duet]"
+    if "female" in lowered:
+        return "[Female Vocal]"
+    if "male" in lowered:
+        return "[Male Vocal]"
+    return f"[{vocal_gender}]"
+
+
+def build_compact_style_context(
+    styles: Dict[str, str],
+    user_input: str,
+    default_params: Dict[str, Optional[str]],
+    persona_styles: str,
+    style: Optional[str] = None,
+) -> str:
+    """Select a compact style context for the current song request."""
+    phrases = _build_context_phrases(user_input, default_params, persona_styles, style)
+    keywords = _tokenize_context_text(" ".join(phrases))
+
+    selected_artist_styles = _select_top_context_lines(
+        styles.get("artist_styles", "").splitlines(),
+        keywords,
+        phrases,
+        limit=6,
+    )
+    selected_core_styles = _select_top_context_lines(
+        styles.get("core_styles", "").splitlines(),
+        keywords,
+        phrases,
+        limit=10,
+    )
+    selected_example_styles = _select_top_context_lines(
+        styles.get("example_styles", "").splitlines(),
+        keywords,
+        phrases,
+        limit=4,
+    )
+
+    if not selected_core_styles:
+        selected_core_styles = [
+            line.strip()
+            for line in styles.get("core_styles", "").splitlines()
+            if line.strip()
+        ][:8]
+
+    selected_suno_genres: List[str] = []
+    try:
+        suno_genres = json.loads(styles.get("suno_genres", "{}"))
+    except json.JSONDecodeError:
+        suno_genres = {}
+
+    for genre_name, description in suno_genres.items():
+        line = f"{genre_name}: {description}"
+        if _score_context_line(line, keywords, phrases) > 0:
+            selected_suno_genres.append(line)
+        if len(selected_suno_genres) >= 6:
+            break
+
+    context_sections = [
+        ("Relevant Artist/Reference Styles", selected_artist_styles),
+        ("Relevant Core Style Cues", selected_core_styles),
+        ("Relevant Example Styles", selected_example_styles),
+        ("Relevant Suno Genres", selected_suno_genres),
+    ]
+
+    rendered_sections = []
+    for title, lines in context_sections:
+        if not lines:
+            continue
+        rendered_sections.append(f"{title}:\n" + "\n".join(f"- {line}" for line in lines))
+
+    return "\n\n".join(rendered_sections)
+
+
+def build_compact_tag_context(
+    tags: Dict[str, str],
+    user_input: str,
+    default_params: Dict[str, Optional[str]],
+    persona_styles: str,
+    style: Optional[str] = None,
+) -> str:
+    """Build a concise, song-specific tag context instead of dumping the full tag catalog."""
+    phrases = _build_context_phrases(user_input, default_params, persona_styles, style)
+    keywords = _tokenize_context_text(" ".join(phrases))
+
+    available_tag_lines: List[str] = []
+    for content in tags.values():
+        for raw_line in content.splitlines():
+            line = raw_line.strip()
+            if line.startswith("[") and line.endswith("]"):
+                available_tag_lines.append(line)
+
+    structure_tags = [
+        "[Intro]",
+        "[Verse 1]",
+        "[Chorus]",
+        "[Verse 2]",
+        "[Bridge]",
+        "[Outro]",
+    ]
+
+    relevant_tags = _select_top_context_lines(available_tag_lines, keywords, phrases, limit=8)
+
+    explicit_tags = [
+        f"[Genre: {default_params['genre']}]" if default_params.get("genre") else None,
+        _choose_tempo_tag(default_params.get("tempo")),
+        _choose_key_tag(default_params.get("key")),
+        f"[Mood: {default_params['mood']}]" if default_params.get("mood") else None,
+        f"[Instruments: {default_params['instruments']}]" if default_params.get("instruments") else None,
+        _choose_vocal_tag(default_params.get("vocal_gender")),
+    ]
+
+    deduped_relevant_tags = list(
+        dict.fromkeys(
+            structure_tags + [tag for tag in explicit_tags if tag] + relevant_tags
+        )
+    )
+
+    return (
+        "Recommended structure tags:\n"
+        + "\n".join(f"- {tag}" for tag in structure_tags)
+        + "\n\nRelevant tag cues:\n"
+        + "\n".join(f"- {tag}" for tag in deduped_relevant_tags[len(structure_tags):])
+    )
 
 
 def read_persona(persona_name: str) -> str:
@@ -674,6 +920,7 @@ class SongState(TypedDict, total=False):
     style: Optional[str]
     use_local: bool
     resources: SongResources
+    brief: Dict[str, Any]
     lyrics: str
     feedback: str
     score: float
@@ -685,6 +932,8 @@ class SongState(TypedDict, total=False):
     metadata: Dict[str, Any]
     filename: Optional[str]
     album_art: Optional[str]
+    style_context: str
+    tag_context: str
     generate_album_art: bool
     genre: Optional[str]
     tempo: Optional[str]

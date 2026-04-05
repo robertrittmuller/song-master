@@ -26,6 +26,22 @@ def _is_real_langfuse_key(value: Optional[str]) -> bool:
     return not lowered.startswith("your_langfuse_")
 
 
+def _is_openrouter_target(model: Optional[str], base_url: Optional[str]) -> bool:
+    """Return True when the LiteLLM request is targeting OpenRouter."""
+    return "openrouter" in (model or "").lower() or "openrouter" in (base_url or "").lower()
+
+
+def _get_litellm_extra_headers(model: Optional[str], base_url: Optional[str]) -> Optional[Dict[str, str]]:
+    """Return app attribution headers for LiteLLM calls routed to OpenRouter."""
+    if not _is_openrouter_target(model, base_url):
+        return None
+
+    return {
+        "HTTP-Referer": os.getenv("LITELLM_APP_REFERER", "https://github.com/robertrittmuller/song-master"),
+        "X-Title": os.getenv("LITELLM_APP_NAME", "SongMaster"),
+    }
+
+
 def _check_langfuse_server_available() -> bool:
     """Check if the langfuse server is reachable before enabling langfuse."""
     import socket
@@ -202,6 +218,7 @@ class LiteLLMWrapper:
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
+            "extra_headers": _get_litellm_extra_headers(self.model, self.base_url),
         }
         if self.api_key and self.api_key != "your_openrouter_api_key_here":
             kwargs["api_key"] = self.api_key
@@ -273,12 +290,15 @@ def get_llm(use_local: bool = False):
     )
 
 
-def build_prompts():
+def build_prompts() -> Dict[str, Any]:
     """Build and return all prompt templates for song generation."""
-    from helpers import read_prompt, remove_thinking_tags
+    from helpers import read_prompt
 
+    song_brief_template = read_prompt("song_brief")
     song_drafter_template = read_prompt("song_drafter")
-    song_review_template = read_prompt("song_review")
+    song_theme_review_template = read_prompt("song_review_theme")
+    song_wording_review_template = read_prompt("song_review_wording")
+    song_suno_review_template = read_prompt("song_review_suno")
     song_critic_template = read_prompt("song_critic")
     song_preflight_template = read_prompt("song_preflight")
     metadata_template = read_prompt("song_metadata")
@@ -286,64 +306,143 @@ def build_prompts():
     scoring_template = read_prompt("song_scoring")
     song_revision_template = read_prompt("song_revision")
 
-    song_drafter_prompt = PromptTemplate(
-        input_variables=["user_input", "styles", "tags", "persona_styles", "default_params"],
-        template=f"""
+    return {
+        "brief": PromptTemplate(
+            input_variables=["user_input", "styles_context", "tags_context", "persona_styles", "default_params"],
+            template=f"""
+{song_brief_template}
+
+Relevant Style Context:
+{{styles_context}}
+
+Relevant Tag Context:
+{{tags_context}}
+
+Persona Styles:
+{{persona_styles}}
+
+Default Song Parameters:
+{{default_params}}
+
+User Input:
+{{user_input}}
+""",
+        ),
+        "draft": PromptTemplate(
+            input_variables=["user_input", "brief", "styles_context", "tags_context", "persona_styles", "default_params"],
+            template=f"""
 {song_drafter_template}
 
-Data and Resources:
-- Styles: {{styles}}
-- Tags: {{tags}}
-- Persona Styles: {{persona_styles}}
-- Default Song Parameters: {{default_params}}
+Creative Brief:
+{{brief}}
 
-User Input: {{user_input}}
+Relevant Style Context:
+{{styles_context}}
+
+Relevant Tag Context:
+{{tags_context}}
+
+Persona Styles:
+{{persona_styles}}
+
+Default Song Parameters:
+{{default_params}}
+
+User Input:
+{{user_input}}
 
 Use the default song parameters as a baseline when creating the song, but adapt them based on the user's specific request.
 Output your draft as a basic song structure plus lyrics.
 """,
-    )
+        ),
+        "review_theme": PromptTemplate(
+            input_variables=["lyrics", "user_input", "brief"],
+            template=f"""
+{song_theme_review_template}
 
-    song_review_prompt = PromptTemplate(
-        input_variables=["lyrics", "user_input"],
-        template=f"""
-{song_review_template}
+Creative Brief:
+{{brief}}
 
-User Input: {{user_input}}
+User Input:
+{{user_input}}
 
-Lyrics: {{lyrics}}
+Lyrics:
+{{lyrics}}
 """,
-    )
+        ),
+        "review_wording": PromptTemplate(
+            input_variables=["lyrics", "user_input", "brief"],
+            template=f"""
+{song_wording_review_template}
 
-    song_critic_prompt = PromptTemplate(
-        input_variables=["lyrics", "user_input"],
-        template=f"""
+Creative Brief:
+{{brief}}
+
+User Input:
+{{user_input}}
+
+Lyrics:
+{{lyrics}}
+""",
+        ),
+        "review_suno": PromptTemplate(
+            input_variables=["lyrics", "user_input", "brief"],
+            template=f"""
+{song_suno_review_template}
+
+Creative Brief:
+{{brief}}
+
+User Input:
+{{user_input}}
+
+Lyrics:
+{{lyrics}}
+""",
+        ),
+        "critic": PromptTemplate(
+            input_variables=["lyrics", "user_input", "brief"],
+            template=f"""
 {song_critic_template}
 
-User Input: {{user_input}}
+Creative Brief:
+{{brief}}
 
-Lyrics: {{lyrics}}
+User Input:
+{{user_input}}
+
+Lyrics:
+{{lyrics}}
 """,
-    )
-
-    song_preflight_prompt = PromptTemplate(
-        input_variables=["lyrics", "styles", "tags", "user_input", "default_params"],
-        template=f"""
+        ),
+        "preflight": PromptTemplate(
+            input_variables=["lyrics", "styles_context", "tags_context", "user_input", "default_params", "brief"],
+            template=f"""
 {song_preflight_template}
 
-Styles: {{styles}}
-Tags: {{tags}}
-Default Song Parameters: {{default_params}}
+Relevant Style Context:
+{{styles_context}}
+Relevant Tag Context:
+{{tags_context}}
+Default Song Parameters:
+{{default_params}}
 
-User Input: {{user_input}}
+Creative Brief:
+{{brief}}
 
-Lyrics: {{lyrics}}
+User Input:
+{{user_input}}
+
+Lyrics:
+{{lyrics}}
 """,
-    )
+        ),
+        "revision": PromptTemplate(
+            input_variables=["lyrics", "feedback", "user_input", "brief"],
+            template=f"""{song_revision_template}
 
-    song_revision_prompt = PromptTemplate(
-        input_variables=["lyrics", "feedback", "user_input"],
-        template=f"""{song_revision_template}
+Creative Brief:
+{{brief}}
 
 User Input:
 {{user_input}}
@@ -351,14 +450,24 @@ User Input:
 Lyrics:
 {{lyrics}}
 
-Reviewer Feedback:
+Targeted Edit Plan:
 {{feedback}}
 """,
-    )
+        ),
+        "scoring": PromptTemplate(
+            input_variables=["lyrics"],
+            template=f"""{scoring_template}
 
-    metadata_prompt = PromptTemplate(
-        input_variables=["lyrics", "user_input", "default_params", "persona_styles"],
-        template=f"""{metadata_template}
+Lyrics:
+{{lyrics}}
+""",
+        ),
+        "metadata": PromptTemplate(
+            input_variables=["lyrics", "user_input", "default_params", "persona_styles", "brief"],
+            template=f"""{metadata_template}
+
+Creative Brief:
+{{brief}}
 
 Lyrics:
 {{lyrics}}
@@ -372,44 +481,153 @@ Default Parameters:
 Persona Styles:
 {{persona_styles}}
 """,
-    )
-
-    preflight_triage_prompt = PromptTemplate(
-        input_variables=["preflight_output"],
-        template=f"""{preflight_triage_template}
+        ),
+        "preflight_triage": PromptTemplate(
+            input_variables=["preflight_output"],
+            template=f"""{preflight_triage_template}
 
 Preflight Feedback:
 {{preflight_output}}
 """,
+        ),
+    }
+
+
+def _load_json_response(raw: Optional[str]) -> Optional[Any]:
+    from helpers import remove_thinking_tags
+
+    if raw is None:
+        return None
+
+    clean_raw = remove_thinking_tags(raw)
+    try:
+        return json.loads(clean_raw)
+    except Exception:
+        return None
+
+
+def _default_section_plan(default_params: Dict[str, Optional[str]]) -> List[Dict[str, Any]]:
+    vocal_gender = str(default_params.get("vocal_gender") or "").strip()
+    vocal_tag = ""
+    lowered = vocal_gender.lower()
+    if lowered == "male":
+        vocal_tag = "[Male Vocal]"
+    elif lowered == "female":
+        vocal_tag = "[Female Vocal]"
+    elif lowered == "duet":
+        vocal_tag = "[Male-Female Duet]"
+
+    return [
+        {"name": "Verse 1", "goal": "Set the scene with specific imagery.", "tags": ["[Verse 1]", vocal_tag] if vocal_tag else ["[Verse 1]"]},
+        {"name": "Chorus", "goal": "Deliver the core hook in a memorable, singable way.", "tags": ["[Chorus]", vocal_tag] if vocal_tag else ["[Chorus]"]},
+        {"name": "Verse 2", "goal": "Deepen the idea without repeating verse 1 language.", "tags": ["[Verse 2]", vocal_tag] if vocal_tag else ["[Verse 2]"]},
+        {"name": "Bridge", "goal": "Introduce a fresh turn or emotional lift before the final chorus.", "tags": ["[Bridge]", vocal_tag] if vocal_tag else ["[Bridge]"]},
+        {"name": "Outro", "goal": "Resolve the emotional arc cleanly.", "tags": ["[Outro]", vocal_tag] if vocal_tag else ["[Outro]"]},
+    ]
+
+
+def _fallback_song_brief(
+    user_input: str,
+    default_params: Dict[str, Optional[str]],
+    persona_styles: str,
+) -> Dict[str, Any]:
+    from helpers import parse_persona_styles_list
+
+    persona_style_tokens = parse_persona_styles_list(persona_styles)
+    fallback_styles = [token for token in [default_params.get("genre"), *persona_style_tokens] if token]
+    return {
+        "theme": user_input[:180],
+        "point_of_view": "Match the user's request.",
+        "emotional_arc": "Build toward a strong chorus and resolve without losing the theme.",
+        "hook_strategy": "Create a memorable central phrase without defaulting to stock pop wording.",
+        "imagery_anchors": [],
+        "non_negotiables": [],
+        "avoid_phrases": [
+            "shadows in the night",
+            "fire in my veins",
+            "heart on the line",
+        ],
+        "suno_style_tokens": fallback_styles,
+        "section_plan": _default_section_plan(default_params),
+    }
+
+
+def build_song_brief(
+    prompt_template: PromptTemplate,
+    user_input: str,
+    styles_context: str,
+    tags_context: str,
+    persona_styles: str,
+    default_params: Dict[str, Optional[str]],
+    use_local: bool,
+) -> Dict[str, Any]:
+    formatted_prompt = prompt_template.format(
+        user_input=user_input,
+        styles_context=styles_context or "None provided",
+        tags_context=tags_context or "None provided",
+        persona_styles=persona_styles or "None provided",
+        default_params=str(default_params),
     )
+    fallback = _fallback_song_brief(user_input, default_params, persona_styles)
+    parsed = _load_json_response(get_llm(use_local).invoke(formatted_prompt))
+    if not isinstance(parsed, dict):
+        return fallback
 
-    song_score_prompt = PromptTemplate(
-        input_variables=["lyrics"],
-        template=f"""{scoring_template}
+    brief = {
+        "theme": parsed.get("theme") or fallback["theme"],
+        "point_of_view": parsed.get("point_of_view") or fallback["point_of_view"],
+        "emotional_arc": parsed.get("emotional_arc") or fallback["emotional_arc"],
+        "hook_strategy": parsed.get("hook_strategy") or fallback["hook_strategy"],
+        "imagery_anchors": parsed.get("imagery_anchors") or fallback["imagery_anchors"],
+        "non_negotiables": parsed.get("non_negotiables") or fallback["non_negotiables"],
+        "avoid_phrases": parsed.get("avoid_phrases") or fallback["avoid_phrases"],
+        "suno_style_tokens": parsed.get("suno_style_tokens") or fallback["suno_style_tokens"],
+        "section_plan": parsed.get("section_plan") or fallback["section_plan"],
+    }
 
-Lyrics:
-{{lyrics}}
-""",
-    )
+    for list_key in ("imagery_anchors", "non_negotiables", "avoid_phrases", "suno_style_tokens"):
+        if isinstance(brief[list_key], str):
+            brief[list_key] = [item.strip() for item in brief[list_key].split(",") if item.strip()]
+        elif not isinstance(brief[list_key], list):
+            brief[list_key] = fallback[list_key]
 
-    return (
-        song_drafter_prompt,
-        song_review_prompt,
-        song_critic_prompt,
-        song_preflight_prompt,
-        song_revision_prompt,
-        song_score_prompt,
-        metadata_prompt,
-        preflight_triage_prompt,
-    )
+    if not isinstance(brief["section_plan"], list) or not brief["section_plan"]:
+        brief["section_plan"] = fallback["section_plan"]
+
+    normalized_section_plan: List[Dict[str, Any]] = []
+    for item in brief["section_plan"]:
+        if not isinstance(item, dict):
+            continue
+        tags = item.get("tags", [])
+        if isinstance(tags, str):
+            tags = [tags]
+        normalized_section_plan.append(
+            {
+                "name": item.get("name") or item.get("section") or "Section",
+                "goal": item.get("goal") or item.get("purpose") or "Advance the song coherently.",
+                "tags": [tag for tag in tags if tag],
+            }
+        )
+    brief["section_plan"] = normalized_section_plan or fallback["section_plan"]
+    return brief
 
 
-def draft_song(prompt_template: PromptTemplate, enhanced_input: str, styles: Dict[str, str], tags: Dict[str, str], persona_styles: str, default_params: Dict[str, Optional[str]], use_local: bool) -> str:
+def draft_song(
+    prompt_template: PromptTemplate,
+    enhanced_input: str,
+    styles_context: str,
+    tags_context: str,
+    brief: Dict[str, Any],
+    persona_styles: str,
+    default_params: Dict[str, Optional[str]],
+    use_local: bool,
+) -> str:
     formatted_prompt = prompt_template.format(
         user_input=enhanced_input,
-        styles=str(styles),
-        tags=str(tags),
-        persona_styles=persona_styles,
+        brief=json.dumps(brief, ensure_ascii=True, indent=2),
+        styles_context=styles_context or "None provided",
+        tags_context=tags_context or "None provided",
+        persona_styles=persona_styles or "None provided",
         default_params=str(default_params),
     )
     return get_llm(use_local).invoke(formatted_prompt)
@@ -421,8 +639,14 @@ def revise_lyrics(
     feedback: str,
     use_local: bool,
     user_input: str = "",
+    brief: Optional[Dict[str, Any]] = None,
 ) -> str:
-    formatted_prompt = prompt_template.format(lyrics=lyrics, feedback=feedback, user_input=user_input)
+    formatted_prompt = prompt_template.format(
+        lyrics=lyrics,
+        feedback=feedback,
+        user_input=user_input,
+        brief=json.dumps(brief or {}, ensure_ascii=True, indent=2),
+    )
     return get_llm(use_local).invoke(formatted_prompt)
 
 
@@ -442,6 +666,131 @@ def run_parallel_reviews(
         feedbacks = list(executor.map(_call, range(reviewer_count)))
     merged = "\n\n".join([f"Reviewer {idx + 1} Feedback:\n{fb}" for idx, fb in enumerate(feedbacks)])
     return merged
+
+
+def _normalize_review_issue(review_type: str, issue: Any) -> Optional[Dict[str, Any]]:
+    if isinstance(issue, str):
+        text = issue.strip()
+        if not text:
+            return None
+        return {
+            "review_type": review_type,
+            "location": "General",
+            "problem": text,
+            "instruction": text,
+            "priority": 2,
+        }
+
+    if not isinstance(issue, dict):
+        return None
+
+    priority_raw = issue.get("priority", 2)
+    priority_mapping = {"high": 3, "medium": 2, "low": 1}
+    if isinstance(priority_raw, str):
+        priority = priority_mapping.get(priority_raw.strip().lower(), 2)
+    else:
+        try:
+            priority = int(priority_raw)
+        except (TypeError, ValueError):
+            priority = 2
+    priority = max(1, min(priority, 3))
+
+    location = str(issue.get("location") or issue.get("section") or "General").strip()
+    problem = str(issue.get("problem") or issue.get("issue") or "").strip()
+    instruction = str(issue.get("instruction") or issue.get("fix") or problem).strip()
+    if not instruction:
+        return None
+
+    return {
+        "review_type": review_type,
+        "location": location or "General",
+        "problem": problem or instruction,
+        "instruction": instruction,
+        "priority": priority,
+    }
+
+
+def _normalize_review_payload(review_type: str, raw: str) -> Dict[str, Any]:
+    parsed = _load_json_response(raw)
+    if not isinstance(parsed, dict):
+        summary = (raw or "").strip().splitlines()[0] if raw else ""
+        return {"summary": summary[:220], "issues": []}
+
+    issues = parsed.get("issues", [])
+    if isinstance(issues, (str, dict)):
+        issues = [issues]
+
+    normalized_issues = []
+    for issue in issues:
+        normalized = _normalize_review_issue(review_type, issue)
+        if normalized:
+            normalized_issues.append(normalized)
+
+    return {
+        "summary": str(parsed.get("summary") or parsed.get("focus") or "").strip(),
+        "issues": normalized_issues[:4],
+    }
+
+
+def run_specialized_reviews(
+    review_prompts: Dict[str, PromptTemplate],
+    lyrics: str,
+    use_local: bool,
+    user_input: str = "",
+    brief: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Run three focused reviewers and merge their issues into a compact edit plan."""
+    brief_text = json.dumps(brief or {}, ensure_ascii=True, indent=2)
+
+    def _call(item: tuple[str, PromptTemplate]) -> tuple[str, Dict[str, Any]]:
+        review_type, prompt_template = item
+        formatted_prompt = prompt_template.format(lyrics=lyrics, user_input=user_input, brief=brief_text)
+        raw = get_llm(use_local).invoke(formatted_prompt)
+        return review_type, _normalize_review_payload(review_type, raw)
+
+    role_weights = {"theme": 3, "wording": 2, "suno": 1}
+    merged_issues: List[Dict[str, Any]] = []
+    raw_reviews: Dict[str, Dict[str, Any]] = {}
+
+    with ThreadPoolExecutor(max_workers=len(review_prompts)) as executor:
+        for review_type, payload in executor.map(_call, review_prompts.items()):
+            raw_reviews[review_type] = payload
+            merged_issues.extend(payload.get("issues", []))
+
+    deduped_issues: List[Dict[str, Any]] = []
+    seen = set()
+    merged_issues.sort(
+        key=lambda issue: (
+            -int(issue.get("priority", 2)),
+            -role_weights.get(str(issue.get("review_type", "")), 0),
+            issue.get("location", ""),
+        )
+    )
+    for issue in merged_issues:
+        dedupe_key = (
+            str(issue.get("location", "")).lower(),
+            str(issue.get("instruction", "")).lower(),
+        )
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        deduped_issues.append(issue)
+        if len(deduped_issues) >= 6:
+            break
+
+    feedback_lines = []
+    for issue in deduped_issues:
+        label = issue.get("review_type", "review").upper()
+        feedback_lines.append(
+            f"- [{label}] [{issue['location']}] {issue['instruction']} "
+            f"(problem: {issue['problem']}; priority: {issue['priority']})"
+        )
+
+    return {
+        "reviews": raw_reviews,
+        "issues": deduped_issues,
+        "feedback": "\n".join(feedback_lines),
+    }
 
 
 def score_lyrics(prompt_template: PromptTemplate, lyrics: str, use_local: bool) -> float:
@@ -484,32 +833,46 @@ def critique_song(
     lyrics: str,
     use_local: bool,
     user_input: str = "",
+    brief: Optional[Dict[str, Any]] = None,
 ) -> str:
-    formatted_prompt = prompt_template.format(lyrics=lyrics, user_input=user_input)
+    formatted_prompt = prompt_template.format(
+        lyrics=lyrics,
+        user_input=user_input,
+        brief=json.dumps(brief or {}, ensure_ascii=True, indent=2),
+    )
     raw_feedback = get_llm(use_local).invoke(formatted_prompt)
-    try:
-        parsed = json.loads(raw_feedback)
+    parsed = _load_json_response(raw_feedback)
+    if isinstance(parsed, dict):
         feedback = parsed.get("feedback", raw_feedback)
-    except Exception:
+    else:
         feedback = raw_feedback
-    return revise_lyrics(revision_prompt, lyrics, feedback, use_local, user_input=user_input)
+    return revise_lyrics(
+        revision_prompt,
+        lyrics,
+        feedback,
+        use_local,
+        user_input=user_input,
+        brief=brief,
+    )
 
 
 def preflight_song(
     prompt_template: PromptTemplate,
     lyrics: str,
-    styles: Dict[str, str],
-    tags: Dict[str, str],
+    styles_context: str,
+    tags_context: str,
     use_local: bool,
     user_input: str = "",
     default_params: Optional[Dict[str, Optional[str]]] = None,
+    brief: Optional[Dict[str, Any]] = None,
 ) -> str:
     formatted_prompt = prompt_template.format(
         lyrics=lyrics,
-        styles=str(styles),
-        tags=str(tags),
+        styles_context=styles_context or "None provided",
+        tags_context=tags_context or "None provided",
         user_input=user_input,
         default_params=str(default_params or {}),
+        brief=json.dumps(brief or {}, ensure_ascii=True, indent=2),
     )
     return get_llm(use_local).invoke(formatted_prompt)
 
@@ -535,11 +898,31 @@ def triage_preflight(prompt_template: PromptTemplate, preflight_output: str, use
         return fallback
 
 
-def generate_metadata_summary(prompt_template: PromptTemplate, lyrics: str, user_input: str, default_params: Dict[str, Optional[str]], persona_styles: str, use_local: bool):
+def generate_metadata_summary(
+    prompt_template: PromptTemplate,
+    lyrics: str,
+    user_input: str,
+    default_params: Dict[str, Optional[str]],
+    persona_styles: str,
+    use_local: bool,
+    brief: Optional[Dict[str, Any]] = None,
+):
     from helpers import parse_persona_styles_list
 
     persona_style_tokens = parse_persona_styles_list(persona_styles)
-    fallback_styles = [token for token in [default_params.get("genre"), *persona_style_tokens] if token]
+    planned_style_tokens = []
+    if isinstance(brief, dict):
+        raw_planned_styles = brief.get("suno_style_tokens", [])
+        if isinstance(raw_planned_styles, str):
+            planned_style_tokens = [token.strip() for token in raw_planned_styles.split(",") if token.strip()]
+        elif isinstance(raw_planned_styles, list):
+            planned_style_tokens = [str(token).strip() for token in raw_planned_styles if str(token).strip()]
+
+    fallback_styles = [
+        token
+        for token in [default_params.get("genre"), *planned_style_tokens, *persona_style_tokens]
+        if token
+    ]
     fallback = {
         "description": "Short description of the song's theme and style.",
         "suno_styles": fallback_styles,
@@ -552,12 +935,13 @@ def generate_metadata_summary(prompt_template: PromptTemplate, lyrics: str, user
         user_input=user_input,
         default_params=str(default_params),
         persona_styles=persona_styles or "None provided",
+        brief=json.dumps(brief or {}, ensure_ascii=True, indent=2),
     )
     try:
         raw = get_llm(use_local).invoke(formatted_prompt)
-        from helpers import remove_thinking_tags
-        clean_raw = remove_thinking_tags(raw)
-        parsed = json.loads(clean_raw)
+        parsed = _load_json_response(raw)
+        if not isinstance(parsed, dict):
+            return fallback
         description = parsed.get("description") or fallback["description"]
         styles = parsed.get("suno_styles") or fallback["suno_styles"]
         exclude_styles = parsed.get("suno_exclude_styles") or fallback["suno_exclude_styles"]
@@ -565,9 +949,7 @@ def generate_metadata_summary(prompt_template: PromptTemplate, lyrics: str, user
             styles = [styles]
         if isinstance(exclude_styles, str):
             exclude_styles = [exclude_styles]
-        # Ensure persona tokens are included
-        if persona_style_tokens:
-            styles = list(dict.fromkeys(list(styles) + persona_style_tokens))
+        styles = list(dict.fromkeys(planned_style_tokens + list(styles) + persona_style_tokens))
         target_audience = parsed.get("target_audience") or fallback["target_audience"]
         commercial_potential = parsed.get("commercial_potential") or fallback["commercial_potential"]
         return {
@@ -615,12 +997,6 @@ def review_song_with_audio(lyrics: str, audio_path: str, use_local: bool) -> str
     if not litellm_model:
         return "Multimodal LLM error: LITELLM_MULTIMODAL_MODEL is not set."
 
-    # Headers often required/recommended for OpenRouter
-    extra_headers = {
-        "HTTP-Referer": "https://github.com/robertrittmuller/song-master",
-        "X-Title": "Song Master Web App",
-    }
-
     try:
         kwargs = {
             "model": litellm_model,
@@ -639,7 +1015,7 @@ def review_song_with_audio(lyrics: str, audio_path: str, use_local: bool) -> str
                     ]
                 }
             ],
-            "extra_headers": extra_headers if "openrouter" in (litellm_base_url or "").lower() or "openrouter" in litellm_model.lower() else None
+            "extra_headers": _get_litellm_extra_headers(litellm_model, litellm_base_url),
         }
         if litellm_api_key:
             kwargs["api_key"] = litellm_api_key

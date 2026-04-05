@@ -9,6 +9,9 @@ Important rules:
 - **USER REQUIREMENTS ARE NON-NEGOTIABLE**: Extract explicit constraints from the user input (quoted lines, must-include phrases, section placement like "chorus must contain...", point of view, setting, forbidden topics). Required lines must appear verbatim in the specified section and be treated as the core hook/theme. If user requirements conflict with default parameters, the user requirements win.
 - **CRITICAL: Keep total lyrics under 3500 characters including spaces and punctuation. This is a hard limit - do not exceed it.**
 - **CONCISENESS: Every word must earn its place. Prefer short, punchy lines over long, flowing ones. Avoid filler words and unnecessary repetition.**
+- Treat the creative brief as the anchor for theme, imagery, hook strategy, and section-by-section intent. Do not drift away from it once the song begins.
+- Avoid stock AI-pop phrasing. If a line sounds familiar, generic, or overly polished in a bland way, choose a fresher image or a sharper angle.
+- Prefer surprising but singable wording. Clever lines only work if they still sound natural when performed.
 
 Consider the following:
 - What song structures best suit what the request? Consider traditional structures (verse-chorus, verse-chorus-bridge, AABA) as well as unique or experimental forms.
