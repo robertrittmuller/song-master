@@ -7,7 +7,8 @@ interface SidebarProps {
 
 const quickLinks = [
   { to: "/generate", label: "New Song", accent: true, icon: "✨" },
-  { to: "/dashboard", label: "Library", icon: "📚" }
+  { to: "/dashboard", label: "Library", icon: "📚" },
+  { to: "/settings", label: "Settings", icon: "⚙️" }
 ];
 
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {

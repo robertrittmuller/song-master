@@ -83,3 +83,12 @@ export type Settings = {
   };
   ui: Record<string, unknown>;
 };
+
+export type BackupRestoreResult = {
+  dry_run: boolean;
+  imported: Record<string, number>;
+  skipped: Record<string, number>;
+  restored_files: number;
+  skipped_files: number;
+  warnings: string[];
+};

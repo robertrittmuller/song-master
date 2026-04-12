@@ -5,7 +5,8 @@ const nav = [
   { path: "/", label: "Home" },
   { path: "/generate", label: "New Song", primary: true },
   { path: "/dashboard", label: "Library" },
-  { path: "/personas", label: "Personas" }
+  { path: "/personas", label: "Personas" },
+  { path: "/settings", label: "Settings" }
 ];
 
 export function Header() {

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import type { Persona, Album, Settings, Song, SongStatus } from "../types/api";
+import type { BackupRestoreResult, Persona, Album, Settings, Song, SongStatus } from "../types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -165,6 +165,33 @@ export async function importSongMarkdown(file: File): Promise<Song> {
   formData.append("file", file);
   const { data } = await client.post<Song>("/api/songs/import", formData, {
     headers: { "Content-Type": "multipart/form-data" }
+  });
+  return data;
+}
+
+export async function downloadBackup(): Promise<void> {
+  const response = await client.get<Blob>("/api/backups/export", {
+    responseType: "blob"
+  });
+  const disposition = response.headers["content-disposition"] as string | undefined;
+  const filenameMatch = disposition?.match(/filename="?([^"]+)"?/);
+  const filename = filenameMatch?.[1] || "song-master-backup.zip";
+  const url = window.URL.createObjectURL(response.data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+export async function restoreBackup(file: File, dryRun = false): Promise<BackupRestoreResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const { data } = await client.post<BackupRestoreResult>("/api/backups/restore", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    params: { dry_run: dryRun }
   });
   return data;
 }
