@@ -13,6 +13,7 @@ import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
 import { LyricVersionTabs } from "../features/songViewer/LyricVersionTabs";
 import { LyricDiffView } from "../features/songViewer/LyricDiffView";
 import { API_BASE, createDemoTrack, deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, updateSongLyrics, regenerateLyrics, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
+import { copyTextToClipboard } from "../services/clipboard";
 import type { SongFile } from "../types/api";
 
 export function SongDetailPage() {
@@ -327,7 +328,7 @@ export function SongDetailPage() {
       : String(metadata.suno_styles);
 
     try {
-      await navigator.clipboard.writeText(styles);
+      await copyTextToClipboard(styles);
       setCopiedStyles(true);
       setTimeout(() => setCopiedStyles(false), 2000);
     } catch (err) {
@@ -342,7 +343,7 @@ export function SongDetailPage() {
       : String(metadata.suno_exclude_styles);
 
     try {
-      await navigator.clipboard.writeText(styles);
+      await copyTextToClipboard(styles);
       setCopiedExcludeStyles(true);
       setTimeout(() => setCopiedExcludeStyles(false), 2000);
     } catch (err) {

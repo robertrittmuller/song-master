@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { copyTextToClipboard } from "../../services/clipboard";
+
 
 interface LyricSection {
     type: string;
@@ -288,7 +290,7 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
         }).join("\n\n");
 
         try {
-            await navigator.clipboard.writeText(textToCopy);
+            await copyTextToClipboard(textToCopy);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
