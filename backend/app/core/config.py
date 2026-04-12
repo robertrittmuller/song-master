@@ -37,6 +37,22 @@ class Settings(BaseSettings):
         default=10080,
         description="Access token lifetime in minutes",
     )
+    minimax_api_key: str = Field(
+        default="",
+        description="MiniMax API key for demo track generation",
+    )
+    minimax_api_base: str = Field(
+        default="https://api.minimax.io/v1",
+        description="MiniMax API base URL",
+    )
+    minimax_music_model: str = Field(
+        default="music-2.6",
+        description="MiniMax music generation model name",
+    )
+    minimax_request_timeout: int = Field(
+        default=180,
+        description="Timeout in seconds for MiniMax API requests",
+    )
 
 
 @lru_cache

@@ -17,6 +17,7 @@ from backend.app.api.routes import (
 )
 from backend.app.core.config import get_settings
 from backend.app.db.database import init_db
+from backend.app.services.demo_track_generator import demo_track_generation_manager
 from backend.app.websocket import progress as progress_ws
 from backend.app.services.song_generator import generation_manager
 
@@ -43,6 +44,7 @@ def on_startup() -> None:
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
+    await demo_track_generation_manager.shutdown()
     await generation_manager.shutdown()
 
 

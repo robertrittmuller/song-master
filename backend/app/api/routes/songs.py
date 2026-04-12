@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from backend.app.db.deps import get_current_user, get_db
 from backend.app.models import Album, GenerationSession, Song, SongFile, SongProposal, SongVersion, User
-from backend.app.schemas import SongCreate, SongDetail, SongLyricsUpdate, SongRead, SongStatus, SongUpdate
+from backend.app.schemas import DemoTrackStatus, SongCreate, SongDetail, SongLyricsUpdate, SongRead, SongStatus, SongUpdate
+from backend.app.services.demo_track_generator import demo_track_generation_manager
 from backend.app.services.persona_service import sync_persona_style_tags
 from backend.app.services.song_generator import generation_manager
 
@@ -79,6 +80,19 @@ def _clear_primary_art_files(db: Session, song_id: int) -> None:
         SongFile.song_id == song_id,
         SongFile.file_type == "artwork",
     ).update({SongFile.is_primary: False})
+
+
+def _song_demo_track_status(song: Song) -> DemoTrackStatus:
+    has_demo_track = any(song_file.file_type == "demo_track" for song_file in song.files or [])
+    return DemoTrackStatus(
+        song_id=song.id,
+        progress=100 if has_demo_track else 0,
+        current_stage="Demo track ready" if has_demo_track else None,
+        status="completed" if has_demo_track else "idle",
+        estimated_seconds_remaining=None,
+        logs=[],
+        error_message=None,
+    )
 
 
 def _extract_section(markdown: str, heading: str, level: str = "##") -> str:
@@ -220,6 +234,19 @@ def get_song_status(
         logs=[],
         error_message=song.error_message,
     )
+
+
+@router.get("/{song_id}/demo-track/status", response_model=DemoTrackStatus)
+def get_demo_track_status(
+    song_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DemoTrackStatus:
+    song = _get_user_song(db, current_user, song_id)
+    cached = demo_track_generation_manager.get_status(song_id)
+    if cached:
+        return cached
+    return _song_demo_track_status(song)
 
 
 @router.delete("/{song_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -571,6 +598,34 @@ async def regenerate_song_art(
         db.refresh(song)
 
     return song
+
+
+@router.post("/{song_id}/demo-track", response_model=DemoTrackStatus)
+async def create_demo_track(
+    song_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DemoTrackStatus:
+    """Create a demo track for an existing song via MiniMax music generation."""
+    song = _get_user_song(db, current_user, song_id)
+
+    if song.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Demo tracks can only be created for completed songs.",
+        )
+    if song.use_local:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Create Demo Track is not available for local-only songs.",
+        )
+    if not (song.clean_lyrics or song.lyrics):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Song lyrics are required before creating a demo track.",
+        )
+
+    return demo_track_generation_manager.start_generation(song.id)
 
 
 @router.post("/{song_id}/upload-art", response_model=SongDetail)

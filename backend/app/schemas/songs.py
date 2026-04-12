@@ -107,3 +107,13 @@ class SongStatus(BaseModel):
     estimated_seconds_remaining: Optional[int] = None
     logs: List[GenerationLog] = Field(default_factory=list)
     error_message: Optional[str] = None
+
+
+class DemoTrackStatus(BaseModel):
+    song_id: int
+    progress: int
+    current_stage: Optional[str]
+    status: str
+    estimated_seconds_remaining: Optional[int] = None
+    logs: List[GenerationLog] = Field(default_factory=list)
+    error_message: Optional[str] = None

@@ -8,10 +8,11 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { ConfirmationModal } from "../components/ui/ConfirmationModal";
 import { LiveProgress } from "../features/progress/LiveProgress";
+import { DemoTrackCard } from "../features/songViewer/DemoTrackCard";
 import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
 import { LyricVersionTabs } from "../features/songViewer/LyricVersionTabs";
 import { LyricDiffView } from "../features/songViewer/LyricDiffView";
-import { API_BASE, deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, updateSongLyrics, regenerateLyrics, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
+import { API_BASE, createDemoTrack, deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, updateSongLyrics, regenerateLyrics, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
 import type { SongFile } from "../types/api";
 
 export function SongDetailPage() {
@@ -56,6 +57,13 @@ export function SongDetailPage() {
     mutationFn: regenerateLyrics,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["song", songId] });
+    }
+  });
+
+  const createDemoTrackMutation = useMutation({
+    mutationFn: createDemoTrack,
+    onSuccess: (status) => {
+      queryClient.setQueryData(["demo-track-status", songId], status);
     }
   });
 
@@ -136,6 +144,7 @@ export function SongDetailPage() {
   }, [song]);
 
   const hasAlbumArt = Boolean(song?.album_art);
+  const hasDemoTrack = Boolean(song?.files?.some((file) => file.file_type === "demo_track"));
   const artworkHistory = useMemo<SongFile[]>(() => {
     if (!song) {
       return [];
@@ -216,10 +225,21 @@ export function SongDetailPage() {
 
   const [selectedVersionId, setSelectedVersionId] = useState<number | "current">("current");
   const [isDiffMode, setIsDiffMode] = useState(false);
+  const [demoTrackResponse, setDemoTrackResponse] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant: "primary" | "ai-glow" | "danger";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    variant: "primary",
+  });
 
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
-    type: "regenerate_art" | "regenerate_lyrics" | "delete_song" | "live_listen" | null;
+    type: "regenerate_art" | "regenerate_lyrics" | "delete_song" | "live_listen" | "create_demo_track" | null;
   }>({
     isOpen: false,
     type: null,
@@ -234,6 +254,7 @@ export function SongDetailPage() {
     setIsDiffMode(false);
     setConfirmDialog({ isOpen: false, type: null });
     setPendingLiveFeedbackFile(null);
+    setDemoTrackResponse({ isOpen: false, title: "", message: "", variant: "primary" });
   }, [songId]);
 
   const closeConfirmDialog = () => {
@@ -254,6 +275,18 @@ export function SongDetailPage() {
       if (pendingLiveFeedbackFile) {
         void submitLiveFeedback(pendingLiveFeedbackFile);
       }
+    } else if (confirmDialog.type === "create_demo_track") {
+      createDemoTrackMutation.mutate(song.id, {
+        onError: (err: any) => {
+          console.error(err);
+          setDemoTrackResponse({
+            isOpen: true,
+            title: "Create Demo Track",
+            message: err.response?.data?.detail || err.message || "Failed to start demo track generation.",
+            variant: "danger",
+          });
+        },
+      });
     }
     closeConfirmDialog();
   };
@@ -813,6 +846,12 @@ ${cleanLyrics}
               </form>
             </Card>
 
+            <DemoTrackCard
+              song={song}
+              isCreating={createDemoTrackMutation.isPending}
+              onRequestCreate={() => setConfirmDialog({ isOpen: true, type: "create_demo_track" })}
+            />
+
             {!song.use_local && (
               <Card title="Live Listen Feedback">
                 <div className="stack" style={{ gap: 12 }}>
@@ -1011,18 +1050,21 @@ ${cleanLyrics}
         title={
           confirmDialog.type === "regenerate_art" ? (hasAlbumArt ? "Regenerate Album Art" : "Generate Album Art") :
           confirmDialog.type === "regenerate_lyrics" ? "Regenerate Lyrics" :
+          confirmDialog.type === "create_demo_track" ? (hasDemoTrack ? "Regenerate Demo Track" : "Create Demo Track") :
           confirmDialog.type === "live_listen" ? "Live Listen Feedback" :
           "Delete Song"
         }
         message={
           confirmDialog.type === "regenerate_art" ? `Are you sure you want to ${hasAlbumArt ? "regenerate" : "generate"} the cover art for "${song.title}"?` :
           confirmDialog.type === "regenerate_lyrics" ? `Are you sure you want to regenerate the lyrics for "${song.title}"? This will use the original request and keep the current album art.` :
+          confirmDialog.type === "create_demo_track" ? `This will send the saved lyrics and metadata for "${song.title}" to the MiniMax Music Generation API. Continue?` :
           confirmDialog.type === "live_listen" ? "This will submit the audio to an external LLM for analysis and regenerate the lyrics based on feedback. Continue?" :
           `Are you sure you want to delete "${song.title}"? This action cannot be undone.`
         }
         confirmText={
           confirmDialog.type === "delete_song" ? "Delete" :
           confirmDialog.type === "live_listen" ? "Submit" :
+          confirmDialog.type === "create_demo_track" ? (hasDemoTrack ? "Regenerate" : "Create") :
           confirmDialog.type === "regenerate_art" ? (hasAlbumArt ? "Regenerate" : "Generate") :
           "Regenerate"
         }
@@ -1030,9 +1072,21 @@ ${cleanLyrics}
         isConfirming={
           confirmDialog.type === "regenerate_art" ? regenerateArtMutation.isPending :
           confirmDialog.type === "regenerate_lyrics" ? regenerateLyricsMutation.isPending :
+          confirmDialog.type === "create_demo_track" ? createDemoTrackMutation.isPending :
           confirmDialog.type === "live_listen" ? isLiveFeedbackSubmitting :
           deleteMutation.isPending
         }
+      />
+
+      <ConfirmationModal
+        isOpen={demoTrackResponse.isOpen}
+        onClose={() => setDemoTrackResponse({ isOpen: false, title: "", message: "", variant: "primary" })}
+        onConfirm={() => setDemoTrackResponse({ isOpen: false, title: "", message: "", variant: "primary" })}
+        title={demoTrackResponse.title}
+        message={demoTrackResponse.message}
+        confirmText="OK"
+        variant={demoTrackResponse.variant}
+        showCancel={false}
       />
 
       <ConfirmationModal

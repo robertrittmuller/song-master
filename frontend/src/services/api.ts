@@ -4,6 +4,7 @@ import type {
   AuthResponse,
   AuthUser,
   BackupRestoreResult,
+  DemoTrackStatus,
   Persona,
   Album,
   Settings,
@@ -279,6 +280,11 @@ export async function fetchSongStatus(songId: number): Promise<SongStatus> {
   return data;
 }
 
+export async function fetchDemoTrackStatus(songId: number): Promise<DemoTrackStatus> {
+  const { data } = await client.get<DemoTrackStatus>(`/api/songs/${songId}/demo-track/status`);
+  return data;
+}
+
 export const websocketUrl = (songId: number) =>
   {
     const base = API_BASE.replace(/^http/, "ws");
@@ -296,6 +302,11 @@ export async function regenerateAlbumArt(songId: number): Promise<Song> {
 
 export async function regenerateLyrics(songId: number): Promise<Song> {
   const { data } = await client.post<Song>(`/api/songs/${songId}/regenerate-lyrics`);
+  return data;
+}
+
+export async function createDemoTrack(songId: number): Promise<DemoTrackStatus> {
+  const { data } = await client.post<DemoTrackStatus>(`/api/songs/${songId}/demo-track`);
   return data;
 }
 

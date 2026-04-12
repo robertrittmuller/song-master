@@ -11,6 +11,7 @@ from backend.app.schemas.backups import BackupRestoreResult
 from backend.app.schemas.personas import Persona, PersonaCreate, PersonaUpdate
 from backend.app.schemas.settings import GenerationDefaults, SettingsResponse
 from backend.app.schemas.songs import (
+    DemoTrackStatus,
     GenerationLog,
     SongCreate,
     SongDetail,
@@ -41,6 +42,7 @@ __all__ = [
     "LoginRequest",
     "SettingsResponse",
     "SignUpRequest",
+    "DemoTrackStatus",
     "GenerationLog",
     "SongCreate",
     "SongDetail",

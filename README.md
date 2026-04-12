@@ -70,6 +70,7 @@ The web UI now mirrors the CLI pipeline with richer editing, library management,
 - **Editable Song Detail**: Inline title/description updates, lyric versioning, and diff views
 - **Library Management**: Album grouping, search, filters, and grid/list toggles
 - **Persona Workflow**: Manage personas and apply them during generation
+- **Create Demo Track**: Generate a MiniMax-backed MP3 demo track directly from a completed song
 - **Live Listen Feedback**: Upload MP3s for AI feedback and lyric refresh
 - **Album Art Controls**: Regenerate, upload, and download cover art assets
 
@@ -449,6 +450,13 @@ OPENROUTER_API_KEY=your_api_key_here
 LITELLM_MODEL=openrouter/openai/gpt-5.1-chat
 LITELLM_API_KEY=your_api_key_here
 LITELLM_API_BASE=https://openrouter.ai/api/v1
+
+# MiniMax Music Generation (required for Create Demo Track)
+# These values belong in the root .env file.
+MINIMAX_API_KEY=your_minimax_api_key_here
+MINIMAX_MUSIC_MODEL=music-2.6
+MINIMAX_API_BASE=https://api.minimax.io/v1
+MINIMAX_REQUEST_TIMEOUT=180
 
 # Local Model Configuration (LM Studio)
 LMSTUDIO_API_KEY=lm-studio

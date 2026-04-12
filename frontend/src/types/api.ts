@@ -57,6 +57,7 @@ export type Song = {
   created_at: string;
   user_prompt?: string;
   lyrics?: string;
+  clean_lyrics?: string;
   metadata?: string;
   metadata_json?: string;
   album_art?: string;
@@ -70,6 +71,16 @@ export type Song = {
 };
 
 export type SongStatus = {
+  song_id: number;
+  progress: number;
+  current_stage?: string;
+  status: string;
+  estimated_seconds_remaining?: number | null;
+  logs: { timestamp: string; message: string }[];
+  error_message?: string | null;
+};
+
+export type DemoTrackStatus = {
   song_id: number;
   progress: number;
   current_stage?: string;
