@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 from langchain_core.prompts import PromptTemplate
 
-from ai_functions import generate_metadata_summary
-from helpers import map_artist_references_to_suno_styles
+from backend.shared.ai_functions import generate_metadata_summary
+from backend.shared.helpers import map_artist_references_to_suno_styles
 
 
 class _StubLLM:
@@ -51,7 +51,7 @@ class ArtistStyleMappingTests(unittest.TestCase):
         }
         prompt = PromptTemplate.from_template("{user_input}")
 
-        with patch("ai_functions.get_llm", return_value=_StubLLM([json.dumps(payload)])):
+        with patch("backend.shared.ai_functions.get_llm", return_value=_StubLLM([json.dumps(payload)])):
             metadata = generate_metadata_summary(
                 prompt,
                 "lyrics",
@@ -70,7 +70,7 @@ class ArtistStyleMappingTests(unittest.TestCase):
     def test_generate_metadata_summary_fallback_also_maps_artist_styles(self):
         prompt = PromptTemplate.from_template("{user_input}")
 
-        with patch("ai_functions.get_llm", return_value=_StubLLM(["not-json"])):
+        with patch("backend.shared.ai_functions.get_llm", return_value=_StubLLM(["not-json"])):
             metadata = generate_metadata_summary(
                 prompt,
                 "lyrics",

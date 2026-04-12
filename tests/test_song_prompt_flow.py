@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from langchain_core.prompts import PromptTemplate
 
-from ai_functions import build_song_brief, plan_song_structure, run_specialized_reviews
+from backend.shared.ai_functions import build_song_brief, plan_song_structure, run_specialized_reviews
 
 
 class _StubLLM:
@@ -45,7 +45,7 @@ class SongPromptFlowTests(unittest.TestCase):
             ],
         }
 
-        with patch("ai_functions.get_llm", return_value=_StubLLM([json.dumps(payload)])):
+        with patch("backend.shared.ai_functions.get_llm", return_value=_StubLLM([json.dumps(payload)])):
             brief = build_song_brief(
                 PromptTemplate.from_template("{user_input}"),
                 'Write a highway rock song with two guitar solos and the line "we stay gold"',
@@ -60,7 +60,7 @@ class SongPromptFlowTests(unittest.TestCase):
         self.assertEqual(brief["required_lines"], ["we stay gold"])
 
     def test_build_song_brief_raises_when_model_does_not_return_json(self):
-        with patch("ai_functions.get_llm", return_value=_StubLLM(["not json"])):
+        with patch("backend.shared.ai_functions.get_llm", return_value=_StubLLM(["not json"])):
             with self.assertRaises(ValueError):
                 build_song_brief(
                     PromptTemplate.from_template("{user_input}"),
@@ -90,7 +90,7 @@ class SongPromptFlowTests(unittest.TestCase):
             ]
         }
 
-        with patch("ai_functions.get_llm", return_value=_StubLLM([json.dumps(payload)])):
+        with patch("backend.shared.ai_functions.get_llm", return_value=_StubLLM([json.dumps(payload)])):
             section_plan = plan_song_structure(
                 PromptTemplate.from_template("{brief}"),
                 "Write a dramatic rock song",
@@ -145,7 +145,7 @@ class SongPromptFlowTests(unittest.TestCase):
             json.dumps({"summary": "Suno tags are clear.", "issues": []}),
         ]
 
-        with patch("ai_functions.get_llm", return_value=_StubLLM(responses)):
+        with patch("backend.shared.ai_functions.get_llm", return_value=_StubLLM(responses)):
             review_results = run_specialized_reviews(
                 review_prompts,
                 "[Verse 1]\nLine\n\n[Chorus]\nLine",
