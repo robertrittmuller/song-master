@@ -52,39 +52,31 @@ export function SongGrid({ songs = [], viewMode = "grid", maxRows }: Props) {
     <Card title={`Songs (${displayedSongs.length}${maxRows ? ` of ${songs.length}` : ""})`}>
       <div ref={gridRef} className="grid" style={gridStyle}>
         {displayedSongs.map((song: Song) => (
-          <Link key={song.id} to={`/songs/${song.id}`}>
+          <Link
+            key={song.id}
+            to={`/songs/${song.id}`}
+            className="song-grid__item-link"
+          >
             <div
-              className="glass"
-              style={{
-                padding: 14,
-                borderRadius: 14,
-                height: "100%",
-                display: viewMode === "list" ? "flex" : "grid",
-                gap: 10,
-                alignItems: viewMode === "list" ? "center" : "stretch"
-              }}
+              className={`glass song-grid__item song-grid__item--${viewMode}`}
             >
               {viewMode === "grid" && (
                 <div
+                  className="song-grid__thumbnail"
                   style={{
-                    borderRadius: 12,
-                    height: 120,
                     backgroundImage: song.album_art
                       ? `url("${encodeURI(`${API_BASE}/${song.album_art}?t=${new Date().getTime()}`)}")`
-                      : "linear-gradient(135deg, rgba(14,165,233,0.2), rgba(8,47,73,0.5))",
-                    backgroundPosition: "center",
-                    backgroundSize: "cover",
-                    border: "1px solid rgba(255,255,255,0.06)"
+                      : "linear-gradient(135deg, rgba(14,165,233,0.2), rgba(8,47,73,0.5))"
                   }}
                 />
               )}
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 800, marginBottom: 4 }}>{song.title}</div>
-                <div style={{ color: "var(--gray-400)", fontSize: 13 }}>
+              <div className="song-grid__meta">
+                <div className="song-grid__title">{song.title}</div>
+                <div className="song-grid__persona">
                   {song.persona || "No persona"}
                 </div>
               </div>
-              <div className={`tag status-${song.status}`}>
+              <div className={`tag status-${song.status} song-grid__status`}>
                 {song.status}
               </div>
             </div>
