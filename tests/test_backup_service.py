@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 
 import backend.app.models  # noqa: F401 - registers model metadata
 from backend.app.db.base import Base
-from backend.app.models import Album, Song, SongFile, User
+from backend.app.models import Album, Song, SongFile, SongProposal, User
 from backend.app.services.backup_service import create_backup_zip, restore_backup_zip
 
 
@@ -71,6 +71,14 @@ class BackupServiceTests(unittest.TestCase):
                 is_primary=True,
             )
         )
+        session.add(
+            SongProposal(
+                title="Backup Proposal",
+                prompt="Write a backup proposal song.",
+                source_prompt="Create backup proposal ideas.",
+                use_local=False,
+            )
+        )
         session.commit()
         return session
 
@@ -98,6 +106,7 @@ class BackupServiceTests(unittest.TestCase):
         self.assertEqual(len(data["users"]), 1)
         self.assertEqual(len(data["albums"]), 1)
         self.assertEqual(len(data["songs"]), 1)
+        self.assertEqual(len(data["song_proposals"]), 1)
         self.assertEqual(len(data["song_files"]), 1)
 
     def test_restore_imports_once_then_skips_duplicates(self):
@@ -114,14 +123,17 @@ class BackupServiceTests(unittest.TestCase):
         self.assertEqual(first_result.imported["users"], 1)
         self.assertEqual(first_result.imported["albums"], 1)
         self.assertEqual(first_result.imported["songs"], 1)
+        self.assertEqual(first_result.imported["song_proposals"], 1)
         self.assertEqual(first_result.imported["song_files"], 1)
         self.assertEqual(first_result.restored_files, 1)
         self.assertEqual(second_result.skipped["users"], 1)
         self.assertEqual(second_result.skipped["albums"], 1)
         self.assertEqual(second_result.skipped["songs"], 1)
+        self.assertEqual(second_result.skipped["song_proposals"], 1)
         self.assertEqual(second_result.skipped["song_files"], 1)
         self.assertTrue(self.persona_path.exists())
         self.assertEqual(restore_session.query(Song).count(), 1)
+        self.assertEqual(restore_session.query(SongProposal).count(), 1)
         self.assertEqual(restore_session.query(SongFile).count(), 1)
 
 

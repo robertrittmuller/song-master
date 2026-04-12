@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, File, Query, status, Uplo
 from sqlalchemy.orm import Session
 
 from backend.app.db.deps import get_db
-from backend.app.models import GenerationSession, Song, SongFile, SongVersion
+from backend.app.models import GenerationSession, Song, SongFile, SongProposal, SongVersion
 from backend.app.schemas import SongCreate, SongDetail, SongLyricsUpdate, SongRead, SongStatus, SongUpdate
 from backend.app.services.persona_service import sync_persona_style_tags
 from backend.app.services.song_generator import generation_manager
@@ -217,6 +217,12 @@ async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> Son
     import json
 
     title = payload.title or "Untitled"
+    proposal = None
+    if payload.proposal_id is not None:
+        proposal = db.get(SongProposal, payload.proposal_id)
+        if not proposal:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song proposal not found")
+
     song = Song(
         title=title,
         user_prompt=payload.user_prompt,
@@ -229,6 +235,9 @@ async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> Son
         generation_config=json.dumps(payload.generation_config) if payload.generation_config else None,
     )
     db.add(song)
+    if proposal is not None:
+        proposal.status = "accepted"
+        proposal.accepted_at = datetime.utcnow()
     db.commit()
     db.refresh(song)
     generation_manager.start_generation(song.id, payload)

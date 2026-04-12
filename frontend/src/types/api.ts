@@ -64,6 +64,18 @@ export type SongStatus = {
   error_message?: string | null;
 };
 
+export type SongProposal = {
+  id: number;
+  title: string;
+  prompt: string;
+  source_prompt: string;
+  use_local: boolean;
+  status: string;
+  accepted_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Settings = {
   llm_provider: string;
   model: string;

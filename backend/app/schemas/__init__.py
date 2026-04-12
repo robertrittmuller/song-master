@@ -12,6 +12,11 @@ from backend.app.schemas.songs import (
     SongStatus,
     SongUpdate,
 )
+from backend.app.schemas.song_proposals import (
+    SongProposalGenerate,
+    SongProposalGenerateResponse,
+    SongProposalRead,
+)
 
 __all__ = [
     "Persona",
@@ -30,4 +35,7 @@ __all__ = [
     "SongRead",
     "SongStatus",
     "SongUpdate",
+    "SongProposalGenerate",
+    "SongProposalGenerateResponse",
+    "SongProposalRead",
 ]

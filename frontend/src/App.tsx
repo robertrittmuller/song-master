@@ -6,6 +6,7 @@ import { GeneratePage } from "./pages/GeneratePage";
 import { LandingPage } from "./pages/LandingPage";
 import { SongDetailPage } from "./pages/SongDetailPage";
 import { PersonasPage } from "./pages/PersonasPage";
+import { SongProposalsPage } from "./pages/SongProposalsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
 function SongDetailRoute() {
@@ -20,6 +21,7 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/proposals" element={<SongProposalsPage />} />
         <Route path="/personas" element={<PersonasPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/generate" element={<GeneratePage />} />

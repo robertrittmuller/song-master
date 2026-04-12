@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from backend.app.core.config import get_settings
@@ -67,4 +67,21 @@ def init_db() -> None:
     import backend.app.models  # noqa: F401 - ensures model metadata is registered
 
     Base.metadata.create_all(bind=engine)
+    _ensure_song_proposal_schema()
     cleanup_song_integrity()
+
+
+def _ensure_song_proposal_schema() -> None:
+    inspector = inspect(engine)
+    if "song_proposals" not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("song_proposals")}
+    with engine.begin() as connection:
+        if "status" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE song_proposals ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'open'")
+            )
+        if "accepted_at" not in existing_columns:
+            connection.execute(text("ALTER TABLE song_proposals ADD COLUMN accepted_at DATETIME"))
+        connection.execute(text("UPDATE song_proposals SET status = 'open' WHERE status IS NULL"))

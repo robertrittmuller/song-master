@@ -11,7 +11,16 @@ from sqlalchemy import DateTime as SQLADateTime
 from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
-from backend.app.models import Album, GenerationSession, Song, SongFile, SongVersion, User, UserSetting
+from backend.app.models import (
+    Album,
+    GenerationSession,
+    Song,
+    SongFile,
+    SongProposal,
+    SongVersion,
+    User,
+    UserSetting,
+)
 from backend.app.schemas.backups import BackupRestoreResult
 from backend.shared.helpers import get_repo_root
 
@@ -25,6 +34,7 @@ EXPORT_MODELS: Tuple[Type[Any], ...] = (
     User,
     Album,
     Song,
+    SongProposal,
     SongVersion,
     SongFile,
     GenerationSession,
@@ -93,6 +103,7 @@ def restore_backup_zip(db: Session, raw_zip: bytes, dry_run: bool = False) -> Ba
                 dry_run,
             )
             _restore_song_versions(db, data.get("song_versions", []), song_map, result, dry_run)
+            _restore_song_proposals(db, data.get("song_proposals", []), result, dry_run)
             _restore_song_files(
                 db,
                 data.get("song_files", []),
@@ -325,6 +336,27 @@ def _song_fingerprint(song: Song) -> str:
     return _song_fingerprint_from_values(song.title, song.user_prompt, song.lyrics, song.clean_lyrics)
 
 
+def _song_proposal_fingerprint_from_values(
+    title: Optional[str],
+    prompt: Optional[str],
+    source_prompt: Optional[str],
+) -> str:
+    payload = {
+        "title": title or "",
+        "prompt": prompt or "",
+        "source_prompt": source_prompt or "",
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _song_proposal_fingerprint(proposal: SongProposal) -> str:
+    return _song_proposal_fingerprint_from_values(
+        proposal.title,
+        proposal.prompt,
+        proposal.source_prompt,
+    )
+
+
 def _restore_users(
     db: Session,
     rows: List[Dict[str, Any]],
@@ -505,6 +537,38 @@ def _restore_song_versions(
         db.flush()
         existing_versions.append(version)
         _increment(result, "imported", "song_versions")
+
+
+def _restore_song_proposals(
+    db: Session,
+    rows: List[Dict[str, Any]],
+    result: BackupRestoreResult,
+    dry_run: bool,
+) -> None:
+    existing_fingerprints = {
+        _song_proposal_fingerprint(proposal)
+        for proposal in db.query(SongProposal).all()
+    }
+
+    for row in rows:
+        fingerprint = _song_proposal_fingerprint_from_values(
+            row.get("title"),
+            row.get("prompt"),
+            row.get("source_prompt"),
+        )
+        if fingerprint in existing_fingerprints:
+            _increment(result, "skipped", "song_proposals")
+            continue
+
+        if dry_run:
+            _increment(result, "imported", "song_proposals")
+            continue
+
+        proposal = SongProposal(**_row_kwargs(SongProposal, row, excluded={"id"}))
+        db.add(proposal)
+        db.flush()
+        existing_fingerprints.add(fingerprint)
+        _increment(result, "imported", "song_proposals")
 
 
 def _restore_song_files(

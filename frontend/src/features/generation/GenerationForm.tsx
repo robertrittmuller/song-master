@@ -1,6 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -40,6 +40,11 @@ const SONG_PROMPT_PLACEHOLDER =
   "Describe the story, energy, perspective, references, must-include lines, or production ideas...";
 
 type GenerationMode = "simple" | "advanced";
+type GenerationLocationState = {
+  proposalPrompt?: string;
+  proposalTitle?: string;
+  proposalId?: number;
+};
 
 function normalizeOptionalText(value: string): string | undefined {
   const trimmed = value.trim();
@@ -58,6 +63,12 @@ function buildInstrumentValue(selectedInstruments: Set<string>, customInstrument
 
 export function GenerationForm() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = location.state as GenerationLocationState | null;
+  const searchParams = new URLSearchParams(location.search);
+  const initialProposalPrompt = locationState?.proposalPrompt || searchParams.get("prompt") || "";
+  const initialProposalTitle = locationState?.proposalTitle || searchParams.get("title") || "";
+  const initialProposalId = locationState?.proposalId;
   const { data: personas = [] } = useQuery({ queryKey: ["personas"], queryFn: fetchPersonas });
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: fetchSettings });
   const { data: albums = [] } = useQuery({ queryKey: ["albums"], queryFn: fetchAlbums });
@@ -67,8 +78,8 @@ export function GenerationForm() {
     queryFn: fetchStyles
   });
 
-  const [title, setTitle] = useState("");
-  const [prompt, setPrompt] = useState("");
+  const [title, setTitle] = useState(initialProposalTitle);
+  const [prompt, setPrompt] = useState(initialProposalPrompt);
   const [generationMode, setGenerationMode] = useState<GenerationMode>("simple");
   const [persona, setPersona] = useState<string | undefined>();
   const [albumId, setAlbumId] = useState<number | undefined>();
@@ -195,6 +206,7 @@ export function GenerationForm() {
     mutation.mutate({
       user_prompt: prompt.trim(),
       title: title.trim(),
+      proposal_id: initialProposalId,
       persona: isAdvancedMode ? persona : undefined,
       style: normalizedStyle,
       genre: normalizedGenre,

@@ -3,7 +3,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from backend.app.api.routes import backups, health, personas, albums, settings as settings_routes, songs, styles, instruments
+from backend.app.api.routes import (
+    albums,
+    backups,
+    health,
+    instruments,
+    personas,
+    settings as settings_routes,
+    song_proposals,
+    songs,
+    styles,
+)
 from backend.app.core.config import get_settings
 from backend.app.db.database import init_db
 from backend.app.websocket import progress as progress_ws
@@ -37,6 +47,7 @@ async def on_shutdown() -> None:
 app.include_router(health.router)
 app.include_router(albums.router)
 app.include_router(backups.router)
+app.include_router(song_proposals.router)
 app.include_router(songs.router)
 app.include_router(personas.router)
 app.include_router(settings_routes.router)

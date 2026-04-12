@@ -1,6 +1,14 @@
 import axios from "axios";
 
-import type { BackupRestoreResult, Persona, Album, Settings, Song, SongStatus } from "../types/api";
+import type {
+  BackupRestoreResult,
+  Persona,
+  Album,
+  Settings,
+  Song,
+  SongProposal,
+  SongStatus
+} from "../types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -90,9 +98,31 @@ export async function deleteSong(songId: number): Promise<void> {
   await client.delete(`/api/songs/${songId}`);
 }
 
+export async function fetchSongProposals(): Promise<SongProposal[]> {
+  const { data } = await client.get<SongProposal[]>("/api/song-proposals");
+  return data;
+}
+
+export async function generateSongProposals(payload: {
+  source_prompt: string;
+  count: 5 | 10;
+  use_local?: boolean;
+}): Promise<SongProposal[]> {
+  const { data } = await client.post<{ proposals: SongProposal[] }>(
+    "/api/song-proposals/generate",
+    payload
+  );
+  return data.proposals;
+}
+
+export async function deleteSongProposal(proposalId: number): Promise<void> {
+  await client.delete(`/api/song-proposals/${proposalId}`);
+}
+
 export async function createSong(payload: {
   user_prompt: string;
   title: string;
+  proposal_id?: number;
   persona?: string;
   style?: string;
   genre?: string;

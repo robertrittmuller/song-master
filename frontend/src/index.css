@@ -555,6 +555,203 @@ a {
   gap: 20px;
 }
 
+.song-proposals-page {
+  gap: 20px;
+  max-width: 1120px;
+}
+
+.song-proposals-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.song-proposals-form__controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.45fr) minmax(280px, 0.55fr);
+  gap: 16px;
+  align-items: end;
+}
+
+.song-proposals-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.song-proposals-list {
+  display: grid;
+  gap: 16px;
+}
+
+.song-proposals-group {
+  display: grid;
+  gap: 16px;
+}
+
+.song-proposals-group__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+}
+
+.song-proposals-group__title {
+  margin: 4px 0 0;
+}
+
+.song-proposals-group__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.song-proposal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.72), rgba(15, 23, 42, 0.5));
+  padding: 18px;
+}
+
+.song-proposal--accepted {
+  border-color: rgba(110, 231, 183, 0.18);
+}
+
+.song-proposal__header,
+.song-proposal__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.song-proposal__title {
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+
+.song-proposal__date {
+  flex-shrink: 0;
+  color: var(--gray-400);
+  font-size: 12px;
+}
+
+.song-proposal__prompt {
+  margin: 0;
+  color: var(--gray-100);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.song-proposal__source {
+  margin-top: auto;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.song-proposal__source span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--gray-300);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.song-proposal__source p {
+  margin: 0;
+  color: var(--gray-400);
+  font-size: 13px;
+  line-height: 1.5;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.song-proposal__actions {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.song-proposal__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(110, 231, 183, 0.14);
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.song-proposals-accepted {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  background: rgba(15, 23, 42, 0.34);
+  overflow: hidden;
+}
+
+.song-proposals-accepted > summary {
+  list-style: none;
+}
+
+.song-proposals-accepted > summary::-webkit-details-marker {
+  display: none;
+}
+
+.song-proposals-accepted__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px;
+  cursor: pointer;
+  color: var(--gray-100);
+}
+
+.song-proposals-accepted__count {
+  min-width: 32px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  text-align: center;
+  color: var(--gray-200);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.song-proposals-accepted[open] .song-proposals-accepted__summary {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.song-proposals-accepted__content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  padding: 18px 20px 20px;
+}
+
+.song-proposal__actions--accepted {
+  justify-content: flex-end;
+}
+
+.generation-empty-state--compact {
+  padding: 14px 16px;
+}
+
 .generation-form {
   display: flex;
   flex-direction: column;
@@ -1042,6 +1239,10 @@ h3 {
     align-items: stretch;
   }
 
+  .song-proposals-form__controls {
+    grid-template-columns: 1fr;
+  }
+
   .generation-submit-bar__actions {
     justify-content: space-between;
     flex-wrap: wrap;
@@ -1076,6 +1277,17 @@ h3 {
   }
 
   .generation-submit-bar__actions .btn {
+    width: 100%;
+  }
+
+  .song-proposals-form__actions,
+  .song-proposal__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .song-proposals-form__actions .btn,
+  .song-proposal__actions .btn {
     width: 100%;
   }
 

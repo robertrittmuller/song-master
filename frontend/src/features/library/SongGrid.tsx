@@ -14,6 +14,43 @@ type Props = {
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
+const GRADIENT_FALLBACK = "linear-gradient(135deg, rgba(14,165,233,0.2), rgba(8,47,73,0.5))";
+
+function LazyThumbnail({ albumArt, viewMode }: { albumArt?: string; viewMode: "grid" | "list" }) {
+  const [visible, setVisible] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const bg = visible && albumArt
+    ? `url("${encodeURI(`${API_BASE}/${albumArt}?t=${Date.now()}`)}")`
+    : GRADIENT_FALLBACK;
+
+  return (
+    <div
+      ref={ref}
+      className={`song-grid__thumbnail song-grid__thumbnail--${viewMode}`}
+      style={{ backgroundImage: bg }}
+    />
+  );
+}
+
 function formatSongDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
@@ -63,8 +100,6 @@ export function SongGrid({ songs = [], viewMode = "grid", maxRows, totalSongsCou
     ? { gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))" }
     : { gridTemplateColumns: "1fr" };
 
-  const cacheBust = Date.now();
-
   return (
     <Card title={`Songs (${songCountLabel})`} action={headerAction}>
       <div ref={gridRef} className="grid" style={gridStyle}>
@@ -82,14 +117,7 @@ export function SongGrid({ songs = [], viewMode = "grid", maxRows, totalSongsCou
               <div
                 className={`glass song-grid__item song-grid__item--${viewMode}`}
               >
-                <div
-                  className={`song-grid__thumbnail song-grid__thumbnail--${viewMode}`}
-                  style={{
-                    backgroundImage: song.album_art
-                      ? `url("${encodeURI(`${API_BASE}/${song.album_art}?t=${cacheBust}`)}")`
-                      : "linear-gradient(135deg, rgba(14,165,233,0.2), rgba(8,47,73,0.5))"
-                  }}
-                />
+                <LazyThumbnail albumArt={song.album_art} viewMode={viewMode} />
                 <div className="song-grid__meta">
                   <div className="song-grid__title-row">
                     <div className="song-grid__title">{song.title}</div>
