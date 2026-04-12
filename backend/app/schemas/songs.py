@@ -63,6 +63,19 @@ class SongVersionRead(BaseModel):
     created_at: datetime
 
 
+class SongFileRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    file_type: str
+    file_path: str
+    file_name: str
+    file_size: Optional[int] = None
+    mime_type: Optional[str] = None
+    is_primary: Optional[bool] = False
+    created_at: datetime
+
+
 class SongDetail(SongRead):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -77,6 +90,7 @@ class SongDetail(SongRead):
     error_message: Optional[str] = None
     live_feedback: Optional[str] = None
     versions: List[SongVersionRead] = []
+    files: List[SongFileRead] = []
 
 
 class GenerationLog(BaseModel):

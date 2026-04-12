@@ -1305,7 +1305,9 @@ def generate_album_art(
     persona_name: Optional[str] = None,
     style: Optional[str] = None,
     mood: Optional[str] = None,
-    vocal_gender: Optional[str] = None
+    vocal_gender: Optional[str] = None,
+    date: Optional[str] = None,
+    filename_suffix: str = "",
 ) -> str:
     """Generate album artwork using integrated function with enriched prompt."""
     import os
@@ -1345,18 +1347,18 @@ def generate_album_art(
     print(f"--- Art Prompt: {artwork_prompt}")
     
     # Use storage info helper for consistent paths
-    storage = get_song_storage_info(title)
+    storage = get_song_storage_info(title, date)
     os.makedirs(storage["abs_folder"], exist_ok=True)
     
     # Initial output file, format may vary based on API
-    output_file = f"{storage['abs_image_base']}.jpg"
+    output_file = f"{storage['abs_image_base']}{filename_suffix}.jpg"
     print(f"[DEBUG] output_file (initial): {output_file}")
     
     try:
         generate_album_art_image(artwork_prompt, output_file)
         # The actual file might have different extension (PNG/WebP) based on API response
         # Check for the actual file
-        base_path = storage["abs_image_base"]
+        base_path = f"{storage['abs_image_base']}{filename_suffix}"
         actual_file = None
         for ext in [".png", ".jpg", ".webp"]:
             check_path = f"{base_path}{ext}"

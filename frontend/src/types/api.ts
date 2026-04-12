@@ -20,6 +20,17 @@ export type SongVersion = {
   created_at: string;
 };
 
+export type SongFile = {
+  id: number;
+  file_type: string;
+  file_path: string;
+  file_name: string;
+  file_size?: number | null;
+  mime_type?: string | null;
+  is_primary?: boolean | null;
+  created_at: string;
+};
+
 export type Song = {
   id: number;
   title: string;
@@ -40,6 +51,7 @@ export type Song = {
   error_message?: string;
   live_feedback?: string;
   versions?: SongVersion[];
+  files?: SongFile[];
 };
 
 export type SongStatus = {

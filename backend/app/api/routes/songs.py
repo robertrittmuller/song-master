@@ -1,3 +1,5 @@
+from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, File, Query, status, UploadFile
@@ -10,6 +12,56 @@ from backend.app.services.persona_service import sync_persona_style_tags
 from backend.app.services.song_generator import generation_manager
 
 router = APIRouter(prefix="/api/songs", tags=["songs"])
+
+
+def _art_mime_type(file_path: str) -> str:
+    suffix = Path(file_path).suffix.lower()
+    if suffix == ".png":
+        return "image/png"
+    if suffix == ".webp":
+        return "image/webp"
+    return "image/jpeg"
+
+
+def _upsert_song_art_file(
+    db: Session,
+    song_id: int,
+    file_path: str,
+    is_primary: bool,
+) -> SongFile:
+    from backend.shared.helpers import resolve_storage_path
+
+    path = Path(file_path)
+    abs_path = Path(resolve_storage_path(file_path))
+    song_file = (
+        db.query(SongFile)
+        .filter(SongFile.song_id == song_id, SongFile.file_path == file_path)
+        .first()
+    )
+
+    if not song_file:
+        song_file = SongFile(
+            song_id=song_id,
+            file_type="artwork",
+            file_path=file_path,
+            file_name=path.name,
+        )
+
+    song_file.file_type = "artwork"
+    song_file.file_path = file_path
+    song_file.file_name = path.name
+    song_file.file_size = abs_path.stat().st_size if abs_path.exists() else None
+    song_file.mime_type = _art_mime_type(file_path)
+    song_file.is_primary = is_primary
+    db.add(song_file)
+    return song_file
+
+
+def _clear_primary_art_files(db: Session, song_id: int) -> None:
+    db.query(SongFile).filter(
+        SongFile.song_id == song_id,
+        SongFile.file_type == "artwork",
+    ).update({SongFile.is_primary: False})
 
 
 def _extract_section(markdown: str, heading: str, level: str = "##") -> str:
@@ -426,6 +478,8 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
     import json
 
     title = extract_title(song.lyrics or "", song.title)
+    song_date = song.created_at.strftime("%Y-%m-%d") if song.created_at else datetime.now().strftime("%Y-%m-%d")
+    filename_suffix = f"_art_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
 
     # Extract mood from metadata_json if available
     metadata = {}
@@ -443,11 +497,18 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
         persona_name=song.persona,
         style=song.style,
         mood=mood,
-        vocal_gender=song.vocal_gender
+        vocal_gender=song.vocal_gender,
+        date=song_date,
+        filename_suffix=filename_suffix,
     )
 
     if artwork_path:
+        if song.album_art:
+            _upsert_song_art_file(db, song.id, song.album_art, is_primary=False)
+        _clear_primary_art_files(db, song.id)
         song.album_art = artwork_path
+        _upsert_song_art_file(db, song.id, artwork_path, is_primary=True)
+        db.add(song)
         db.commit()
         db.refresh(song)
 
@@ -475,7 +536,6 @@ async def upload_song_art(
     if extension not in {".jpg", ".jpeg", ".png"}:
         extension = ".jpg" if file.content_type == "image/jpeg" else ".png"
 
-    from datetime import datetime
     import os
     from backend.shared.helpers import get_song_storage_info
 
@@ -483,8 +543,9 @@ async def upload_song_art(
     storage = get_song_storage_info(song.title, song_date)
     os.makedirs(storage["abs_folder"], exist_ok=True)
 
-    file_path_rel = f"{storage['image_base']}_custom{extension}"
-    file_path = f"{storage['abs_image_base']}_custom{extension}"
+    filename_suffix = f"_custom_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
+    file_path_rel = f"{storage['image_base']}{filename_suffix}{extension}"
+    file_path = f"{storage['abs_image_base']}{filename_suffix}{extension}"
 
     try:
         with open(file_path, "wb") as out_file:
@@ -499,7 +560,11 @@ async def upload_song_art(
             detail="Failed to save uploaded album art."
         ) from exc
 
+    if song.album_art:
+        _upsert_song_art_file(db, song.id, song.album_art, is_primary=False)
+    _clear_primary_art_files(db, song.id)
     song.album_art = file_path_rel
+    _upsert_song_art_file(db, song.id, file_path_rel, is_primary=True)
     db.add(song)
     db.commit()
     db.refresh(song)

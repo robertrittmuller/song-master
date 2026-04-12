@@ -12,6 +12,7 @@ import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
 import { LyricVersionTabs } from "../features/songViewer/LyricVersionTabs";
 import { LyricDiffView } from "../features/songViewer/LyricDiffView";
 import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, updateSongLyrics, regenerateLyrics, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
+import type { SongFile } from "../types/api";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
@@ -75,6 +76,7 @@ export function SongDetailPage() {
   const [editedTitle, setEditedTitle] = useState("");
   const [editedDescription, setEditedDescription] = useState("");
   const [editedLyrics, setEditedLyrics] = useState<string | null>(null);
+  const [selectedArtPath, setSelectedArtPath] = useState<string | null>(null);
   const [selectedArtFileName, setSelectedArtFileName] = useState("No file selected");
   const [selectedFeedbackFileName, setSelectedFeedbackFileName] = useState("No file selected");
   const editRef = useRef<HTMLDivElement>(null);
@@ -136,6 +138,47 @@ export function SongDetailPage() {
   }, [song]);
 
   const hasAlbumArt = Boolean(song?.album_art);
+  const artworkHistory = useMemo<SongFile[]>(() => {
+    if (!song) {
+      return [];
+    }
+
+    const artworkByPath = new Map<string, SongFile>();
+    for (const file of song.files ?? []) {
+      if (file.file_type === "artwork" && file.file_path) {
+        artworkByPath.set(file.file_path, {
+          ...file,
+          is_primary: file.file_path === song.album_art || file.is_primary,
+        });
+      }
+    }
+
+    if (song.album_art && !artworkByPath.has(song.album_art)) {
+      const fileName = song.album_art.split("/").pop() || "album-art";
+      artworkByPath.set(song.album_art, {
+        id: -1,
+        file_type: "artwork",
+        file_path: song.album_art,
+        file_name: fileName,
+        is_primary: true,
+        created_at: song.created_at,
+      });
+    }
+
+    return Array.from(artworkByPath.values()).sort((a, b) => {
+      const aIsCurrent = a.file_path === song.album_art ? 1 : 0;
+      const bIsCurrent = b.file_path === song.album_art ? 1 : 0;
+      if (aIsCurrent !== bIsCurrent) {
+        return bIsCurrent - aIsCurrent;
+      }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [song]);
+  const selectedArtwork = artworkHistory.find((file) => file.file_path === selectedArtPath) ?? artworkHistory[0];
+
+  useEffect(() => {
+    setSelectedArtPath(song?.album_art ?? null);
+  }, [song?.album_art, songId]);
 
   useEffect(() => {
     if (song && !isEditing) {
@@ -642,19 +685,19 @@ ${cleanLyrics}
             <Card
               title="Album Art"
               action={
-                song.album_art ? (
+                selectedArtwork ? (
                   <button
                     className="btn ghost"
                     style={{ padding: "4px 8px", fontSize: 12, height: "auto", minHeight: 0 }}
                     onClick={async () => {
-                      const imageUrl = `${API_BASE}/${song.album_art}`;
+                      const imageUrl = `${API_BASE}/${selectedArtwork.file_path}`;
                       try {
                         const response = await fetch(imageUrl);
                         const blob = await response.blob();
                         const url = window.URL.createObjectURL(blob);
                         const link = document.createElement("a");
                         link.href = url;
-                        link.download = `${song.title.replace(/\s+/g, "_")}_art.png`;
+                        link.download = selectedArtwork.file_name || `${song.title.replace(/\s+/g, "_")}_art.png`;
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
@@ -672,16 +715,42 @@ ${cleanLyrics}
                 ) : null
               }
             >
-              {song.album_art ? (
-                <img
-                  src={encodeURI(`${API_BASE}/${song.album_art}?t=${new Date().getTime()}`)}
-                  alt={`${song.title} cover art`}
-                  style={{
-                    width: "100%",
-                    borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,0.1)"
-                  }}
-                />
+              {selectedArtwork ? (
+                <>
+                  <img
+                    src={encodeURI(`${API_BASE}/${selectedArtwork.file_path}`)}
+                    alt={`${song.title} cover art`}
+                    style={{
+                      width: "100%",
+                      borderRadius: 12,
+                      border: "1px solid rgba(255,255,255,0.1)"
+                    }}
+                  />
+                  {artworkHistory.length > 1 && (
+                    <div className="art-history" aria-label="Artwork history">
+                      {artworkHistory.map((file, index) => {
+                        const isSelected = file.file_path === selectedArtwork.file_path;
+                        const isCurrent = file.file_path === song.album_art;
+                        return (
+                          <button
+                            key={file.file_path}
+                            type="button"
+                            className={`art-history__item ${isSelected ? "is-selected" : ""}`}
+                            onClick={() => setSelectedArtPath(file.file_path)}
+                            aria-pressed={isSelected}
+                            title={isCurrent ? "Current art" : `Previous art ${index}`}
+                          >
+                            <img
+                              src={encodeURI(`${API_BASE}/${file.file_path}`)}
+                              alt={isCurrent ? "Current artwork thumbnail" : `Previous artwork ${index}`}
+                            />
+                            <span>{isCurrent ? "Current" : new Date(file.created_at).toLocaleDateString()}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="glass" style={{ padding: 16, textAlign: "center", color: "var(--gray-400)" }}>
                   No album art yet.
