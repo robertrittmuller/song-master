@@ -8,11 +8,12 @@ type Props = {
   songs?: Song[];
   viewMode?: "grid" | "list";
   maxRows?: number;
+  totalSongsCount?: number;
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
-export function SongGrid({ songs = [], viewMode = "grid", maxRows }: Props) {
+export function SongGrid({ songs = [], viewMode = "grid", maxRows, totalSongsCount }: Props) {
   const [columns, setColumns] = useState(1);
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -43,13 +44,16 @@ export function SongGrid({ songs = [], viewMode = "grid", maxRows }: Props) {
   }, [viewMode]);
 
   const displayedSongs = maxRows ? songs.slice(0, maxRows * columns) : songs;
+  const songCountLabel = totalSongsCount && totalSongsCount > displayedSongs.length
+    ? `${displayedSongs.length} of ${totalSongsCount}`
+    : `${displayedSongs.length}`;
 
   const gridStyle = viewMode === "grid"
     ? { gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))" }
     : { gridTemplateColumns: "1fr" };
 
   return (
-    <Card title={`Songs (${displayedSongs.length}${maxRows ? ` of ${songs.length}` : ""})`}>
+    <Card title={`Songs (${songCountLabel}${maxRows ? ` of ${songs.length}` : ""})`}>
       <div ref={gridRef} className="grid" style={gridStyle}>
         {displayedSongs.map((song: Song) => (
           <Link

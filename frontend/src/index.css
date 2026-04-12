@@ -429,6 +429,29 @@ a {
   align-self: center;
 }
 
+.song-grid__load-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  align-self: center;
+  min-width: 220px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--gray-300);
+}
+
+.song-grid__load-more-spinner {
+  color: var(--primary-500);
+}
+
+.song-grid__load-more-text {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+
 .generate-page {
   gap: 20px;
 }

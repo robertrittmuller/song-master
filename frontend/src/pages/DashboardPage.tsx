@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { Loader } from "../components/common/Loader";
 import { SongGrid } from "../features/library/SongGrid";
 import { AlbumList } from "../features/library/AlbumList";
 import { SearchBar } from "../features/library/SearchBar";
@@ -19,16 +20,20 @@ type Filter = {
   dateRange?: string;
 };
 
+const INITIAL_VISIBLE_SONGS = 12;
+const SONG_LOAD_BATCH = 12;
+
 export function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<Filter>({});
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [visibleSongsCount, setVisibleSongsCount] = useState(12);
+  const [visibleSongsCount, setVisibleSongsCount] = useState(INITIAL_VISIBLE_SONGS);
 
   const { data: songs = [] } = useQuery({ queryKey: ["songs"], queryFn: fetchSongs });
   const { data: personas = [] } = useQuery({ queryKey: ["personas"], queryFn: fetchPersonas });
@@ -49,7 +54,7 @@ export function DashboardPage() {
 
   // Reset visible count when filters/search/sort change
   useEffect(() => {
-    setVisibleSongsCount(12);
+    setVisibleSongsCount(INITIAL_VISIBLE_SONGS);
   }, [searchQuery, filters, sortBy]);
 
   // Filter and sort songs
@@ -101,6 +106,43 @@ export function DashboardPage() {
   const visibleSongs = useMemo(() => {
     return filteredAndSortedSongs.slice(0, visibleSongsCount);
   }, [filteredAndSortedSongs, visibleSongsCount]);
+
+  const hasMoreSongs = visibleSongsCount < filteredAndSortedSongs.length;
+
+  useEffect(() => {
+    const trigger = loadMoreTriggerRef.current;
+
+    if (!trigger || !hasMoreSongs) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+
+        if (!entry?.isIntersecting) {
+          return;
+        }
+
+        setVisibleSongsCount((currentVisibleSongs) => {
+          if (currentVisibleSongs >= filteredAndSortedSongs.length) {
+            return currentVisibleSongs;
+          }
+
+          return Math.min(currentVisibleSongs + SONG_LOAD_BATCH, filteredAndSortedSongs.length);
+        });
+      },
+      {
+        rootMargin: "0px 0px 320px 0px"
+      }
+    );
+
+    observer.observe(trigger);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [filteredAndSortedSongs.length, hasMoreSongs]);
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -177,16 +219,24 @@ export function DashboardPage() {
         </Card>
       ) : (
         <div className="stack" style={{ gap: 16 }}>
-          <SongGrid songs={visibleSongs} viewMode={viewMode} />
+          <SongGrid
+            songs={visibleSongs}
+            viewMode={viewMode}
+            totalSongsCount={filteredAndSortedSongs.length}
+          />
 
-          {filteredAndSortedSongs.length > visibleSongsCount && (
-            <Button
-              variant="secondary"
-              style={{ alignSelf: "center", minWidth: 200 }}
-              onClick={() => setVisibleSongsCount(prev => prev + 12)}
+          {hasMoreSongs && (
+            <div
+              ref={loadMoreTriggerRef}
+              className="song-grid__load-more"
+              aria-live="polite"
+              aria-label="Loading more songs as you scroll"
             >
-              More Songs ({filteredAndSortedSongs.length - visibleSongsCount} remaining)
-            </Button>
+              <Loader size={18} className="song-grid__load-more-spinner" />
+              <span className="song-grid__load-more-text">
+                Loading more songs...
+              </span>
+            </div>
           )}
         </div>
       )}
