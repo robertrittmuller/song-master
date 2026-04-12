@@ -5,6 +5,7 @@ from pathlib import Path
 
 from backend.app.api.routes import (
     albums,
+    auth,
     backups,
     health,
     instruments,
@@ -26,6 +27,7 @@ app = FastAPI(title=app_settings.app_name, version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=app_settings.cors_origins,
+    allow_origin_regex=app_settings.cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -45,6 +47,7 @@ async def on_shutdown() -> None:
 
 
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(albums.router)
 app.include_router(backups.router)
 app.include_router(song_proposals.router)

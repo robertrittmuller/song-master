@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import { Card } from "../../components/ui/Card";
+import { API_BASE } from "../../services/api";
 import type { Song } from "../../types/api";
 
 type Props = {
@@ -11,8 +12,6 @@ type Props = {
   totalSongsCount?: number;
   headerAction?: ReactNode;
 };
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
 const GRADIENT_FALLBACK = "linear-gradient(135deg, rgba(14,165,233,0.2), rgba(8,47,73,0.5))";
 

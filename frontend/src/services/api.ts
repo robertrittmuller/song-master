@@ -1,6 +1,8 @@
 import axios from "axios";
 
 import type {
+  AuthResponse,
+  AuthUser,
   BackupRestoreResult,
   Persona,
   Album,
@@ -10,12 +12,130 @@ import type {
   SongStatus
 } from "../types/api";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+function getDefaultApiBase(): string {
+  if (typeof window === "undefined") {
+    return "http://localhost:8000";
+  }
+
+  const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+  return `${protocol}//${window.location.hostname}:8000`;
+}
+
+function normalizeApiBase(candidate?: string): string {
+  if (!candidate) {
+    return getDefaultApiBase();
+  }
+
+  if (typeof window === "undefined") {
+    return candidate;
+  }
+
+  try {
+    const parsed = new URL(candidate);
+    const browserHost = window.location.hostname;
+    const browserProtocol = window.location.protocol === "https:" ? "https:" : "http:";
+    const isLocalOnlyHost = ["localhost", "127.0.0.1"].includes(parsed.hostname);
+    const browserIsRemote = !["localhost", "127.0.0.1"].includes(browserHost);
+
+    if (isLocalOnlyHost && browserIsRemote) {
+      parsed.hostname = browserHost;
+      parsed.protocol = browserProtocol;
+      return parsed.toString().replace(/\/$/, "");
+    }
+
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return getDefaultApiBase();
+  }
+}
+
+export const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE);
+const AUTH_STORAGE_KEY = "song-master-access-token";
+
+let accessToken = typeof window !== "undefined"
+  ? window.localStorage.getItem(AUTH_STORAGE_KEY)
+  : null;
 
 const client = axios.create({
   baseURL: API_BASE,
   headers: { "Content-Type": "application/json" }
 });
+
+client.interceptors.request.use((config) => {
+  if (accessToken) {
+    config.headers = config.headers ?? {};
+    config.headers.Authorization = `Bearer ${accessToken}`;
+  }
+  return config;
+});
+
+client.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error?.response?.status;
+    const requestUrl = String(error?.config?.url ?? "");
+    const isPublicAuthRequest = ["/api/auth/login", "/api/auth/signup"].some((path) =>
+      requestUrl.includes(path)
+    );
+
+    if (status === 401 && !isPublicAuthRequest) {
+      clearStoredAccessToken();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("song-master-auth-expired"));
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+export function getStoredAccessToken(): string | null {
+  return accessToken;
+}
+
+export function storeAccessToken(token: string): void {
+  accessToken = token;
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(AUTH_STORAGE_KEY, token);
+  }
+}
+
+export function clearStoredAccessToken(): void {
+  accessToken = null;
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  }
+}
+
+export async function login(payload: {
+  identifier: string;
+  password: string;
+}): Promise<AuthResponse> {
+  const { data } = await client.post<AuthResponse>("/api/auth/login", payload);
+  return data;
+}
+
+export async function signup(payload: {
+  username: string;
+  email: string;
+  password: string;
+}): Promise<AuthResponse> {
+  const { data } = await client.post<AuthResponse>("/api/auth/signup", payload);
+  return data;
+}
+
+export async function fetchCurrentUser(): Promise<AuthUser> {
+  const { data } = await client.get<AuthUser>("/api/auth/me");
+  return data;
+}
+
+export async function changePassword(payload: {
+  current_password: string;
+  new_password: string;
+}): Promise<{ message: string }> {
+  const { data } = await client.post<{ message: string }>("/api/auth/change-password", payload);
+  return data;
+}
 
 type FetchSongsOptions = {
   limit?: number;
@@ -160,7 +280,14 @@ export async function fetchSongStatus(songId: number): Promise<SongStatus> {
 }
 
 export const websocketUrl = (songId: number) =>
-  (API_BASE.replace("http", "ws") + `/ws/songs/${songId}/progress`).replace("///", "//");
+  {
+    const base = API_BASE.replace(/^http/, "ws");
+    const url = new URL(`/ws/songs/${songId}/progress`, `${base}/`);
+    if (accessToken) {
+      url.searchParams.set("token", accessToken);
+    }
+    return url.toString();
+  };
 
 export async function regenerateAlbumArt(songId: number): Promise<Song> {
   const { data } = await client.post<Song>(`/api/songs/${songId}/regenerate-art`);

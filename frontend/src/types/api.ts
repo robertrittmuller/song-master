@@ -5,6 +5,21 @@ export type Persona = {
   visual_styles?: string;
 };
 
+export type AuthUser = {
+  id: number;
+  username: string;
+  email: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  created_at: string;
+};
+
+export type AuthResponse = {
+  access_token: string;
+  token_type: string;
+  user: AuthUser;
+};
+
 export type Album = {
   id: number;
   name: string;

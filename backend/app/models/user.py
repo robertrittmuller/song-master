@@ -23,4 +23,6 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     albums = relationship("Album", back_populates="user", cascade="all, delete-orphan")
+    songs = relationship("Song", back_populates="user", cascade="all, delete-orphan")
+    song_proposals = relationship("SongProposal", back_populates="user", cascade="all, delete-orphan")
     settings = relationship("UserSetting", back_populates="user", cascade="all, delete-orphan")

@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 import backend.app.models  # noqa: F401 - registers model metadata
 from backend.app.api.routes.songs import create_song
 from backend.app.db.base import Base
-from backend.app.models import SongProposal
+from backend.app.models import SongProposal, User
 from backend.app.schemas import SongCreate
 from backend.app.services.song_proposal_service import generate_song_proposal_ideas
 
@@ -76,7 +76,13 @@ class SongProposalAcceptanceTests(unittest.TestCase):
 
     def test_create_song_marks_proposal_accepted(self):
         session = self.session_factory()
+        user = User(username="writer", email="writer@example.com", password_hash="hash")
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
         proposal = SongProposal(
+            user_id=user.id,
             title="Idea to accept",
             prompt="Write the accepted song.",
             source_prompt="Make something cinematic.",
@@ -94,11 +100,12 @@ class SongProposalAcceptanceTests(unittest.TestCase):
         )
 
         with patch("backend.app.api.routes.songs.generation_manager.start_generation") as start_generation:
-            song = asyncio.run(create_song(payload, db=session))
+            song = asyncio.run(create_song(payload, db=session, current_user=user))
 
         session.refresh(proposal)
 
         self.assertEqual(song.title, "Accepted Song")
+        self.assertEqual(song.user_id, user.id)
         self.assertEqual(proposal.status, "accepted")
         self.assertIsNotNone(proposal.accepted_at)
         start_generation.assert_called_once()

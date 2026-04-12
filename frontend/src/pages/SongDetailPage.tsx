@@ -11,10 +11,8 @@ import { LiveProgress } from "../features/progress/LiveProgress";
 import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
 import { LyricVersionTabs } from "../features/songViewer/LyricVersionTabs";
 import { LyricDiffView } from "../features/songViewer/LyricDiffView";
-import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, updateSongLyrics, regenerateLyrics, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
+import { API_BASE, deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, updateSongLyrics, regenerateLyrics, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
 import type { SongFile } from "../types/api";
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
 
 export function SongDetailPage() {
   const params = useParams();

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic.config import ConfigDict
@@ -35,7 +35,7 @@ class SongProposalRead(BaseModel):
     source_prompt: str
     use_local: bool
     status: str
-    accepted_at: datetime | None = None
+    accepted_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

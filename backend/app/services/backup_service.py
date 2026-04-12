@@ -30,26 +30,15 @@ DATA_ENTRY = "data.json"
 MANIFEST_ENTRY = "manifest.json"
 USER_CONTENT_DIRECTORIES = ("songs", "personas")
 
-EXPORT_MODELS: Tuple[Type[Any], ...] = (
-    User,
-    Album,
-    Song,
-    SongProposal,
-    SongVersion,
-    SongFile,
-    GenerationSession,
-    UserSetting,
-)
 
-
-def create_backup_zip(db: Session) -> io.BytesIO:
-    """Create a complete account-wide backup ZIP in memory.
+def create_backup_zip(db: Session, current_user: User) -> io.BytesIO:
+    """Create a complete current-account backup ZIP in memory.
 
     The archive contains database rows in JSON plus all files referenced by song
-    records and files stored under user-content asset directories.
+    records for the authenticated account.
     """
-    data = _dump_database(db)
-    asset_paths = _collect_asset_paths(db)
+    data = _dump_database(db, current_user)
+    asset_paths = _collect_asset_paths(db, current_user)
     manifest_files = []
     buffer = io.BytesIO()
 
@@ -78,8 +67,13 @@ def create_backup_zip(db: Session) -> io.BytesIO:
     return buffer
 
 
-def restore_backup_zip(db: Session, raw_zip: bytes, dry_run: bool = False) -> BackupRestoreResult:
-    """Restore a Song Master backup while skipping provable duplicates."""
+def restore_backup_zip(
+    db: Session,
+    raw_zip: bytes,
+    current_user: User,
+    dry_run: bool = False,
+) -> BackupRestoreResult:
+    """Restore a Song Master backup into the current account while skipping duplicates."""
     result = BackupRestoreResult(dry_run=dry_run)
     asset_path_map: Dict[str, str] = {}
 
@@ -91,19 +85,19 @@ def restore_backup_zip(db: Session, raw_zip: bytes, dry_run: bool = False) -> Ba
                 raise ValueError("Unsupported backup schema version.")
 
             data = json.loads(archive.read(DATA_ENTRY).decode("utf-8"))
-            user_map = _restore_users(db, data.get("users", []), result, dry_run)
-            album_map = _restore_albums(db, data.get("albums", []), user_map, result, dry_run)
+            album_map = _restore_albums(db, data.get("albums", []), current_user, result, dry_run)
             song_map = _restore_songs(
                 db,
                 data.get("songs", []),
                 album_map,
                 archive,
                 asset_path_map,
+                current_user,
                 result,
                 dry_run,
             )
             _restore_song_versions(db, data.get("song_versions", []), song_map, result, dry_run)
-            _restore_song_proposals(db, data.get("song_proposals", []), result, dry_run)
+            _restore_song_proposals(db, data.get("song_proposals", []), current_user, result, dry_run)
             _restore_song_files(
                 db,
                 data.get("song_files", []),
@@ -114,7 +108,7 @@ def restore_backup_zip(db: Session, raw_zip: bytes, dry_run: bool = False) -> Ba
                 dry_run,
             )
             _restore_generation_sessions(db, data.get("generation_sessions", []), song_map, result, dry_run)
-            _restore_user_settings(db, data.get("user_settings", []), user_map, result, dry_run)
+            _restore_user_settings(db, data.get("user_settings", []), current_user, result, dry_run)
             _restore_unreferenced_assets(archive, asset_path_map, result, dry_run)
 
         if dry_run:
@@ -128,12 +122,55 @@ def restore_backup_zip(db: Session, raw_zip: bytes, dry_run: bool = False) -> Ba
     return result
 
 
-def _dump_database(db: Session) -> Dict[str, List[Dict[str, Any]]]:
-    data: Dict[str, List[Dict[str, Any]]] = {}
-    for model in EXPORT_MODELS:
+def _dump_database(db: Session, current_user: User) -> Dict[str, List[Dict[str, Any]]]:
+    data: Dict[str, List[Dict[str, Any]]] = {"users": []}
+    model_queries: Tuple[Tuple[Type[Any], Iterable[Any]], ...] = (
+        (Album, db.query(Album).filter(Album.user_id == current_user.id).order_by(Album.id).all()),
+        (Song, db.query(Song).filter(Song.user_id == current_user.id).order_by(Song.id).all()),
+        (
+            SongProposal,
+            db.query(SongProposal)
+            .filter(SongProposal.user_id == current_user.id)
+            .order_by(SongProposal.id)
+            .all(),
+        ),
+        (
+            SongVersion,
+            db.query(SongVersion)
+            .join(Song, Song.id == SongVersion.song_id)
+            .filter(Song.user_id == current_user.id)
+            .order_by(SongVersion.id)
+            .all(),
+        ),
+        (
+            SongFile,
+            db.query(SongFile)
+            .join(Song, Song.id == SongFile.song_id)
+            .filter(Song.user_id == current_user.id)
+            .order_by(SongFile.id)
+            .all(),
+        ),
+        (
+            GenerationSession,
+            db.query(GenerationSession)
+            .join(Song, Song.id == GenerationSession.song_id)
+            .filter(Song.user_id == current_user.id)
+            .order_by(GenerationSession.id)
+            .all(),
+        ),
+        (
+            UserSetting,
+            db.query(UserSetting)
+            .filter(UserSetting.user_id == current_user.id)
+            .order_by(UserSetting.id)
+            .all(),
+        ),
+    )
+
+    for model, records in model_queries:
         mapper = inspect(model)
         rows = []
-        for record in db.query(model).order_by(model.id).all():
+        for record in records:
             row = {}
             for attribute in mapper.column_attrs:
                 value = getattr(record, attribute.key)
@@ -156,20 +193,30 @@ def _parse_datetime(value: Optional[str]) -> Optional[datetime]:
     return datetime.fromisoformat(normalized)
 
 
-def _collect_asset_paths(db: Session) -> List[str]:
+def _collect_asset_paths(db: Session, current_user: User) -> List[str]:
     paths = set()
+    directories = set()
 
-    for (album_art,) in db.query(Song.album_art).filter(Song.album_art.isnot(None)).all():
+    songs = db.query(Song).filter(Song.user_id == current_user.id).all()
+    for song in songs:
+        album_art = song.album_art
         safe_path = _safe_relative_path(album_art)
         if safe_path and _is_user_content_path(safe_path):
             paths.add(safe_path)
+            directories.add(str(PurePosixPath(safe_path).parent))
 
-    for (file_path,) in db.query(SongFile.file_path).all():
+    for (file_path,) in (
+        db.query(SongFile.file_path)
+        .join(Song, Song.id == SongFile.song_id)
+        .filter(Song.user_id == current_user.id)
+        .all()
+    ):
         safe_path = _safe_relative_path(file_path)
         if safe_path and _is_user_content_path(safe_path):
             paths.add(safe_path)
+            directories.add(str(PurePosixPath(safe_path).parent))
 
-    for directory in USER_CONTENT_DIRECTORIES:
+    for directory in directories:
         root = Path(get_repo_root()) / directory
         if not root.exists():
             continue
@@ -399,21 +446,20 @@ def _restore_users(
 def _restore_albums(
     db: Session,
     rows: List[Dict[str, Any]],
-    user_map: Dict[int, int],
+    current_user: User,
     result: BackupRestoreResult,
     dry_run: bool,
 ) -> Dict[int, int]:
     id_map: Dict[int, int] = {}
-    existing_albums = db.query(Album).all()
+    existing_albums = db.query(Album).filter(Album.user_id == current_user.id).all()
 
     for row in rows:
         old_id = row["id"]
-        mapped_user_id = _mapped_optional_id(row.get("user_id"), user_map)
         existing = next(
             (
                 album
                 for album in existing_albums
-                if album.user_id == mapped_user_id and album.name == row.get("name")
+                if album.user_id == current_user.id and album.name == row.get("name")
             ),
             None,
         )
@@ -428,7 +474,7 @@ def _restore_albums(
             continue
 
         kwargs = _row_kwargs(Album, row, excluded={"id", "user_id"})
-        kwargs["user_id"] = mapped_user_id
+        kwargs["user_id"] = current_user.id
         album = Album(**kwargs)
         db.add(album)
         db.flush()
@@ -445,11 +491,15 @@ def _restore_songs(
     album_map: Dict[int, int],
     archive: zipfile.ZipFile,
     asset_path_map: Dict[str, str],
+    current_user: User,
     result: BackupRestoreResult,
     dry_run: bool,
 ) -> Dict[int, int]:
     id_map: Dict[int, int] = {}
-    existing_fingerprints = {_song_fingerprint(song): song for song in db.query(Song).all()}
+    existing_fingerprints = {
+        _song_fingerprint(song): song
+        for song in db.query(Song).filter(Song.user_id == current_user.id).all()
+    }
 
     for row in rows:
         old_id = row["id"]
@@ -477,7 +527,8 @@ def _restore_songs(
             _increment(result, "imported", "songs")
             continue
 
-        kwargs = _row_kwargs(Song, row, excluded={"id", "album_id", "album_art"})
+        kwargs = _row_kwargs(Song, row, excluded={"id", "album_id", "album_art", "user_id"})
+        kwargs["user_id"] = current_user.id
         kwargs["album_id"] = mapped_album_id
         kwargs["album_art"] = restored_album_art
         song = Song(**kwargs)
@@ -542,12 +593,13 @@ def _restore_song_versions(
 def _restore_song_proposals(
     db: Session,
     rows: List[Dict[str, Any]],
+    current_user: User,
     result: BackupRestoreResult,
     dry_run: bool,
 ) -> None:
     existing_fingerprints = {
         _song_proposal_fingerprint(proposal)
-        for proposal in db.query(SongProposal).all()
+        for proposal in db.query(SongProposal).filter(SongProposal.user_id == current_user.id).all()
     }
 
     for row in rows:
@@ -564,7 +616,9 @@ def _restore_song_proposals(
             _increment(result, "imported", "song_proposals")
             continue
 
-        proposal = SongProposal(**_row_kwargs(SongProposal, row, excluded={"id"}))
+        kwargs = _row_kwargs(SongProposal, row, excluded={"id", "user_id"})
+        kwargs["user_id"] = current_user.id
+        proposal = SongProposal(**kwargs)
         db.add(proposal)
         db.flush()
         existing_fingerprints.add(fingerprint)
@@ -659,24 +713,18 @@ def _restore_generation_sessions(
 def _restore_user_settings(
     db: Session,
     rows: List[Dict[str, Any]],
-    user_map: Dict[int, int],
+    current_user: User,
     result: BackupRestoreResult,
     dry_run: bool,
 ) -> None:
-    existing_settings = db.query(UserSetting).all()
+    existing_settings = db.query(UserSetting).filter(UserSetting.user_id == current_user.id).all()
 
     for row in rows:
-        mapped_user_id = user_map.get(row.get("user_id"))
-        if not mapped_user_id:
-            result.warnings.append(f"Skipped setting for missing user id {row.get('user_id')}.")
-            _increment(result, "skipped", "user_settings")
-            continue
-
         existing = next(
             (
                 setting
                 for setting in existing_settings
-                if setting.user_id == mapped_user_id
+                if setting.user_id == current_user.id
                 and setting.key == row.get("key")
                 and setting.category == row.get("category")
             ),
@@ -691,7 +739,7 @@ def _restore_user_settings(
             continue
 
         kwargs = _row_kwargs(UserSetting, row, excluded={"id", "user_id"})
-        kwargs["user_id"] = mapped_user_id
+        kwargs["user_id"] = current_user.id
         setting = UserSetting(**kwargs)
         db.add(setting)
         db.flush()

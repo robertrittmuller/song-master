@@ -50,6 +50,7 @@ class BackupServiceTests(unittest.TestCase):
         session.add(album)
         session.flush()
         song = Song(
+            user_id=user.id,
             album_id=album.id,
             title="Backup Test",
             user_prompt="Write a backup test song",
@@ -73,6 +74,7 @@ class BackupServiceTests(unittest.TestCase):
         )
         session.add(
             SongProposal(
+                user_id=user.id,
                 title="Backup Proposal",
                 prompt="Write a backup proposal song.",
                 source_prompt="Create backup proposal ideas.",
@@ -85,7 +87,8 @@ class BackupServiceTests(unittest.TestCase):
     def test_backup_zip_contains_database_rows_and_assets(self):
         with patch("backend.app.services.backup_service.get_repo_root", return_value=str(self.repo_root)):
             session = self._seed_source_session()
-            backup = create_backup_zip(session).getvalue()
+            user = session.query(User).filter(User.username == "backup").one()
+            backup = create_backup_zip(session, user).getvalue()
 
         with zipfile.ZipFile(BytesIO(backup), "r") as archive:
             names = set(archive.namelist())
@@ -99,11 +102,11 @@ class BackupServiceTests(unittest.TestCase):
                 "assets/songs/2026-04-12 - Backup Test/2026-04-12 - Backup Test.jpg",
                 names,
             )
-            self.assertIn("assets/personas/backup-persona.md", names)
+            self.assertNotIn("assets/personas/backup-persona.md", names)
             self.assertNotIn("assets/images/header.jpg", names)
             data = json.loads(archive.read("data.json").decode("utf-8"))
 
-        self.assertEqual(len(data["users"]), 1)
+        self.assertEqual(len(data["users"]), 0)
         self.assertEqual(len(data["albums"]), 1)
         self.assertEqual(len(data["songs"]), 1)
         self.assertEqual(len(data["song_proposals"]), 1)
@@ -112,26 +115,31 @@ class BackupServiceTests(unittest.TestCase):
     def test_restore_imports_once_then_skips_duplicates(self):
         with patch("backend.app.services.backup_service.get_repo_root", return_value=str(self.repo_root)):
             source_session = self._seed_source_session()
-            backup = create_backup_zip(source_session).getvalue()
+            source_user = source_session.query(User).filter(User.username == "backup").one()
+            backup = create_backup_zip(source_session, source_user).getvalue()
             self.persona_path.unlink()
 
             RestoreSession = self._session_factory()
             restore_session = RestoreSession()
-            first_result = restore_backup_zip(restore_session, backup)
-            second_result = restore_backup_zip(restore_session, backup)
+            restore_user = User(username="restore", email="restore@example.com", password_hash="hash")
+            restore_session.add(restore_user)
+            restore_session.commit()
+            restore_session.refresh(restore_user)
 
-        self.assertEqual(first_result.imported["users"], 1)
+            first_result = restore_backup_zip(restore_session, backup, restore_user)
+            second_result = restore_backup_zip(restore_session, backup, restore_user)
+
         self.assertEqual(first_result.imported["albums"], 1)
         self.assertEqual(first_result.imported["songs"], 1)
         self.assertEqual(first_result.imported["song_proposals"], 1)
         self.assertEqual(first_result.imported["song_files"], 1)
-        self.assertEqual(first_result.restored_files, 1)
-        self.assertEqual(second_result.skipped["users"], 1)
+        self.assertEqual(first_result.restored_files, 0)
+        self.assertEqual(first_result.skipped_files, 2)
         self.assertEqual(second_result.skipped["albums"], 1)
         self.assertEqual(second_result.skipped["songs"], 1)
         self.assertEqual(second_result.skipped["song_proposals"], 1)
         self.assertEqual(second_result.skipped["song_files"], 1)
-        self.assertTrue(self.persona_path.exists())
+        self.assertFalse(self.persona_path.exists())
         self.assertEqual(restore_session.query(Song).count(), 1)
         self.assertEqual(restore_session.query(SongProposal).count(), 1)
         self.assertEqual(restore_session.query(SongFile).count(), 1)

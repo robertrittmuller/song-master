@@ -5,13 +5,30 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, File, Query, status, UploadFile
 from sqlalchemy.orm import Session
 
-from backend.app.db.deps import get_db
-from backend.app.models import GenerationSession, Song, SongFile, SongProposal, SongVersion
+from backend.app.db.deps import get_current_user, get_db
+from backend.app.models import Album, GenerationSession, Song, SongFile, SongProposal, SongVersion, User
 from backend.app.schemas import SongCreate, SongDetail, SongLyricsUpdate, SongRead, SongStatus, SongUpdate
 from backend.app.services.persona_service import sync_persona_style_tags
 from backend.app.services.song_generator import generation_manager
 
 router = APIRouter(prefix="/api/songs", tags=["songs"])
+
+
+def _get_user_song(db: Session, current_user: User, song_id: int) -> Song:
+    song = db.query(Song).filter(Song.id == song_id, Song.user_id == current_user.id).first()
+    if not song:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    return song
+
+
+def _ensure_user_album(db: Session, current_user: User, album_id: Optional[int]) -> Optional[Album]:
+    if album_id is None:
+        return None
+
+    album = db.query(Album).filter(Album.id == album_id, Album.user_id == current_user.id).first()
+    if not album:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Album not found")
+    return album
 
 
 def _art_mime_type(file_path: str) -> str:
@@ -160,8 +177,14 @@ def list_songs(
     db: Session = Depends(get_db),
     limit: Optional[int] = Query(default=None, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(get_current_user),
 ) -> List[SongRead]:
-    songs_query = db.query(Song).order_by(Song.created_at.desc()).offset(offset)
+    songs_query = (
+        db.query(Song)
+        .filter(Song.user_id == current_user.id)
+        .order_by(Song.created_at.desc())
+        .offset(offset)
+    )
 
     if limit is not None:
         songs_query = songs_query.limit(limit)
@@ -170,21 +193,24 @@ def list_songs(
 
 
 @router.get("/{song_id}", response_model=SongDetail)
-def get_song(song_id: int, db: Session = Depends(get_db)) -> SongDetail:
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
-    return song
+def get_song(
+    song_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongDetail:
+    return _get_user_song(db, current_user, song_id)
 
 
 @router.get("/{song_id}/status", response_model=SongStatus)
-def get_song_status(song_id: int, db: Session = Depends(get_db)) -> SongStatus:
+def get_song_status(
+    song_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongStatus:
+    song = _get_user_song(db, current_user, song_id)
     cached = generation_manager.get_status(song_id)
     if cached:
         return cached
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
     return SongStatus(
         song_id=song.id,
         progress=0,
@@ -197,10 +223,12 @@ def get_song_status(song_id: int, db: Session = Depends(get_db)) -> SongStatus:
 
 
 @router.delete("/{song_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_song(song_id: int, db: Session = Depends(get_db)) -> None:
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+def delete_song(
+    song_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    song = _get_user_song(db, current_user, song_id)
 
     # Clean up dependent rows explicitly so SQLite dev databases do not retain
     # orphaned records if foreign key enforcement was previously disabled.
@@ -212,18 +240,29 @@ def delete_song(song_id: int, db: Session = Depends(get_db)) -> None:
 
 
 @router.post("/generate", response_model=SongDetail, status_code=status.HTTP_201_CREATED)
-async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> SongDetail:
+async def create_song(
+    payload: SongCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongDetail:
     """Persist a new song record and start an async generation task."""
     import json
 
     title = payload.title or "Untitled"
     proposal = None
     if payload.proposal_id is not None:
-        proposal = db.get(SongProposal, payload.proposal_id)
+        proposal = (
+            db.query(SongProposal)
+            .filter(SongProposal.id == payload.proposal_id, SongProposal.user_id == current_user.id)
+            .first()
+        )
         if not proposal:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song proposal not found")
 
+    _ensure_user_album(db, current_user, payload.album_id)
+
     song = Song(
+        user_id=current_user.id,
         title=title,
         user_prompt=payload.user_prompt,
         persona=payload.persona,
@@ -246,7 +285,9 @@ async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> Son
 
 @router.post("/import", response_model=SongDetail, status_code=status.HTTP_201_CREATED)
 async def import_song_markdown(
-    file: UploadFile = File(...), db: Session = Depends(get_db)
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SongDetail:
     """Import a song from a Song Master markdown file."""
     if not file.filename or not file.filename.lower().endswith(".md"):
@@ -295,6 +336,7 @@ async def import_song_markdown(
         metadata["instruments"] = parsed["instruments"]
 
     song = Song(
+        user_id=current_user.id,
         title=title,
         user_prompt=user_prompt,
         lyrics=lyrics,
@@ -311,17 +353,21 @@ async def import_song_markdown(
 
 @router.patch("/{song_id}", response_model=SongDetail)
 def update_song(
-    song_id: int, payload: SongUpdate, db: Session = Depends(get_db)
+    song_id: int,
+    payload: SongUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SongDetail:
     """Update song metadata (e.g., move to an album, change persona)."""
     import json
     from datetime import datetime
 
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    song = _get_user_song(db, current_user, song_id)
 
     update_data = payload.model_dump(exclude_unset=True)
+
+    if "album_id" in update_data and update_data["album_id"] is not None:
+        _ensure_user_album(db, current_user, update_data["album_id"])
 
     # Handle title changes and rename files/folders
     if "title" in update_data and update_data["title"] != song.title:
@@ -442,15 +488,16 @@ def update_song(
 
 @router.post("/{song_id}/lyrics", response_model=SongDetail)
 def update_song_lyrics(
-    song_id: int, payload: SongLyricsUpdate, db: Session = Depends(get_db)
+    song_id: int,
+    payload: SongLyricsUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SongDetail:
     """Update song lyrics and snapshot the previous version."""
     from sqlalchemy import func
     from backend.shared.helpers import strip_style_tags
 
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    song = _get_user_song(db, current_user, song_id)
 
     new_lyrics = payload.lyrics
     if song.lyrics and song.lyrics != new_lyrics:
@@ -477,11 +524,13 @@ def update_song_lyrics(
 
 
 @router.post("/{song_id}/regenerate-art", response_model=SongDetail)
-async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> SongDetail:
+async def regenerate_song_art(
+    song_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongDetail:
     """Trigger album art regeneration for an existing song."""
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    song = _get_user_song(db, current_user, song_id)
 
     from backend.shared.helpers import extract_title, generate_album_art
     import json
@@ -526,12 +575,13 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
 
 @router.post("/{song_id}/upload-art", response_model=SongDetail)
 async def upload_song_art(
-    song_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)
+    song_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SongDetail:
     """Upload a custom album art image (JPEG or PNG) for a song."""
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    song = _get_user_song(db, current_user, song_id)
 
     allowed_types = {"image/jpeg", "image/png"}
     if file.content_type not in allowed_types:
@@ -581,11 +631,13 @@ async def upload_song_art(
 
 
 @router.post("/{song_id}/regenerate-lyrics", response_model=SongDetail)
-async def regenerate_song_lyrics(song_id: int, db: Session = Depends(get_db)) -> SongDetail:
+async def regenerate_song_lyrics(
+    song_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongDetail:
     """Trigger lyric regeneration for an existing song."""
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    song = _get_user_song(db, current_user, song_id)
 
     generation_manager.regenerate_lyrics(song_id, db)
     return song
@@ -593,12 +645,13 @@ async def regenerate_song_lyrics(song_id: int, db: Session = Depends(get_db)) ->
 
 @router.post("/{song_id}/live-feedback", response_model=SongDetail)
 async def live_listen_feedback(
-    song_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)
+    song_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SongDetail:
     """Submit an audio file for live feedback from a multimodal LLM."""
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    song = _get_user_song(db, current_user, song_id)
 
     if song.use_local:
         raise HTTPException(status_code=400, detail="Live Listen Feedback is not available for local models.")
