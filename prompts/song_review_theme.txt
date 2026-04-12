@@ -10,6 +10,7 @@ Focus on:
 Do not comment on formatting unless it directly harms theme clarity.
 Do not rewrite the lyrics.
 Report only the few highest-impact issues.
+Do not nitpick lines that are already working.
 
 Return only JSON with this exact shape:
 {{

@@ -24,7 +24,8 @@ export function SongDetailPage() {
   const { data: song, isLoading } = useQuery({
     queryKey: ["song", songId],
     queryFn: () => fetchSong(songId),
-    enabled: Number.isFinite(songId)
+    enabled: Number.isFinite(songId),
+    refetchOnMount: "always"
   });
 
   const { data: albums = [] } = useQuery({
@@ -73,7 +74,7 @@ export function SongDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [editedDescription, setEditedDescription] = useState("");
-  const [editedLyrics, setEditedLyrics] = useState("");
+  const [editedLyrics, setEditedLyrics] = useState<string | null>(null);
   const [selectedArtFileName, setSelectedArtFileName] = useState("No file selected");
   const [selectedFeedbackFileName, setSelectedFeedbackFileName] = useState("No file selected");
   const editRef = useRef<HTMLDivElement>(null);
@@ -147,11 +148,13 @@ export function SongDetailPage() {
     if (!song) {
       return;
     }
-    if (editedLyrics && editedLyrics !== (song.lyrics || "")) {
-      return;
-    }
-    setEditedLyrics(song.lyrics || "");
-  }, [song, editedLyrics]);
+    setEditedLyrics((currentLyrics) => {
+      if (currentLyrics === null || currentLyrics === (song.lyrics || "")) {
+        return song.lyrics || "";
+      }
+      return currentLyrics;
+    });
+  }, [song]);
 
   const [copiedStyles, setCopiedStyles] = useState(false);
   const [copiedExcludeStyles, setCopiedExcludeStyles] = useState(false);
@@ -185,7 +188,7 @@ export function SongDetailPage() {
     setIsEditing(false);
     setEditedTitle("");
     setEditedDescription("");
-    setEditedLyrics("");
+    setEditedLyrics(null);
     setSelectedVersionId("current");
     setIsDiffMode(false);
     setConfirmDialog({ isOpen: false, type: null });
@@ -397,10 +400,10 @@ ${cleanLyrics}
   };
 
   const canEditLyrics = song?.status === "completed" && selectedVersionId === "current" && !isDiffMode;
-  const lyricsChanged = editedLyrics !== (song?.lyrics || "");
-  const canSaveLyrics = lyricsChanged && editedLyrics.trim().length > 0;
+  const lyricsChanged = editedLyrics !== null && editedLyrics !== (song?.lyrics || "");
+  const canSaveLyrics = lyricsChanged && (editedLyrics?.trim().length || 0) > 0;
   const hasLyricsDraft = lyricsChanged;
-  const displayLyrics = hasLyricsDraft ? editedLyrics : (song?.lyrics || "");
+  const displayLyrics = editedLyrics ?? (song?.lyrics || "");
   const viewedLyrics = useMemo(() => {
     if (!song) return "";
     if (selectedVersionId === "current") {
@@ -573,7 +576,7 @@ ${cleanLyrics}
                 <button
                   className="btn ghost"
                   style={{ padding: "4px 8px", fontSize: 12, height: "auto", minHeight: 0 }}
-                  onClick={() => updateLyricsMutation.mutate(editedLyrics)}
+                  onClick={() => updateLyricsMutation.mutate(editedLyrics || "")}
                   disabled={!canEditLyrics || !canSaveLyrics || updateLyricsMutation.isPending}
                 >
                   Save as New Version
@@ -624,7 +627,7 @@ ${cleanLyrics}
               <LyricsSectionView
                 lyrics={displayLyrics}
                 editable={canEditLyrics}
-                onDraftChange={setEditedLyrics}
+                onDraftChange={(nextLyrics) => setEditedLyrics(nextLyrics)}
               />
             ) : isDiffMode ? (
               <LyricDiffView

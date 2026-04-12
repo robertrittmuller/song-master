@@ -295,15 +295,12 @@ def build_prompts() -> Dict[str, Any]:
     from helpers import read_prompt
 
     song_brief_template = read_prompt("song_brief")
+    song_structure_template = read_prompt("song_structure_planner")
     song_drafter_template = read_prompt("song_drafter")
     song_theme_review_template = read_prompt("song_review_theme")
     song_wording_review_template = read_prompt("song_review_wording")
     song_suno_review_template = read_prompt("song_review_suno")
-    song_critic_template = read_prompt("song_critic")
-    song_preflight_template = read_prompt("song_preflight")
     metadata_template = read_prompt("song_metadata")
-    preflight_triage_template = read_prompt("song_preflight_triage")
-    scoring_template = read_prompt("song_scoring")
     song_revision_template = read_prompt("song_revision")
 
     return {
@@ -328,13 +325,55 @@ User Input:
 {{user_input}}
 """,
         ),
+        "structure": PromptTemplate(
+            input_variables=[
+                "user_input",
+                "brief",
+                "structure_guidance",
+                "tags_context",
+                "allowed_section_names",
+                "default_params",
+            ],
+            template=f"""
+{song_structure_template}
+
+Creative Brief:
+{{brief}}
+
+Structure Guidance:
+{{structure_guidance}}
+
+Relevant Suno Tag Context:
+{{tags_context}}
+
+Allowed Section Names:
+{{allowed_section_names}}
+
+Default Song Parameters:
+{{default_params}}
+
+User Input:
+{{user_input}}
+""",
+        ),
         "draft": PromptTemplate(
-            input_variables=["user_input", "brief", "styles_context", "tags_context", "persona_styles", "default_params"],
+            input_variables=[
+                "user_input",
+                "brief",
+                "song_structure",
+                "styles_context",
+                "tags_context",
+                "persona_styles",
+                "default_params",
+            ],
             template=f"""
 {song_drafter_template}
 
 Creative Brief:
 {{brief}}
+
+Song Structure Plan:
+{{song_structure}}
 
 Relevant Style Context:
 {{styles_context}}
@@ -370,7 +409,7 @@ Lyrics:
 {{lyrics}}
 """,
         ),
-        "review_wording": PromptTemplate(
+        "review_quality": PromptTemplate(
             input_variables=["lyrics", "user_input", "brief"],
             template=f"""
 {song_wording_review_template}
@@ -400,43 +439,6 @@ Lyrics:
 {{lyrics}}
 """,
         ),
-        "critic": PromptTemplate(
-            input_variables=["lyrics", "user_input", "brief"],
-            template=f"""
-{song_critic_template}
-
-Creative Brief:
-{{brief}}
-
-User Input:
-{{user_input}}
-
-Lyrics:
-{{lyrics}}
-""",
-        ),
-        "preflight": PromptTemplate(
-            input_variables=["lyrics", "styles_context", "tags_context", "user_input", "default_params", "brief"],
-            template=f"""
-{song_preflight_template}
-
-Relevant Style Context:
-{{styles_context}}
-Relevant Tag Context:
-{{tags_context}}
-Default Song Parameters:
-{{default_params}}
-
-Creative Brief:
-{{brief}}
-
-User Input:
-{{user_input}}
-
-Lyrics:
-{{lyrics}}
-""",
-        ),
         "revision": PromptTemplate(
             input_variables=["lyrics", "feedback", "user_input", "brief"],
             template=f"""{song_revision_template}
@@ -452,14 +454,6 @@ Lyrics:
 
 Targeted Edit Plan:
 {{feedback}}
-""",
-        ),
-        "scoring": PromptTemplate(
-            input_variables=["lyrics"],
-            template=f"""{scoring_template}
-
-Lyrics:
-{{lyrics}}
 """,
         ),
         "metadata": PromptTemplate(
@@ -482,14 +476,6 @@ Persona Styles:
 {{persona_styles}}
 """,
         ),
-        "preflight_triage": PromptTemplate(
-            input_variables=["preflight_output"],
-            template=f"""{preflight_triage_template}
-
-Preflight Feedback:
-{{preflight_output}}
-""",
-        ),
     }
 
 
@@ -506,49 +492,58 @@ def _load_json_response(raw: Optional[str]) -> Optional[Any]:
         return None
 
 
-def _default_section_plan(default_params: Dict[str, Optional[str]]) -> List[Dict[str, Any]]:
-    vocal_gender = str(default_params.get("vocal_gender") or "").strip()
-    vocal_tag = ""
-    lowered = vocal_gender.lower()
-    if lowered == "male":
-        vocal_tag = "[Male Vocal]"
-    elif lowered == "female":
-        vocal_tag = "[Female Vocal]"
-    elif lowered == "duet":
-        vocal_tag = "[Male-Female Duet]"
-
-    return [
-        {"name": "Verse 1", "goal": "Set the scene with specific imagery.", "tags": ["[Verse 1]", vocal_tag] if vocal_tag else ["[Verse 1]"]},
-        {"name": "Chorus", "goal": "Deliver the core hook in a memorable, singable way.", "tags": ["[Chorus]", vocal_tag] if vocal_tag else ["[Chorus]"]},
-        {"name": "Verse 2", "goal": "Deepen the idea without repeating verse 1 language.", "tags": ["[Verse 2]", vocal_tag] if vocal_tag else ["[Verse 2]"]},
-        {"name": "Bridge", "goal": "Introduce a fresh turn or emotional lift before the final chorus.", "tags": ["[Bridge]", vocal_tag] if vocal_tag else ["[Bridge]"]},
-        {"name": "Outro", "goal": "Resolve the emotional arc cleanly.", "tags": ["[Outro]", vocal_tag] if vocal_tag else ["[Outro]"]},
-    ]
+def _coerce_string_list(value: Any, field_name: str) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        raw_values = [value]
+    elif isinstance(value, list):
+        raw_values = value
+    else:
+        raise ValueError(f"Expected '{field_name}' to be a list of strings.")
+    return [str(item).strip() for item in raw_values if str(item).strip()]
 
 
-def _fallback_song_brief(
-    user_input: str,
-    default_params: Dict[str, Optional[str]],
-    persona_styles: str,
-) -> Dict[str, Any]:
-    from helpers import parse_persona_styles_list
+def _normalize_section_plan_payload(raw_sections: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw_sections, list) or not raw_sections:
+        raise ValueError("The model did not return a usable section plan.")
 
-    persona_style_tokens = parse_persona_styles_list(persona_styles)
-    fallback_styles = [token for token in [default_params.get("genre"), *persona_style_tokens] if token]
+    section_plan: List[Dict[str, Any]] = []
+    for index, item in enumerate(raw_sections):
+        if not isinstance(item, dict):
+            raise ValueError(f"Section plan item {index + 1} must be an object.")
+
+        name = str(item.get("name") or item.get("section") or "").strip()
+        if not name:
+            raise ValueError(f"Section plan item {index + 1} is missing a name.")
+
+        goal = str(item.get("goal") or item.get("purpose") or "").strip()
+        section_plan.append(
+            {
+                "name": name,
+                "goal": goal,
+                "tags": _coerce_string_list(item.get("tags"), f"sections[{index}].tags"),
+                "style_tags": _coerce_string_list(item.get("style_tags"), f"sections[{index}].style_tags"),
+            }
+        )
+    return section_plan
+
+
+def _normalize_brief_payload(raw_payload: Any) -> Dict[str, Any]:
+    if not isinstance(raw_payload, dict):
+        raise ValueError("The model did not return a usable creative brief.")
+
     return {
-        "theme": user_input[:180],
-        "point_of_view": "Match the user's request.",
-        "emotional_arc": "Build toward a strong chorus and resolve without losing the theme.",
-        "hook_strategy": "Create a memorable central phrase without defaulting to stock pop wording.",
-        "imagery_anchors": [],
-        "non_negotiables": [],
-        "avoid_phrases": [
-            "shadows in the night",
-            "fire in my veins",
-            "heart on the line",
-        ],
-        "suno_style_tokens": fallback_styles,
-        "section_plan": _default_section_plan(default_params),
+        "theme": str(raw_payload.get("theme") or "").strip(),
+        "point_of_view": str(raw_payload.get("point_of_view") or "").strip(),
+        "emotional_arc": str(raw_payload.get("emotional_arc") or "").strip(),
+        "hook_strategy": str(raw_payload.get("hook_strategy") or "").strip(),
+        "imagery_anchors": _coerce_string_list(raw_payload.get("imagery_anchors"), "imagery_anchors"),
+        "non_negotiables": _coerce_string_list(raw_payload.get("non_negotiables"), "non_negotiables"),
+        "required_lines": _coerce_string_list(raw_payload.get("required_lines"), "required_lines"),
+        "avoid_phrases": _coerce_string_list(raw_payload.get("avoid_phrases"), "avoid_phrases"),
+        "suno_style_tokens": _coerce_string_list(raw_payload.get("suno_style_tokens"), "suno_style_tokens"),
+        "section_plan": _normalize_section_plan_payload(raw_payload.get("section_plan")),
     }
 
 
@@ -568,53 +563,41 @@ def build_song_brief(
         persona_styles=persona_styles or "None provided",
         default_params=str(default_params),
     )
-    fallback = _fallback_song_brief(user_input, default_params, persona_styles)
+    raw_response = get_llm(use_local).invoke(formatted_prompt)
+    parsed = _load_json_response(raw_response)
+    return _normalize_brief_payload(parsed)
+
+
+def plan_song_structure(
+    prompt_template: PromptTemplate,
+    user_input: str,
+    brief: Dict[str, Any],
+    structure_guidance: str,
+    tags_context: str,
+    default_params: Dict[str, Optional[str]],
+    use_local: bool,
+) -> List[Dict[str, Any]]:
+    from helpers import get_allowed_structure_names
+
+    allowed_section_names = get_allowed_structure_names(user_input, brief)
+    formatted_prompt = prompt_template.format(
+        user_input=user_input,
+        brief=json.dumps(brief, ensure_ascii=True, indent=2),
+        structure_guidance=structure_guidance,
+        tags_context=tags_context or "None provided",
+        allowed_section_names=", ".join(allowed_section_names),
+        default_params=str(default_params),
+    )
     parsed = _load_json_response(get_llm(use_local).invoke(formatted_prompt))
     if not isinstance(parsed, dict):
-        return fallback
-
-    brief = {
-        "theme": parsed.get("theme") or fallback["theme"],
-        "point_of_view": parsed.get("point_of_view") or fallback["point_of_view"],
-        "emotional_arc": parsed.get("emotional_arc") or fallback["emotional_arc"],
-        "hook_strategy": parsed.get("hook_strategy") or fallback["hook_strategy"],
-        "imagery_anchors": parsed.get("imagery_anchors") or fallback["imagery_anchors"],
-        "non_negotiables": parsed.get("non_negotiables") or fallback["non_negotiables"],
-        "avoid_phrases": parsed.get("avoid_phrases") or fallback["avoid_phrases"],
-        "suno_style_tokens": parsed.get("suno_style_tokens") or fallback["suno_style_tokens"],
-        "section_plan": parsed.get("section_plan") or fallback["section_plan"],
-    }
-
-    for list_key in ("imagery_anchors", "non_negotiables", "avoid_phrases", "suno_style_tokens"):
-        if isinstance(brief[list_key], str):
-            brief[list_key] = [item.strip() for item in brief[list_key].split(",") if item.strip()]
-        elif not isinstance(brief[list_key], list):
-            brief[list_key] = fallback[list_key]
-
-    if not isinstance(brief["section_plan"], list) or not brief["section_plan"]:
-        brief["section_plan"] = fallback["section_plan"]
-
-    normalized_section_plan: List[Dict[str, Any]] = []
-    for item in brief["section_plan"]:
-        if not isinstance(item, dict):
-            continue
-        tags = item.get("tags", [])
-        if isinstance(tags, str):
-            tags = [tags]
-        normalized_section_plan.append(
-            {
-                "name": item.get("name") or item.get("section") or "Section",
-                "goal": item.get("goal") or item.get("purpose") or "Advance the song coherently.",
-                "tags": [tag for tag in tags if tag],
-            }
-        )
-    brief["section_plan"] = normalized_section_plan or fallback["section_plan"]
-    return brief
+        raise ValueError("The model did not return a usable song structure.")
+    return _normalize_section_plan_payload(parsed.get("sections") or parsed.get("section_plan"))
 
 
 def draft_song(
     prompt_template: PromptTemplate,
     enhanced_input: str,
+    song_structure: List[Dict[str, Any]],
     styles_context: str,
     tags_context: str,
     brief: Dict[str, Any],
@@ -625,6 +608,7 @@ def draft_song(
     formatted_prompt = prompt_template.format(
         user_input=enhanced_input,
         brief=json.dumps(brief, ensure_ascii=True, indent=2),
+        song_structure=json.dumps(song_structure, ensure_ascii=True, indent=2),
         styles_context=styles_context or "None provided",
         tags_context=tags_context or "None provided",
         persona_styles=persona_styles or "None provided",
@@ -648,24 +632,6 @@ def revise_lyrics(
         brief=json.dumps(brief or {}, ensure_ascii=True, indent=2),
     )
     return get_llm(use_local).invoke(formatted_prompt)
-
-
-def run_parallel_reviews(
-    prompt_template: PromptTemplate,
-    lyrics: str,
-    use_local: bool,
-    reviewer_count: int = 3,
-    user_input: str = "",
-) -> str:
-    """Run multiple AI reviewers in parallel and merge their feedback."""
-    def _call(_):
-        formatted_prompt = prompt_template.format(lyrics=lyrics, user_input=user_input)
-        return get_llm(use_local).invoke(formatted_prompt)
-
-    with ThreadPoolExecutor(max_workers=reviewer_count) as executor:
-        feedbacks = list(executor.map(_call, range(reviewer_count)))
-    merged = "\n\n".join([f"Reviewer {idx + 1} Feedback:\n{fb}" for idx, fb in enumerate(feedbacks)])
-    return merged
 
 
 def _normalize_review_issue(review_type: str, issue: Any) -> Optional[Dict[str, Any]]:
@@ -748,7 +714,7 @@ def run_specialized_reviews(
         raw = get_llm(use_local).invoke(formatted_prompt)
         return review_type, _normalize_review_payload(review_type, raw)
 
-    role_weights = {"theme": 3, "wording": 2, "suno": 1}
+    role_weights = {"theme": 3, "quality": 2, "suno": 1}
     merged_issues: List[Dict[str, Any]] = []
     raw_reviews: Dict[str, Dict[str, Any]] = {}
 
@@ -793,111 +759,6 @@ def run_specialized_reviews(
     }
 
 
-def score_lyrics(prompt_template: PromptTemplate, lyrics: str, use_local: bool) -> float:
-    formatted_prompt = prompt_template.format(lyrics=lyrics)
-    try:
-        raw = get_llm(use_local).invoke(formatted_prompt)
-        from helpers import remove_thinking_tags
-        clean_raw = remove_thinking_tags(raw)
-        parsed = json.loads(clean_raw)
-        return float(parsed.get("score", 0))
-    except Exception:
-        return 0.0
-
-
-def review_song(
-    prompt_template: PromptTemplate,
-    revision_prompt: PromptTemplate,
-    scoring_prompt: PromptTemplate,
-    lyrics: str,
-    use_local: bool,
-    reviewer_count: int = 3,
-    score_threshold: float = 8.0,
-    max_rounds: int = 2,
-    user_input: str = "",
-) -> str:
-    for _ in range(max_rounds):
-        feedback = run_parallel_reviews(
-            prompt_template, lyrics, use_local, reviewer_count=reviewer_count, user_input=user_input
-        )
-        lyrics = revise_lyrics(revision_prompt, lyrics, feedback, use_local, user_input=user_input)
-        score = score_lyrics(scoring_prompt, lyrics, use_local)
-        if score >= score_threshold:
-            break
-    return lyrics
-
-
-def critique_song(
-    prompt_template: PromptTemplate,
-    revision_prompt: PromptTemplate,
-    lyrics: str,
-    use_local: bool,
-    user_input: str = "",
-    brief: Optional[Dict[str, Any]] = None,
-) -> str:
-    formatted_prompt = prompt_template.format(
-        lyrics=lyrics,
-        user_input=user_input,
-        brief=json.dumps(brief or {}, ensure_ascii=True, indent=2),
-    )
-    raw_feedback = get_llm(use_local).invoke(formatted_prompt)
-    parsed = _load_json_response(raw_feedback)
-    if isinstance(parsed, dict):
-        feedback = parsed.get("feedback", raw_feedback)
-    else:
-        feedback = raw_feedback
-    return revise_lyrics(
-        revision_prompt,
-        lyrics,
-        feedback,
-        use_local,
-        user_input=user_input,
-        brief=brief,
-    )
-
-
-def preflight_song(
-    prompt_template: PromptTemplate,
-    lyrics: str,
-    styles_context: str,
-    tags_context: str,
-    use_local: bool,
-    user_input: str = "",
-    default_params: Optional[Dict[str, Optional[str]]] = None,
-    brief: Optional[Dict[str, Any]] = None,
-) -> str:
-    formatted_prompt = prompt_template.format(
-        lyrics=lyrics,
-        styles_context=styles_context or "None provided",
-        tags_context=tags_context or "None provided",
-        user_input=user_input,
-        default_params=str(default_params or {}),
-        brief=json.dumps(brief or {}, ensure_ascii=True, indent=2),
-    )
-    return get_llm(use_local).invoke(formatted_prompt)
-
-
-def triage_preflight(prompt_template: PromptTemplate, preflight_output: str, use_local: bool):
-    """Parse preflight feedback and determine if issues exist."""
-    fallback = {"pass": False, "issues": ["Preflight feedback could not be parsed. Review manually."]}
-    if not preflight_output:
-        return fallback
-    formatted = prompt_template.format(preflight_output=preflight_output)
-    try:
-        raw = get_llm(use_local).invoke(formatted)
-        from helpers import remove_thinking_tags
-        clean_raw = remove_thinking_tags(raw)
-        parsed = json.loads(clean_raw)
-        passed = bool(parsed.get("pass", False))
-        issues = parsed.get("issues", [])
-        if isinstance(issues, str):
-            issues = [issues]
-        issues = [issue for issue in issues if issue]
-        return {"pass": passed, "issues": issues}
-    except Exception:
-        return fallback
-
-
 def generate_metadata_summary(
     prompt_template: PromptTemplate,
     lyrics: str,
@@ -906,8 +767,17 @@ def generate_metadata_summary(
     persona_styles: str,
     use_local: bool,
     brief: Optional[Dict[str, Any]] = None,
+    no_live_performance: bool = False,
+    style_catalog: Optional[Dict[str, str]] = None,
 ):
-    from helpers import parse_persona_styles_list
+    from helpers import (
+        build_live_performance_exclude_styles,
+        map_artist_references_to_suno_styles,
+        parse_persona_styles_list,
+        sanitize_style_token_list,
+    )
+
+    style_catalog = style_catalog or {}
 
     persona_style_tokens = parse_persona_styles_list(persona_styles)
     planned_style_tokens = []
@@ -918,11 +788,21 @@ def generate_metadata_summary(
         elif isinstance(raw_planned_styles, list):
             planned_style_tokens = [str(token).strip() for token in raw_planned_styles if str(token).strip()]
 
-    fallback_styles = [
-        token
-        for token in [default_params.get("genre"), *planned_style_tokens, *persona_style_tokens]
-        if token
-    ]
+    planned_style_tokens = sanitize_style_token_list(planned_style_tokens, no_live_performance)
+    persona_style_tokens = sanitize_style_token_list(persona_style_tokens, no_live_performance)
+
+    def finalize_suno_styles(raw_style_tokens: List[str]) -> List[str]:
+        normalized_raw = sanitize_style_token_list(
+            [str(token).strip() for token in raw_style_tokens if str(token).strip()],
+            no_live_performance,
+        )
+        merged = planned_style_tokens + normalized_raw + persona_style_tokens
+        merged = map_artist_references_to_suno_styles(merged, user_input, style_catalog)
+        return sanitize_style_token_list(merged, no_live_performance)
+
+    fallback_styles = finalize_suno_styles(
+        [token for token in [default_params.get("genre"), *planned_style_tokens, *persona_style_tokens] if token]
+    )
     fallback = {
         "description": "Short description of the song's theme and style.",
         "suno_styles": fallback_styles,
@@ -941,25 +821,39 @@ def generate_metadata_summary(
         raw = get_llm(use_local).invoke(formatted_prompt)
         parsed = _load_json_response(raw)
         if not isinstance(parsed, dict):
+            fallback["suno_exclude_styles"] = build_live_performance_exclude_styles(
+                list(fallback["suno_exclude_styles"]),
+                no_live_performance,
+            )
             return fallback
         description = parsed.get("description") or fallback["description"]
-        styles = parsed.get("suno_styles") or fallback["suno_styles"]
+        generated_styles = parsed.get("suno_styles") or fallback["suno_styles"]
         exclude_styles = parsed.get("suno_exclude_styles") or fallback["suno_exclude_styles"]
-        if isinstance(styles, str):
-            styles = [styles]
+        if isinstance(generated_styles, str):
+            generated_styles = [generated_styles]
         if isinstance(exclude_styles, str):
             exclude_styles = [exclude_styles]
-        styles = list(dict.fromkeys(planned_style_tokens + list(styles) + persona_style_tokens))
+        generated_styles = finalize_suno_styles(
+            [str(style).strip() for style in generated_styles if str(style).strip()]
+        )
+        exclude_styles = build_live_performance_exclude_styles(
+            [str(style).strip() for style in exclude_styles if str(style).strip()],
+            no_live_performance,
+        )
         target_audience = parsed.get("target_audience") or fallback["target_audience"]
         commercial_potential = parsed.get("commercial_potential") or fallback["commercial_potential"]
         return {
             "description": description,
-            "suno_styles": styles,
+            "suno_styles": generated_styles,
             "suno_exclude_styles": exclude_styles,
             "target_audience": target_audience,
             "commercial_potential": commercial_potential,
         }
     except Exception:
+        fallback["suno_exclude_styles"] = build_live_performance_exclude_styles(
+            list(fallback["suno_exclude_styles"]),
+            no_live_performance,
+        )
         return fallback
 
 

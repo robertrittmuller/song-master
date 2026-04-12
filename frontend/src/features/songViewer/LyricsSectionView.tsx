@@ -24,6 +24,7 @@ const SECTION_COLORS: Record<string, string> = {
 };
 
 const NON_SUNG_LINE_PATTERN = /^\*[^*]+\*$/;
+const TITLE_LINE_PATTERN = /^(title:|song title:|##\s*song title\b)/i;
 const NON_SUNG_TAG_STYLE = {
     background: "rgba(34, 197, 94, 0.15)",
     color: "#86efac",
@@ -37,6 +38,43 @@ function isNonSungLine(line: string): boolean {
 function stripNonSungMarkers(line: string): string {
     const trimmed = line.trim();
     return trimmed.slice(1, -1).trim();
+}
+
+function isExplicitTitleLine(line: string): boolean {
+    return TITLE_LINE_PATTERN.test(line.trim());
+}
+
+function normalizeMetadataValue(value: string): string {
+    return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function dedupeMetadata(values: string[]): string[] {
+    const deduped: string[] = [];
+    const seen = new Set<string>();
+
+    values.forEach((value) => {
+        const trimmed = value.trim();
+        const normalized = normalizeMetadataValue(trimmed);
+        if (!normalized || seen.has(normalized)) {
+            return;
+        }
+        seen.add(normalized);
+        deduped.push(trimmed);
+    });
+
+    return deduped;
+}
+
+function dedupeSectionMetadata(section: LyricSection): LyricSection {
+    const tags = dedupeMetadata(section.tags);
+    const tagKeys = new Set(tags.map(normalizeMetadataValue));
+    const styles = dedupeMetadata(section.styles).filter((style) => !tagKeys.has(normalizeMetadataValue(style)));
+
+    return {
+        ...section,
+        tags,
+        styles,
+    };
 }
 
 function parseLyrics(lyrics: string): LyricSection[] {
@@ -53,10 +91,13 @@ function parseLyrics(lyrics: string): LyricSection[] {
             continue;
         }
 
-        // Skip the first non-empty line (usually the song title)
+        // Skip only explicit title markers. The backend usually stores lyrics without a title line,
+        // so the first non-empty line is often the first section header.
         if (isFirstLine) {
             isFirstLine = false;
-            continue;
+            if (isExplicitTitleLine(trimmed)) {
+                continue;
+            }
         }
 
         // Check for section headers and style tags
@@ -110,12 +151,12 @@ function parseLyrics(lyrics: string): LyricSection[] {
             // If it's a section header, start a new section
             if (sectionType) {
                 if (currentSection && (currentSection.content.trim() || currentSection.tags.length > 0 || currentSection.styles.length > 0)) {
-                    sections.push(currentSection);
+                    sections.push(dedupeSectionMetadata(currentSection));
                 }
                 currentSection = {
                     type: sectionType,
-                    tags,
-                    styles,
+                    tags: dedupeMetadata(tags),
+                    styles: dedupeMetadata(styles),
                     content: ""
                 };
 
@@ -128,8 +169,10 @@ function parseLyrics(lyrics: string): LyricSection[] {
             } else {
                 // If it's just tags/styles on a line (no explicit section name), add to current section
                 if (currentSection) {
-                    currentSection.tags.push(...tags);
-                    currentSection.styles.push(...styles);
+                    currentSection.tags = dedupeMetadata([...currentSection.tags, ...tags]);
+                    currentSection.styles = dedupeMetadata([...currentSection.styles, ...styles]).filter(
+                        (style) => !currentSection.tags.some((tag) => normalizeMetadataValue(tag) === normalizeMetadataValue(style))
+                    );
 
                     const lineContent = trimmed.replace(/\[[^\]]+\]/g, "").trim();
                     if (lineContent) {
@@ -140,8 +183,8 @@ function parseLyrics(lyrics: string): LyricSection[] {
                     // If we have tags but no section yet, start an Intro section with these tags
                     currentSection = {
                         type: "Intro",
-                        tags,
-                        styles,
+                        tags: dedupeMetadata(tags),
+                        styles: dedupeMetadata(styles),
                         content: ""
                     };
                     const lineContent = trimmed.replace(/\[[^\]]+\]/g, "").trim();
@@ -163,7 +206,9 @@ function parseLyrics(lyrics: string): LyricSection[] {
                 });
 
             if (inlineStyles.length > 0) {
-                currentSection.styles.push(...inlineStyles);
+                currentSection.styles = dedupeMetadata([...currentSection.styles, ...inlineStyles]).filter(
+                    (style) => !currentSection.tags.some((tag) => normalizeMetadataValue(tag) === normalizeMetadataValue(style))
+                );
             }
 
             // Clean content of style tags for the lyrics display
@@ -184,7 +229,7 @@ function parseLyrics(lyrics: string): LyricSection[] {
 
     // Don't forget to add the last section if it has content or tags
     if (currentSection && (currentSection.content.trim() || currentSection.tags.length > 0 || currentSection.styles.length > 0)) {
-        sections.push(currentSection);
+        sections.push(dedupeSectionMetadata(currentSection));
     }
 
     return sections;
@@ -203,7 +248,8 @@ function getSectionColor(type: string): string {
 }
 
 function buildLyricsFromSections(sections: LyricSection[]): string {
-    return sections.map(section => {
+    return sections.map((rawSection) => {
+        const section = dedupeSectionMetadata(rawSection);
         let header = `[${section.type}]`;
         const tags = [...section.tags, ...section.styles].map(t => `[${t}]`).join(" ");
         if (tags) {
@@ -223,16 +269,17 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
     const canEdit = editable && !!onDraftChange;
 
     const handleCopy = async () => {
-        // Reconstruct lyrics from sections, which already skip the title line.
+        // Reconstruct the parsed lyric sections. Explicit title lines are excluded during parsing.
         const textToCopy = sections.map(section => {
-            let header = `[${section.type}]`;
+            const dedupedSection = dedupeSectionMetadata(section);
+            let header = `[${dedupedSection.type}]`;
             if (showTags) {
-                const tags = [...section.tags, ...section.styles].map(t => `[${t}]`).join(" ");
+                const tags = [...dedupedSection.tags, ...dedupedSection.styles].map(t => `[${t}]`).join(" ");
                 if (tags) {
                     header += ` ${tags}`;
                 }
             }
-            let content = section.content;
+            let content = dedupedSection.content;
             if (!showEffectTags) {
                 const filteredLines = content.split("\n").filter(line => !isNonSungLine(line));
                 content = filteredLines.join("\n");

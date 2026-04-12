@@ -68,6 +68,87 @@ _CONTEXT_STOPWORDS = {
     "write",
 }
 
+_SECTION_FAMILIES = (
+    "pre-chorus",
+    "post-chorus",
+    "verse",
+    "chorus",
+    "bridge",
+    "outro",
+    "intro",
+    "hook",
+    "refrain",
+    "interlude",
+    "breakdown",
+    "break",
+    "solo",
+    "finale",
+    "end",
+)
+_LIVE_PERFORMANCE_TERMS = (
+    "live",
+    "crowd",
+    "concert",
+    "arena",
+    "festival",
+    "encore",
+    "applause",
+    "cheering",
+    "audience",
+    "stadium",
+    "on stage",
+    "stage banter",
+    "mosh",
+    "singalong crowd",
+)
+_LIVE_PERFORMANCE_EXCLUDE_STYLES = (
+    "live performance",
+    "concert crowd",
+    "crowd noise",
+    "audience singalong",
+    "applause",
+    "arena ambience",
+    "festival crowd",
+    "stadium chant",
+    "encore energy",
+    "stage banter",
+)
+_SOLO_NUMBER_WORDS = {
+    "a": 1,
+    "an": 1,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+}
+_SOLO_ORDINAL_WORDS = {
+    "first": 1,
+    "1st": 1,
+    "one": 1,
+    "second": 2,
+    "2nd": 2,
+    "two": 2,
+    "third": 3,
+    "3rd": 3,
+    "three": 3,
+}
+_STRUCTURE_BASE_ORDER = (
+    "Intro",
+    "Verse 1",
+    "Pre-Chorus",
+    "Chorus",
+    "Post-Chorus",
+    "Verse 2",
+    "Chorus 2",
+    "Breakdown",
+    "Bridge",
+    "Instrumental",
+    "Solo 1",
+    "Solo 2",
+    "Chorus 3",
+    "Outro",
+)
+
 
 def _tokenize_context_text(text: str) -> List[str]:
     tokens = re.findall(r"[a-z0-9+#-]+", (text or "").lower())
@@ -163,6 +244,49 @@ def _choose_vocal_tag(vocal_gender: Optional[str]) -> Optional[str]:
     return f"[{vocal_gender}]"
 
 
+def infer_vocal_gender_from_persona(persona_styles: str) -> Optional[str]:
+    """Infer the intended vocal gender from persona style text when no explicit setting exists."""
+    lowered = (persona_styles or "").lower()
+    if not lowered.strip():
+        return None
+
+    def has_phrase(phrase: str) -> bool:
+        pattern = r"(?<![a-z])" + re.escape(phrase.lower()) + r"(?![a-z])"
+        return bool(re.search(pattern, lowered))
+
+    if any(has_phrase(token) for token in ("duet", "male-female duet", "female-male duet")):
+        return "Duet"
+
+    female_markers = (
+        "female vocal",
+        "female vocals",
+        "female voice",
+        "female lead",
+        "female singer",
+        "mezzo-soprano",
+        "soprano",
+        "alto",
+    )
+    male_markers = (
+        "male vocal",
+        "male vocals",
+        "male voice",
+        "male lead",
+        "male singer",
+        "baritone",
+        "tenor",
+    )
+
+    has_female = any(has_phrase(marker) for marker in female_markers)
+    has_male = any(has_phrase(marker) for marker in male_markers)
+
+    if has_female and not has_male:
+        return "Female"
+    if has_male and not has_female:
+        return "Male"
+    return None
+
+
 def build_compact_style_context(
     styles: Dict[str, str],
     user_input: str,
@@ -235,6 +359,7 @@ def build_compact_tag_context(
     default_params: Dict[str, Optional[str]],
     persona_styles: str,
     style: Optional[str] = None,
+    allowed_structure_names: Optional[List[str]] = None,
 ) -> str:
     """Build a concise, song-specific tag context instead of dumping the full tag catalog."""
     phrases = _build_context_phrases(user_input, default_params, persona_styles, style)
@@ -247,14 +372,12 @@ def build_compact_tag_context(
             if line.startswith("[") and line.endswith("]"):
                 available_tag_lines.append(line)
 
-    structure_tags = [
-        "[Intro]",
-        "[Verse 1]",
-        "[Chorus]",
-        "[Verse 2]",
-        "[Bridge]",
-        "[Outro]",
-    ]
+    structure_tags = []
+    for name in allowed_structure_names or ["Intro", "Verse 1", "Chorus", "Verse 2", "Bridge", "Outro"]:
+        tag_name = str(name).strip()
+        if not tag_name:
+            continue
+        structure_tags.append(f"[{tag_name}]")
 
     relevant_tags = _select_top_context_lines(available_tag_lines, keywords, phrases, limit=8)
 
@@ -279,6 +402,554 @@ def build_compact_tag_context(
         + "\n\nRelevant tag cues:\n"
         + "\n".join(f"- {tag}" for tag in deduped_relevant_tags[len(structure_tags):])
     )
+
+def _normalize_compare_text(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", (text or "").lower())).strip()
+
+
+def parse_artist_style_catalog(artist_styles_text: str) -> Dict[str, List[str]]:
+    """Parse artist style lines into an artist -> style-token map."""
+    catalog: Dict[str, List[str]] = {}
+    for raw_line in (artist_styles_text or "").splitlines():
+        line = raw_line.strip()
+        if not line or ":" not in line:
+            continue
+
+        artist_name, style_blob = line.split(":", 1)
+        artist_name = artist_name.strip()
+        if not artist_name:
+            continue
+
+        style_tokens = [token.strip() for token in style_blob.split(",") if token.strip()]
+        if not style_tokens:
+            continue
+
+        existing = catalog.get(artist_name, [])
+        seen = {_normalize_compare_text(token) for token in existing}
+        for token in style_tokens:
+            normalized = _normalize_compare_text(token)
+            if not normalized or normalized in seen:
+                continue
+            existing.append(token)
+            seen.add(normalized)
+        catalog[artist_name] = existing
+    return catalog
+
+
+def extract_artist_style_tokens_from_prompt(user_input: str, styles: Dict[str, str]) -> List[str]:
+    """Return style tokens for artists explicitly referenced in the user's prompt."""
+    catalog = parse_artist_style_catalog(styles.get("artist_styles", ""))
+    normalized_prompt = f" {_normalize_compare_text(user_input or '')} "
+    if not normalized_prompt.strip():
+        return []
+
+    collected: List[str] = []
+    seen = set()
+    for artist_name, style_tokens in catalog.items():
+        normalized_artist = _normalize_compare_text(artist_name)
+        if not normalized_artist:
+            continue
+        if f" {normalized_artist} " not in normalized_prompt:
+            continue
+        for token in style_tokens:
+            normalized_token = _normalize_compare_text(token)
+            if not normalized_token or normalized_token in seen:
+                continue
+            seen.add(normalized_token)
+            collected.append(token)
+    return collected
+
+
+def map_artist_references_to_suno_styles(
+    style_tokens: List[str],
+    user_input: str,
+    styles: Dict[str, str],
+) -> List[str]:
+    """
+    Remove artist-name style tokens and replace them with mapped style tokens from styles.json.
+    """
+    catalog = parse_artist_style_catalog(styles.get("artist_styles", ""))
+    normalized_artists = [
+        _normalize_compare_text(artist_name)
+        for artist_name in catalog.keys()
+        if _normalize_compare_text(artist_name)
+    ]
+    mapped_tokens = extract_artist_style_tokens_from_prompt(user_input, styles)
+
+    filtered_tokens: List[str] = []
+    for token in style_tokens:
+        cleaned = str(token).strip()
+        if not cleaned:
+            continue
+        normalized_token = _normalize_compare_text(cleaned)
+        if not normalized_token:
+            continue
+
+        if any(f" {artist} " in f" {normalized_token} " for artist in normalized_artists):
+            continue
+        filtered_tokens.append(cleaned)
+
+    merged = mapped_tokens + filtered_tokens
+    deduped: List[str] = []
+    seen = set()
+    for token in merged:
+        normalized_token = _normalize_compare_text(token)
+        if not normalized_token or normalized_token in seen:
+            continue
+        seen.add(normalized_token)
+        deduped.append(token)
+    return deduped
+
+
+def _normalize_section_name(value: str) -> str:
+    lowered = _normalize_compare_text(_strip_tag_wrapper(value))
+    return lowered.replace("pre chorus", "pre-chorus").replace("post chorus", "post-chorus")
+
+
+def _strip_tag_wrapper(tag: str) -> str:
+    stripped = (tag or "").strip()
+    if stripped.startswith("[") and stripped.endswith("]"):
+        return stripped[1:-1].strip()
+    return stripped
+
+
+def _section_family(value: str) -> str:
+    normalized = _normalize_section_name(value)
+    for family in _SECTION_FAMILIES:
+        if normalized.startswith(family):
+            return family
+    return normalized
+
+
+def _dedupe_tags(tags: List[str]) -> List[str]:
+    deduped: List[str] = []
+    seen = set()
+    for tag in tags:
+        normalized = _normalize_section_name(tag)
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(tag if tag.startswith("[") and tag.endswith("]") else f"[{tag}]")
+    return deduped
+
+
+def _is_style_metadata_tag(tag: str) -> bool:
+    lowered = _strip_tag_wrapper(tag).strip().lower()
+    return any(
+        lowered.startswith(token)
+        for token in ("style:", "genre:", "tempo:", "key:", "mood:", "instruments:", "dynamic:")
+    )
+
+
+def _style_metadata_category(tag: str) -> str:
+    lowered = _strip_tag_wrapper(tag).strip().lower()
+    for prefix in ("style:", "genre:", "tempo:", "key:", "mood:", "instruments:", "dynamic:"):
+        if lowered.startswith(prefix):
+            return prefix[:-1]
+    return lowered
+
+
+def contains_live_performance_terms(text: Optional[str]) -> bool:
+    lowered = (text or "").strip().lower()
+    return bool(lowered) and any(term in lowered for term in _LIVE_PERFORMANCE_TERMS)
+
+
+def sanitize_live_performance_text_block(text: str, no_live_performance: bool) -> str:
+    """Remove lines that imply a live-performance setting when the option is enabled."""
+    if not no_live_performance:
+        return text
+
+    kept_lines = []
+    for raw_line in (text or "").splitlines():
+        if contains_live_performance_terms(raw_line):
+            continue
+        kept_lines.append(raw_line)
+    return "\n".join(kept_lines).strip()
+
+
+def sanitize_style_token_list(tokens: List[str], no_live_performance: bool) -> List[str]:
+    """Filter out live-performance style tokens when the option is enabled."""
+    if not no_live_performance:
+        return [token for token in tokens if token]
+    return [token for token in tokens if token and not contains_live_performance_terms(token)]
+
+
+def build_live_performance_exclude_styles(existing: List[str], no_live_performance: bool) -> List[str]:
+    """Append standard live-performance exclusions for Suno when requested."""
+    if not no_live_performance:
+        return list(dict.fromkeys(item for item in existing if item))
+    merged = list(existing) + list(_LIVE_PERFORMANCE_EXCLUDE_STYLES)
+    return list(dict.fromkeys(item for item in merged if item))
+
+
+def sanitize_brief_for_no_live_performance(
+    brief: Dict[str, Any],
+    no_live_performance: bool,
+) -> Dict[str, Any]:
+    """Strip live-performance style cues from the planned brief when requested."""
+    if not no_live_performance:
+        return brief
+
+    sanitized = dict(brief)
+    raw_global_tokens = sanitized.get("suno_style_tokens", [])
+    if isinstance(raw_global_tokens, list):
+        sanitized["suno_style_tokens"] = sanitize_style_token_list(
+            [str(token).strip() for token in raw_global_tokens if str(token).strip()],
+            True,
+        )
+
+    section_plan = []
+    for item in sanitized.get("section_plan", []):
+        if not isinstance(item, dict):
+            continue
+        section_item = dict(item)
+        raw_style_tags = section_item.get("style_tags", [])
+        if isinstance(raw_style_tags, str):
+            raw_style_tags = [raw_style_tags]
+        if isinstance(raw_style_tags, list):
+            section_item["style_tags"] = [
+                str(tag).strip()
+                for tag in raw_style_tags
+                if str(tag).strip() and not contains_live_performance_terms(str(tag))
+            ]
+        section_plan.append(section_item)
+    sanitized["section_plan"] = section_plan
+    return sanitized
+
+
+def extract_solo_requirements(user_input: str) -> Dict[str, Any]:
+    """Extract explicit solo requirements such as count and instrument from the prompt."""
+    lowered = (user_input or "").lower()
+    requirements = {"count": 0, "instrument": None}
+    if "solo" not in lowered:
+        return requirements
+
+    window_match = re.search(r"([^\n.]{0,80})\bsolos?\b", lowered)
+    prefix = window_match.group(1) if window_match else lowered
+
+    count_candidates = re.findall(r"\b(\d+|one|two|three|four|a|an)\b", prefix)
+    raw_count = count_candidates[-1].strip() if count_candidates else ""
+    if raw_count.isdigit():
+        count = int(raw_count)
+    else:
+        count = _SOLO_NUMBER_WORDS.get(raw_count, 1)
+
+    instrument_candidates = re.findall(r"\b(guitar|piano|violin|cello|sax(?:ophone)?|drum)\b", prefix)
+    raw_instrument = instrument_candidates[-1].strip() if instrument_candidates else ""
+    if raw_instrument == "saxophone":
+        raw_instrument = "sax"
+
+    requirements["count"] = max(1, count)
+    requirements["instrument"] = raw_instrument or None
+    return requirements
+
+
+def _resolve_structure_anchor_name(raw_anchor: str, allowed_names: Optional[List[str]] = None) -> Optional[str]:
+    normalized = _normalize_section_name(raw_anchor)
+    alias_map = {
+        "intro": "Intro",
+        "opening": "Intro",
+        "verse 1": "Verse 1",
+        "first verse": "Verse 1",
+        "verse one": "Verse 1",
+        "verse 2": "Verse 2",
+        "second verse": "Verse 2",
+        "verse two": "Verse 2",
+        "pre-chorus": "Pre-Chorus",
+        "pre chorus": "Pre-Chorus",
+        "chorus": "Chorus",
+        "post-chorus": "Post-Chorus",
+        "post chorus": "Post-Chorus",
+        "breakdown": "Breakdown",
+        "bridge": "Bridge",
+        "instrumental": "Instrumental",
+        "interlude": "Instrumental",
+        "outro": "Outro",
+    }
+    resolved = alias_map.get(normalized)
+    if not resolved:
+        return None
+    if allowed_names and resolved not in allowed_names:
+        return None
+    return resolved
+
+
+def extract_section_placement_requirements(
+    user_input: str,
+    allowed_names: Optional[List[str]] = None,
+) -> List[Dict[str, str]]:
+    """Extract explicit section placement requirements such as where solos must land."""
+    lowered = (user_input or "").lower()
+    if "solo" not in lowered:
+        return []
+
+    solo_window = lowered[lowered.find("solo"):]
+    placements: List[Dict[str, str]] = []
+    seen = set()
+
+    ordinal_pattern = re.compile(
+        r"\b(first|1st|one|second|2nd|two|third|3rd|three)\b"
+        r"(?:[^.\n]{0,40}?)\bafter\s+(?:the\s+)?"
+        r"(first verse|verse 1|verse one|second verse|verse 2|verse two|pre-chorus|pre chorus|chorus|bridge|breakdown|instrumental|interlude|intro|outro)\b"
+    )
+    for match in ordinal_pattern.finditer(solo_window):
+        solo_index = _SOLO_ORDINAL_WORDS.get(match.group(1), 0)
+        if solo_index <= 0:
+            continue
+        section_name = f"Solo {solo_index}"
+        if allowed_names and section_name not in allowed_names:
+            continue
+        after_name = _resolve_structure_anchor_name(match.group(2), allowed_names)
+        if not after_name:
+            continue
+        key = (section_name, after_name)
+        if key in seen:
+            continue
+        seen.add(key)
+        placements.append({"name": section_name, "after": after_name})
+
+    next_solo_index = 1
+    generic_pattern = re.compile(
+        r"\b(?:guitar|piano|violin|cello|sax(?:ophone)?|drum)?\s*solo\b"
+        r"(?:[^.\n]{0,30}?)\bafter\s+(?:the\s+)?"
+        r"(first verse|verse 1|verse one|second verse|verse 2|verse two|pre-chorus|pre chorus|chorus|bridge|breakdown|instrumental|interlude|intro|outro)\b"
+    )
+    for match in generic_pattern.finditer(lowered):
+        while (allowed_names and f"Solo {next_solo_index}" not in allowed_names) and next_solo_index <= 3:
+            next_solo_index += 1
+        if next_solo_index > 3:
+            break
+        section_name = f"Solo {next_solo_index}"
+        after_name = _resolve_structure_anchor_name(match.group(1), allowed_names)
+        if not after_name:
+            continue
+        key = (section_name, after_name)
+        if key in seen:
+            continue
+        seen.add(key)
+        placements.append({"name": section_name, "after": after_name})
+        next_solo_index += 1
+
+    return placements
+
+
+def _default_goal_for_section_name(name: str) -> str:
+    normalized = _normalize_section_name(name)
+    defaults = {
+        "intro": "Set the sonic scene before the first lyric lands.",
+        "verse 1": "Set the scene with specific imagery.",
+        "pre-chorus": "Build tension into the hook.",
+        "chorus": "Deliver the core hook in a memorable, singable way.",
+        "chorus 2": "Bring the hook back with more lift and payoff.",
+        "post-chorus": "Extend the hook or emotional release without overexplaining it.",
+        "verse 2": "Deepen the idea without repeating verse 1 language.",
+        "breakdown": "Strip the arrangement back and create contrast before the final lift.",
+        "bridge": "Introduce a fresh turn or emotional lift before the ending run.",
+        "instrumental": "Let the arrangement carry the emotion without sung lyrics.",
+        "solo 1": "Deliver the first instrumental release with clear melodic payoff.",
+        "solo 2": "Escalate the instrumental payoff before the ending resolution.",
+        "chorus 3": "Deliver the final hook payoff before the resolution.",
+        "outro": "Resolve the emotional arc cleanly.",
+    }
+    return defaults.get(normalized, "Advance the song coherently.")
+
+
+def get_allowed_structure_names(user_input: str, brief: Optional[Dict[str, Any]] = None) -> List[str]:
+    """Return the closed section-name vocabulary offered to the structure planner."""
+    lowered = (user_input or "").lower()
+    brief_names = {
+        _normalize_section_name(str(item.get("name") or ""))
+        for item in (brief or {}).get("section_plan", [])
+        if isinstance(item, dict) and str(item.get("name") or "").strip()
+    }
+
+    allowed = ["Verse 1", "Chorus", "Verse 2", "Chorus 2", "Bridge", "Chorus 3", "Outro"]
+
+    if "intro" in lowered or "intro" in brief_names:
+        allowed.insert(0, "Intro")
+    if "pre-chorus" in lowered or "pre chorus" in lowered or "pre-chorus" in brief_names:
+        allowed.insert(2 if "Intro" in allowed else 1, "Pre-Chorus")
+    if "post-chorus" in lowered or "post chorus" in lowered or "post-chorus" in brief_names:
+        insert_at = allowed.index("Chorus") + 1 if "Chorus" in allowed else len(allowed)
+        allowed.insert(insert_at, "Post-Chorus")
+    if "breakdown" in lowered or "drop out" in lowered or "dropout" in lowered or "breakdown" in brief_names:
+        allowed.insert(-2 if len(allowed) >= 2 else len(allowed), "Breakdown")
+    if "instrumental" in lowered or "interlude" in lowered or "instrumental" in brief_names:
+        allowed.insert(-1 if allowed else 0, "Instrumental")
+
+    solo_requirements = extract_solo_requirements(user_input)
+    requested_solos = min(max(int(solo_requirements.get("count", 0)), 0), 2)
+    brief_solos = sum(1 for name in brief_names if name.startswith("solo"))
+    for index in range(max(requested_solos, brief_solos)):
+        allowed.insert(-1 if allowed else len(allowed), f"Solo {index + 1}")
+
+    return list(dict.fromkeys(name for name in allowed if name in _STRUCTURE_BASE_ORDER))
+
+
+_STRUCTURE_GUIDANCE_PATTERNS = (
+    {
+        "name": "Core verse-chorus arc",
+        "shape": ["Verse 1", "Chorus", "Verse 2", "Chorus 2", "Bridge", "Chorus 3", "Outro"],
+        "when": "Use when the hook and lyric narrative matter more than formal experimentation.",
+        "signals": ("pop", "rock", "folk", "country", "indie", "hook", "anthem", "catchy"),
+    },
+    {
+        "name": "Lifted pre-chorus build",
+        "shape": ["Intro", "Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Chorus 2", "Bridge", "Chorus 3", "Outro"],
+        "when": "Use when the song wants a clear tension-to-release rise into a big chorus.",
+        "signals": ("anthemic", "cinematic", "uplifting", "dramatic", "build", "lift", "soaring"),
+    },
+    {
+        "name": "Brooding breakdown arc",
+        "shape": ["Verse 1", "Chorus", "Verse 2", "Chorus 2", "Breakdown", "Bridge", "Chorus 3", "Outro"],
+        "when": "Use when the theme is heavy, tense, dark, or emotionally collapsing before a final turn.",
+        "signals": ("dark", "tense", "brooding", "grief", "breakup", "haunted", "melancholy"),
+    },
+    {
+        "name": "Instrument feature arc",
+        "shape": ["Verse 1", "Solo 1", "Chorus", "Verse 2", "Chorus 2", "Bridge", "Solo 2", "Chorus 3", "Outro"],
+        "when": "Use when the prompt explicitly asks for solos, instrumental spotlights, or guitar-driven release moments.",
+        "signals": ("solo", "guitar", "violin", "cello", "instrumental", "shred", "lead break"),
+    },
+)
+
+_SHORT_FORM_STRUCTURE_TERMS = (
+    "short form",
+    "short-form",
+    "minimal",
+    "ambient",
+    "instrumental",
+    "spoken word",
+    "through-composed",
+    "through composed",
+    "drone",
+    "chant",
+)
+
+_SPARSE_STRUCTURE_TERMS = (
+    "folk",
+    "singer-songwriter",
+    "singer songwriter",
+    "ballad",
+    "acoustic",
+    "intimate",
+    "story song",
+    "narrative",
+    "hymn",
+)
+
+_HOOK_FORWARD_STRUCTURE_TERMS = (
+    "pop",
+    "rock",
+    "country",
+    "anthem",
+    "anthemic",
+    "catchy",
+    "hook",
+    "radio",
+    "uplifting",
+    "driving",
+    "big chorus",
+)
+
+
+def infer_chorus_return_count(user_input: str, brief: Optional[Dict[str, Any]] = None) -> int:
+    """Infer how many chorus appearances fit the song style and request."""
+    brief = brief or {}
+    source_parts = [
+        user_input or "",
+        str(brief.get("theme") or ""),
+        str(brief.get("hook_strategy") or ""),
+        " ".join(str(token) for token in brief.get("suno_style_tokens", []) if token),
+    ]
+    lowered = " ".join(source_parts).lower()
+
+    if any(term in lowered for term in _SHORT_FORM_STRUCTURE_TERMS):
+        return 1
+    if any(term in lowered for term in _SPARSE_STRUCTURE_TERMS):
+        return 2
+    if any(term in lowered for term in _HOOK_FORWARD_STRUCTURE_TERMS):
+        return 3
+    return 2
+
+
+def build_structure_guidance(
+    user_input: str,
+    brief: Optional[Dict[str, Any]],
+    default_params: Dict[str, Optional[str]],
+    allowed_names: List[str],
+) -> str:
+    """Build compact planning guidance for the structure-selection LLM step."""
+    brief = brief or {}
+    source_parts = [
+        user_input or "",
+        str(brief.get("theme") or ""),
+        str(brief.get("emotional_arc") or ""),
+        str(brief.get("hook_strategy") or ""),
+        " ".join(str(token) for token in brief.get("suno_style_tokens", []) if token),
+        " ".join(str(value) for value in default_params.values() if value),
+    ]
+    lowered = " ".join(source_parts).lower()
+
+    scored_patterns: List[tuple[int, Dict[str, Any]]] = []
+    for pattern in _STRUCTURE_GUIDANCE_PATTERNS:
+        score = sum(1 for signal in pattern["signals"] if signal in lowered)
+        if any(name.startswith("Solo ") for name in allowed_names) and "Solo 1" in pattern["shape"]:
+            score += 2
+        if "Pre-Chorus" in allowed_names and "Pre-Chorus" in pattern["shape"]:
+            score += 1
+        if "Breakdown" in allowed_names and "Breakdown" in pattern["shape"]:
+            score += 1
+        scored_patterns.append((score, pattern))
+
+    scored_patterns.sort(key=lambda item: (-item[0], item[1]["name"]))
+    selected_patterns = [pattern for _, pattern in scored_patterns[:3]]
+
+    requested_moments = []
+    chorus_return_count = infer_chorus_return_count(user_input, brief)
+    if any(name.startswith("Solo ") for name in allowed_names):
+        solo_requirements = extract_solo_requirements(user_input)
+        instrument = str(solo_requirements.get("instrument") or "lead").strip()
+        requested_moments.append(f"- The prompt requests {solo_requirements['count']} {instrument} solo section(s).")
+    requested_moments.append(
+        f"- Based on the style and prompt, plan for about {chorus_return_count} chorus appearance(s) unless the user explicitly asks for a different form."
+    )
+    placement_requirements = extract_section_placement_requirements(user_input, allowed_names)
+    for placement in placement_requirements:
+        requested_moments.append(f"- Keep {placement['name']} immediately after {placement['after']}.")
+
+    if not requested_moments:
+        requested_moments.append("- No special section-placement requirement was explicitly detected.")
+
+    rendered_patterns = []
+    for pattern in selected_patterns:
+        filtered_shape = [name for name in pattern["shape"] if name in allowed_names]
+        rendered_patterns.append(
+            f"- {pattern['name']}: {' > '.join(filtered_shape)}. {pattern['when']}"
+        )
+
+    return "\n".join(
+        [
+            "Recommended structure archetypes:",
+            *rendered_patterns,
+            "",
+            "Common section placement guidance:",
+            "- Intro usually opens the song.",
+            "- Verse 1 should lead into the first Chorus.",
+            "- Pre-Chorus usually sits between a Verse and Chorus.",
+            "- Post-Chorus usually follows a Chorus directly.",
+            "- Verse 2 usually follows the first Chorus or Post-Chorus.",
+            "- Bridge or Breakdown usually appears after Verse 2 and before the final lift.",
+            "- Solo or Instrumental feature sections usually land after a Verse, after the Bridge, or just before the ending resolution.",
+            "- Outro should be the final section.",
+            "",
+            "Prompt-specific structure constraints:",
+            *requested_moments,
+            "",
+            "Allowed section names for this song:",
+            f"- {', '.join(allowed_names)}",
+        ]
+    ).strip()
 
 
 def read_persona(persona_name: str) -> str:
@@ -758,11 +1429,10 @@ def strip_style_tags(lyrics: str) -> str:
     structural_patterns = [
         r'\[Verse\s*\d*\]',
         r'\[Pre-Chorus\]',
-        r'\[Chorus\]',
+        r'\[Chorus(?:\s*\d+)?\]',
         r'\[Bridge\]',
         r'\[Outro\]',
         r'\[Intro\]',
-        r'\[Final Chorus\]',
         r'\[Guitar Solo\]',
         r'\[Instrumental\]'
     ]
@@ -921,14 +1591,17 @@ class SongState(TypedDict, total=False):
     use_local: bool
     resources: SongResources
     brief: Dict[str, Any]
+    structure_plan: List[Dict[str, Any]]
+    structure_guidance: str
     lyrics: str
     feedback: str
     score: float
     round: int
     max_rounds: int
-    score_threshold: float
-    preflight_passed: bool
-    preflight_issues: List[str]
+    suno_review_issues: List[Dict[str, Any]]
+    quality_review_issues: List[Dict[str, Any]]
+    review_issues: List[Dict[str, Any]]
+    needs_revision: bool
     metadata: Dict[str, Any]
     filename: Optional[str]
     album_art: Optional[str]
@@ -941,6 +1614,7 @@ class SongState(TypedDict, total=False):
     instruments: Optional[str]
     mood: Optional[str]
     vocal_gender: Optional[str]
+    no_live_performance: bool
 
 
 def load_resources(persona_name: Optional[str]) -> SongResources:
@@ -948,6 +1622,9 @@ def load_resources(persona_name: Optional[str]) -> SongResources:
     tags = read_tags()
     persona_styles = read_persona(persona_name) if persona_name else ""
     default_params = get_default_song_params()
+    persona_vocal_gender = infer_vocal_gender_from_persona(persona_styles)
+    if persona_vocal_gender and not default_params.get("vocal_gender"):
+        default_params["vocal_gender"] = persona_vocal_gender
     return SongResources(styles=styles, tags=tags, persona_styles=persona_styles, default_params=default_params)
 
 
@@ -957,10 +1634,10 @@ def progress_steps(use_local: bool):
         return [
             "Parsing user input and persona",
             "Loading resources (styles, tags, personas, defaults)",
+            "Planning song structure",
             "Generating initial song draft (local LLM)",
-            "Reviewing and refining lyrics (3 iterations, local LLM)",
-            "Applying critic feedback (local LLM)",
-            "Running preflight checks (local LLM)",
+            "Running prompt-only review pass",
+            "Applying targeted lyric fixes (if needed)",
             "Generating metadata summary",
             "Skipping album artwork (local mode)",
             "Formatting and saving final song",
@@ -968,10 +1645,10 @@ def progress_steps(use_local: bool):
     return [
         "Parsing user input and persona",
         "Loading resources (styles, tags, personas, defaults)",
+        "Planning song structure",
         "Generating initial song draft",
-        "Reviewing and refining lyrics (3 iterations)",
-        "Applying critic feedback",
-        "Running preflight checks",
+        "Running prompt-only review pass",
+        "Applying targeted lyric fixes (if needed)",
         "Generating metadata summary",
         "Generating album artwork",
         "Formatting and saving final song",

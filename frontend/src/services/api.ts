@@ -100,6 +100,7 @@ export async function createSong(payload: {
   generate_album_art?: boolean;
   generation_config?: {
     auto_select_fields?: string[];
+    no_live_performance?: boolean;
   };
 }) {
   const { data } = await client.post<Song>("/api/songs/generate", payload);

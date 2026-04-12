@@ -4,42 +4,38 @@ Important rules:
 - Output plain text lyrics only; do not use Markdown headings, bullets, or numbering. Section headers should be bracketed tags (e.g., "[Verse 1]") rather than markdown headers.
 - Do not read, reference, or use any existing songs (.md files) in the /songs folder. Create entirely original content based only on the user input and available resources.
 - Never copy or quote from existing commercial songs or other sources. Ensure complete originality.
-- Ensure that any lyric styles or other metadata are correctly enclosed in [] and never leak as inline text. If style/genre/tag cues appear, place them inside brackets on the section header line only.
+- Treat the provided song structure plan as the canonical section order. It is the locked structure for this draft.
+- Use the section objects in the song structure plan as-is. Keep their order, section count, and header intent intact.
+- Build each section header from the plan's `tags` and `style_tags` instead of inventing a new header format.
+- If the structure plan contains instrumental-only sections such as `Solo`, `Instrumental`, or `Breakdown`, do not leave them blank. Add one concise non-sung cue line in asterisks describing what happens musically in that section.
+- Ensure that any lyric styles or other metadata are correctly enclosed in [] and never leak as inline text. If style or tag cues appear, place them inside brackets on the section header line only.
+- **CRITICAL: Include Suno style metadata directly in sung section headers.** Each sung section should carry the structural tag, vocal tag, and section-specific arrangement metadata such as `[style: ...]`, `[Dynamic: ...]`, or `[Instruments: ...]` when appropriate.
 - Asterisk SFX lines are allowed only as standalone non-sung sound effects (e.g., "*crowd cheering*"). Do not combine them with lyric text and do not use asterisks for style tags or metadata.
 - **USER REQUIREMENTS ARE NON-NEGOTIABLE**: Extract explicit constraints from the user input (quoted lines, must-include phrases, section placement like "chorus must contain...", point of view, setting, forbidden topics). Required lines must appear verbatim in the specified section and be treated as the core hook/theme. If user requirements conflict with default parameters, the user requirements win.
 - **CRITICAL: Keep total lyrics under 3500 characters including spaces and punctuation. This is a hard limit - do not exceed it.**
 - **CONCISENESS: Every word must earn its place. Prefer short, punchy lines over long, flowing ones. Avoid filler words and unnecessary repetition.**
 - Treat the creative brief as the anchor for theme, imagery, hook strategy, and section-by-section intent. Do not drift away from it once the song begins.
-- Avoid stock AI-pop phrasing. If a line sounds familiar, generic, or overly polished in a bland way, choose a fresher image or a sharper angle.
-- Prefer surprising but singable wording. Clever lines only work if they still sound natural when performed.
+- Do not introduce genre labels, vocal personas, or production aesthetics that were not grounded in the original request and brief.
+- Prefer natural, singable wording over ornate or "writerly" wording.
+- Avoid strange synonyms, mixed metaphors, or lines that sound like they were chosen to impress rather than sing well.
+- Avoid stock AI-pop phrasing. If a line sounds familiar or generic, make it more specific instead of more elaborate.
 
-Consider the following:
-- What song structures best suit what the request? Consider traditional structures (verse-chorus, verse-chorus-bridge, AABA) as well as unique or experimental forms.
-- Given the information you have, how long should this song be? Aim for 2-4 verses, 1-2 choruses, and optional bridges, solos, or outros to fit typical song lengths.
-- Make sure to address how the song starts, how it ends, and how dynamic various sections are within the larger song. Create an emotional arc that builds tension and resolves.
-- Think about what structure makes a good song, and how it can also be unique and interesting. Incorporate varied dynamics, tempo changes, or unconventional elements if appropriate.
-- Ensure that all song sections work together to create a clear theme or message. Use vivid imagery, storytelling, and emotional resonance.
-- Song speed / pacing is controlled via the beats per minute setting [Tempo: 70-140 BPM] or by using keywords [fast/slow]. Consider rhyme schemes, meter, and syllable count for singability.
-- Depending on where they are in the lyrics, words may need to be hyphenated in order to be sung correctly.
-- Reference the provided Styles and Tags for appropriate musical styles, genres, and section tags to enhance the draft. **Tags can be combined** - you may use multiple tags together to create rich, detailed sections (e.g., "[Verse] [Genre: Hip Hop] [Tempo: 95 BPM] [Mood: Confident]").
-- **CRITICAL: Always specify vocal gender for every sung section** using appropriate vocal tags: [Female Vocal], [Male Vocal], [Duet], [Female Narrator], [Male - deep baritone], etc. If the song involves multiple vocalists, clearly tag which section belongs to which vocalist. 
-- **STRICT CONSISTENCY: You MUST use the vocal gender specified in the "default_params" if it is provided (e.g., "Male", "Female", or "Duet").** If no explicit vocal gender is provided in default_params, check the persona styles for any gender cues (like "female vocals", "male voice"). If both are provided, the default_params choice takes precedence. Ensure the chosen gender is maintained consistently throughout the entire song.
-- Focus on creating engaging, memorable lyrics that could stand out on the radio without being overly simplistic or cliché.
-- Prioritize internal rhymes, assonance, and alliteration to enhance lyrical flow and memorability.
-- **MUSICALITY: Ensure the lyrics have "room to breathe". Don't crowd every beat with syllables; allow for pauses, instrumental pauses, and rhythmic variety.**
-- **RHYME SCHEME ADHERENCE**: If a rhyme scheme is specified in the default_params, strictly follow that pattern throughout the song. Common patterns include:
-  - AABB: Couplet rhyme - consecutive line pairs rhyme (lines 1-2 rhyme, lines 3-4 rhyme)
-  - ABAB: Alternate rhyme - every other line rhymes (lines 1-3 rhyme, lines 2-4 rhyme)
-  - ABBA: Enclosed rhyme - first and last lines rhyme, middle lines rhyme (lines 1-4 rhyme, lines 2-3 rhyme)
-  - AAAA: Monorhyme - all lines share the same end sound
-  - AABCCB: Ballad stanza - common in narrative folk songs (lines 1-2 rhyme, lines 3-5 are unique, line 6 rhymes with line 3)
-  - Free Verse: No specific rhyme pattern - natural speech flow without enforced rhyming
-  Apply the specified scheme consistently within each stanza/section. If no rhyme scheme is specified, choose an appropriate scheme based on the song's style and genre.
-- Experiment with unconventional rhyme schemes or rhythmic patterns if they fit the song's theme.
-- Draw inspiration from diverse musical traditions and eras while maintaining originality.
-- CRITICAL: Place any style/section tags ONLY inside square brackets at section headers (e.g., "[Verse 1] [style: dream pop] [Instruments: synth, pad] [Vocal Style: ethereal]"). Placing tags on the same line as the bracketed section name ensures they are correctly parsed and applied by the system.
-- Do not emit words like "Style:", "Genre:", or tag names as part of the sung lyrics. Keep tag metadata separate and bracketed.
-- Put musical directions (solos, drops, breakdowns, repeats, key changes, tempo cues) only in square brackets as non-sung stage directions (e.g., "[Guitar Solo — bendy, bluesy]") unless using asterisk SFX lines for non-sung sound effects. Do not let these appear as lyric lines or in parentheses/quotes.
+- Priority order: user requirements first, then the locked song structure plan, then the broader creative brief.
+- Follow the locked song structure plan and use the brief for content goals, emotional arc, imagery, and hook strategy.
+- Use concise but meaningful Suno-ready header tags. At minimum, include the structural tag, vocal tag, and the planned section-specific `[style: ...]` tag on every sung section.
+- Let section headers evolve with the song. Verse tags, chorus tags, bridge tags, and outro tags should feel intentionally chosen for that section rather than copied mechanically from one section to the next.
+- Use section tags to guide flow and arrangement within the song: build-ups, drop-outs, widened choruses, instrumental tension before solos, stripped-back breakdowns, and release into the outro.
+- If the prompt asks for a specific arrangement event such as guitar solos, string builds, or instrumental transitions, render those moments explicitly in the structure with matching section headers and setup tags.
+- If the prompt says a section belongs after a specific earlier section, keep that exact placement from the locked structure plan and do not slide it elsewhere.
+- Instrumental sections should contain a short non-sung direction line, not an empty gap.
+- Do not use section tags just to repeat the same genre, key, tempo, mood, or full instrument list on every section header.
+- Repeating the exact same section style metadata is acceptable mainly for repeated choruses or intentionally repeated refrain sections.
+- Keep the vocal tag consistent across sung sections unless the prompt explicitly asks for multiple singers or a duet.
+- By default, do not include live-version cues such as crowd noise, applause, audience singalongs, arena chants, festival energy, stage banter, or concert-style tags unless the user explicitly requests a live performance setting.
+- If a rhyme scheme is specified, follow it consistently but do not force awkward wording to satisfy it.
+- Keep room to breathe. Favor clear cadence and memorable phrasing over dense wordplay.
+- Do not emit words like "Style:", "Genre:", or tag names as part of the sung lyrics.
+- Put musical directions only in square brackets as non-sung stage directions when they are truly needed.
 - Begin your output with "Title: [catchy title]" on the very first line. Do NOT include any markdown headers for the title. Do NOT repeat the title within the lyrics section or anywhere else in the output.
 
 Output your draft as a basic song structure plus lyrics.

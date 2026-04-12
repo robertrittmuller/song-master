@@ -489,15 +489,11 @@ The agentic process implemented via LangGraph still powers Song Master, but the 
 
 - **Resource loading (`helpers.load_resources`)**: Styles from `styles/styles.json`, tag snippets in `tags/*.txt`, persona-specific style tokens from `personas/*.md`, and baseline song params (genre/tempo/key/instruments/mood). Persona style tokens get re-used later to bias metadata and tags.
 
-- **Prompt assembly (`ai_functions.build_prompts`)**: The drafter/reviewer/critic/preflight/revision/scoring/metadata prompts are built once, with the styles/tags/persona tokens inlined so every call has the same grounding data.
+- **Prompt assembly (`ai_functions.build_prompts`)**: The brief/structure/drafter/reviewer/revision/metadata prompts are built once, with the styles/tags/persona tokens inlined so every call has the same grounding data.
 
-- **Drafting (`draft_node`)**: User input is optionally titled, then sent to the drafter LLM with styles, tags, persona styles, and defaults. The LLM backend is chosen at runtime (local LM Studio via OpenAI-compatible API, LiteLLM relay, OpenRouter, or OpenAI) based on env vars.
+- **Planning + drafting (`brief_node` → `structure_node` → `draft_node`)**: The backend first asks the model for a creative brief, then a locked section plan, then the lyric draft itself. The drafter follows the structure returned by the planner directly instead of a deterministic blueprint or repair pass.
 
-- **Parallel review loop (`review_node`)**: Three reviewers run in parallel threads (`run_parallel_reviews`), feedback is merged, `revise_lyrics` applies the edits, and `score_lyrics` parses a JSON score. The graph loops review rounds until the score crosses `REVIEW_SCORE_THRESHOLD` or `REVIEW_MAX_ROUNDS`.
-
-- **Critic pass (`critic_node`)**: A single critic prompt adds a last improvement pass before safety/format checks.
-
-- **Preflight + targeted fixes (`preflight_node` → `targeted_revise_node`)**: Lyrics are validated against style/tag rules. `triage_preflight` distills LLM feedback into a boolean pass + issue list; any issues trigger a targeted revision loop (and another review cycle) until resolved or rounds are exhausted.
+- **Prompt-only review loop (`review_node` → `targeted_revise_node`)**: Theme, quality, and Suno-format reviewers run in parallel threads, their issues are merged into one edit plan, and `revise_lyrics` applies that plan. The graph loops until no meaningful issues remain or `REVIEW_MAX_ROUNDS` is exhausted.
 
 - **Metadata + cover art (`metadata_node` → `album_art_node`)**: The metadata agent emits JSON (description, Suno styles/exclude, target audience, commercial potential) and injects persona style tokens to keep the song "on persona." Album art is generated unless `--local` is set; regeneration can be run directly with `--regen-cover`.
 
@@ -510,20 +506,18 @@ flowchart TD
     B --> C[Background generation task]
     C --> D[Load styles, tags, persona tokens, defaults]
     D --> E[Build prompts and enhance input]
-    E --> F[Draft song]
-    F --> G[Parallel reviews x3]
-    G --> H[Revise and score]
-    H -->|below threshold and rounds left| G
-    H --> I[Critic revision]
-    I --> J[Preflight checks]
-    J -->|issues and rounds left| K[Targeted fixes]
-    K --> G
-    J --> L[Metadata summary]
-    L --> M{Local mode}
-    M -->|yes| N[Skip cover art]
-    M -->|no| O[Generate cover art]
-    N --> P[Save song, metadata, and status]
-    O --> P
+    E --> F[Generate creative brief]
+    F --> G[Plan structure]
+    G --> H[Draft song]
+    H --> I[Prompt-only reviews]
+    I -->|issues and rounds left| J[Targeted revise]
+    J --> I
+    I --> K[Metadata summary]
+    K --> L{Local mode}
+    L -->|yes| M[Skip cover art]
+    L -->|no| N[Generate cover art]
+    M --> O[Save song, metadata, and status]
+    N --> O
 ```
 
 
