@@ -146,6 +146,7 @@ cd song-master
 2. Install Python dependencies:
 ```bash
 pip install -r requirements.txt
+pip install -e .
 ```
 
 3. Install frontend dependencies:
@@ -174,37 +175,37 @@ cd frontend && npm run dev
 ### Basic Usage
 
 ```bash
-python song_master.py "Your song prompt here"
+song-master "Your song prompt here"
 ```
 
 ### With Local Model
 
 ```bash
-python song_master.py "Your song prompt here" --local
+song-master "Your song prompt here" --local
 ```
 
 ### With Prompt File
 
 ```bash
-python song_master.py --prompt-file path/to/prompt.txt
+song-master --prompt-file path/to/prompt.txt
 ```
 
 ### With Custom Song Name
 
 ```bash
-python song_master.py "Your song prompt here" --name "My Song Title"
+song-master "Your song prompt here" --name "My Song Title"
 ```
 
 ### With Persona
 
 ```bash
-python song_master.py "Your song prompt here" --persona "antidote"
+song-master "Your song prompt here" --persona "antidote"
 ```
 
 ### Regenerate Cover Art
 
 ```bash
-python song_master.py --regen-cover path/to/song.md
+song-master --regen-cover path/to/song.md
 ```
 
 ### Command Line Options
@@ -481,7 +482,7 @@ Edit `styles/styles.json` to add custom style definitions:
 ## Technical Deep Dive: Agentic Songwriting Flow
 The agentic process implemented via LangGraph still powers Song Master, but the ownership boundary has changed. The CLI is now a thin client that submits work to the FastAPI backend; the backend owns the real generation lifecycle and persists progress, lyrics, metadata, and assets for both the web UI and CLI callers.
 
-- **CLI client (`song_master.py`)**: Parses prompt/name/persona/local flags, calls `/api/songs/generate`, polls `/api/songs/{id}/status`, fetches the final record, and optionally saves a local markdown copy for convenience.
+- **CLI client (`cli/song_master.py`)**: Installed as the `song-master` console script, it parses prompt/name/persona/local flags, calls `/api/songs/generate`, polls `/api/songs/{id}/status`, fetches the final record, and optionally saves a local markdown copy for convenience.
 
 - **Backend task manager (`backend/app/services/song_generator.py`)**: Creates the initial song row, starts an in-process background task, caches progress updates, and writes final results back to the database and filesystem.
 
@@ -526,9 +527,13 @@ flowchart TD
 ```
 song-master/
 ├── README.md                 # This file
-├── song_master.py            # Main script
-├── ai_functions.py           # AI interaction functions
-├── helpers.py                # Utility functions
+├── pyproject.toml            # Package metadata and CLI entry point
+├── cli/
+│   ├── __init__.py
+│   └── song_master.py        # CLI entry point
+├── backend/
+│   ├── app/                  # FastAPI backend
+│   └── shared/               # Shared backend and CLI logic
 ├── requirements.txt          # Python dependencies
 ├── .env.example              # Environment variables template
 ├── examples/                 # Example outputs
@@ -538,7 +543,10 @@ song-master/
 ├── prompts/                  # AI prompts
 ├── styles/                   # Style definitions
 ├── personas/                 # AI personas
-└── tags/                     # Default tags
+├── tags/                     # Default tags
+└── tools/                    # Utility scripts
+  ├── check_requirements.py  # Dependency import check
+  └── create_album_art.py   # Album art helper
 ```
 
 ## Contributing

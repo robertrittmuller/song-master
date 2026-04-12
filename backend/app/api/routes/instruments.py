@@ -1,6 +1,6 @@
 from typing import List
 from fastapi import APIRouter
-from helpers import get_instrument_tags
+from backend.shared.helpers import get_instrument_tags
 
 router = APIRouter(prefix="/api/instruments", tags=["instruments"])
 

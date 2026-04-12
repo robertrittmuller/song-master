@@ -5,8 +5,8 @@ from tempfile import NamedTemporaryFile
 
 from fastapi import UploadFile
 
-from ai_functions import build_prompts, review_song_with_audio, revise_lyrics
-from helpers import remove_thinking_tags
+from backend.shared.ai_functions import build_prompts, review_song_with_audio, revise_lyrics
+from backend.shared.helpers import remove_thinking_tags
 
 
 async def process_live_listen_feedback(song_id: int, file: UploadFile, song_data: dict, use_local: bool):

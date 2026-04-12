@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional
 import requests
 from dotenv import load_dotenv
 
-from helpers import (
+from backend.shared.helpers import (
     extract_song_details_for_art,
     generate_album_art,
     get_default_song_params,
@@ -108,7 +108,7 @@ def regenerate_album_art(song_path: str) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate a song using the Song Master backend")
+    parser = argparse.ArgumentParser(prog="song-master", description="Generate a song using the Song Master backend")
     parser.add_argument("prompt", nargs="?", help="The song description or request")
     parser.add_argument(
         "--prompt-file",

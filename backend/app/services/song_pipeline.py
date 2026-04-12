@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from langgraph.graph import END, StateGraph
 from tqdm import tqdm
 
-from ai_functions import (
+from backend.shared.ai_functions import (
     build_prompts,
     build_song_brief,
     draft_song,
@@ -15,7 +15,7 @@ from ai_functions import (
     revise_lyrics,
     run_specialized_reviews,
 )
-from helpers import (
+from backend.shared.helpers import (
     SongState,
     build_compact_style_context,
     build_compact_tag_context,

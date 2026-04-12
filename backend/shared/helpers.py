@@ -11,11 +11,11 @@ from tools.create_album_art import generate_album_art_image
 
 def read_styles() -> Dict[str, str]:
     """Load and process style configurations from JSON file."""
-    consolidated_path = os.path.join("styles", "styles.json")
-    if not os.path.exists(consolidated_path):
+    consolidated_path = Path(get_repo_root()) / "styles" / "styles.json"
+    if not consolidated_path.exists():
         raise FileNotFoundError(f"Missing consolidated styles file at {consolidated_path}")
 
-    with open(consolidated_path, "r") as file:
+    with consolidated_path.open("r") as file:
         raw_styles = json.load(file)
 
     styles: Dict[str, str] = {}
@@ -29,9 +29,10 @@ def read_styles() -> Dict[str, str]:
 
 def read_tags() -> Dict[str, str]:
     tags: Dict[str, str] = {}
-    for filename in os.listdir("tags"):
+    tags_dir = Path(get_repo_root()) / "tags"
+    for filename in os.listdir(tags_dir):
         if filename.endswith(".txt"):
-            with open(f"tags/{filename}", "r") as file:
+            with open(tags_dir / filename, "r") as file:
                 tags[filename] = file.read()
     return tags
 
@@ -1004,9 +1005,9 @@ def resolve_persona_file(persona_input: str) -> Optional[str]:
     if os.path.isabs(expanded) or os.sep in persona_input:
         return None
     # Fallback to personas directory by slugifying name
-    persona_file = f"personas/{persona_input.lower().replace(' ', '_')}.md"
-    if os.path.isfile(persona_file):
-        return persona_file
+    persona_file = Path(get_repo_root()) / "personas" / f"{persona_input.lower().replace(' ', '_')}.md"
+    if persona_file.is_file():
+        return str(persona_file)
     return None
 
 
@@ -1019,10 +1020,10 @@ def load_prompt_from_file(prompt_path: str) -> str:
 
 
 def read_prompt(prompt_name: str) -> str:
-    prompt_file = f"prompts/{prompt_name}.txt"
-    if not os.path.exists(prompt_file):
+    prompt_file = Path(get_repo_root()) / "prompts" / f"{prompt_name}.txt"
+    if not prompt_file.exists():
         return ""
-    with open(prompt_file, "r") as file:
+    with prompt_file.open("r") as file:
         return file.read()
 
 
@@ -1183,7 +1184,7 @@ def remove_title_from_lyrics(lyrics: str) -> str:
 
 def get_repo_root() -> str:
     """Return the absolute path to the repository root."""
-    return str(Path(__file__).resolve().parent)
+    return str(Path(__file__).resolve().parents[2])
 
 
 def resolve_storage_path(relative_path: str) -> str:
@@ -1551,12 +1552,12 @@ class SongResources:
 
 def get_instrument_tags() -> List[str]:
     """Parse tags/default-tags.txt to extract unique instrument tags."""
-    path = os.path.join("tags", "default-tags.txt")
-    if not os.path.exists(path):
+    path = Path(get_repo_root()) / "tags" / "default-tags.txt"
+    if not path.exists():
         return []
 
     instruments = set()
-    with open(path, "r") as f:
+    with path.open("r") as f:
         for line in f:
             line = line.strip()
             # Handle [Instruments: ...]

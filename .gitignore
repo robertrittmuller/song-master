@@ -9,3 +9,4 @@ node_modules/
 .roo/
 backend/data
 frontend/dist/
+*.egg-info/

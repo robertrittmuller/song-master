@@ -181,7 +181,7 @@ import requests
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
 
-from helpers import load_resources
+from backend.shared.helpers import load_resources
 ```
 
 **Naming Conventions:**
@@ -363,7 +363,7 @@ import requests
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
 
-from helpers import load_resources
+from backend.shared.helpers import load_resources
 ```
 
 **Naming Conventions:**

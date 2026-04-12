@@ -12,7 +12,7 @@ from backend.app.db.database import SessionLocal
 from backend.app.models import GenerationSession, Song, SongFile, SongVersion
 from backend.app.schemas import GenerationLog, SongCreate, SongStatus
 from backend.app.services.song_pipeline import generate_song_pipeline
-from helpers import resolve_storage_path, strip_style_tags
+from backend.shared.helpers import resolve_storage_path, strip_style_tags
 
 
 class SongGenerationManager:

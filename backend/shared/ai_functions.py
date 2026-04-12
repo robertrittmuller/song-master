@@ -292,7 +292,7 @@ def get_llm(use_local: bool = False):
 
 def build_prompts() -> Dict[str, Any]:
     """Build and return all prompt templates for song generation."""
-    from helpers import read_prompt
+    from backend.shared.helpers import read_prompt
 
     song_brief_template = read_prompt("song_brief")
     song_structure_template = read_prompt("song_structure_planner")
@@ -480,7 +480,7 @@ Persona Styles:
 
 
 def _load_json_response(raw: Optional[str]) -> Optional[Any]:
-    from helpers import remove_thinking_tags
+    from backend.shared.helpers import remove_thinking_tags
 
     if raw is None:
         return None
@@ -577,7 +577,7 @@ def plan_song_structure(
     default_params: Dict[str, Optional[str]],
     use_local: bool,
 ) -> List[Dict[str, Any]]:
-    from helpers import get_allowed_structure_names
+    from backend.shared.helpers import get_allowed_structure_names
 
     allowed_section_names = get_allowed_structure_names(user_input, brief)
     formatted_prompt = prompt_template.format(
@@ -770,7 +770,7 @@ def generate_metadata_summary(
     no_live_performance: bool = False,
     style_catalog: Optional[Dict[str, str]] = None,
 ):
-    from helpers import (
+    from backend.shared.helpers import (
         build_live_performance_exclude_styles,
         map_artist_references_to_suno_styles,
         parse_persona_styles_list,
@@ -863,7 +863,7 @@ def review_song_with_audio(lyrics: str, audio_path: str, use_local: bool) -> str
     Returns the feedback string.
     """
     import base64
-    from helpers import read_prompt
+    from backend.shared.helpers import read_prompt
 
     if use_local:
         return "Audio review is not supported in local mode."

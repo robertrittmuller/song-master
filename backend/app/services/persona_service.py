@@ -2,7 +2,7 @@ import os
 from typing import List, Optional
 
 from backend.app.schemas import Persona, PersonaCreate, PersonaUpdate
-from helpers import (
+from backend.shared.helpers import (
     read_persona,
     read_persona_visual_styles,
     resolve_persona_file,

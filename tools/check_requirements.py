@@ -1,5 +1,6 @@
 import sys
 import re
+from pathlib import Path
 
 # Map PyPI package names to their import names
 MAPPINGS = {
@@ -46,6 +47,6 @@ def test_import(pkg_name):
         print(f"❌ {pkg_name} (imported as {import_name}) NOT installed", file=sys.stderr)
 
 print("Testing package installations...\n")
-packages = read_requirements("requirements.txt")
+packages = read_requirements(str(Path(__file__).resolve().parents[1] / "requirements.txt"))
 for pkg in packages:
     test_import(pkg)

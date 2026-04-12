@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "song-master"
+version = "0.1.0"
+description = "Song Master CLI and backend"
+requires-python = ">=3.9"
+
+[project.scripts]
+song-master = "cli.song_master:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["backend*", "cli", "tools"]

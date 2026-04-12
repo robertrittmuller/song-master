@@ -198,7 +198,7 @@ async def import_song_markdown(
     clean_lyrics = parsed.get("clean_lyrics")
 
     if not clean_lyrics and lyrics:
-        from helpers import strip_style_tags
+        from backend.shared.helpers import strip_style_tags
 
         clean_lyrics = strip_style_tags(lyrics)
 
@@ -261,7 +261,7 @@ def update_song(
                 detail="Cannot rename song while it is generating"
             )
 
-        from helpers import rename_song_files, get_song_storage_info
+        from backend.shared.helpers import rename_song_files, get_song_storage_info
         import os
         
         old_title = song.title
@@ -376,7 +376,7 @@ def update_song_lyrics(
 ) -> SongDetail:
     """Update song lyrics and snapshot the previous version."""
     from sqlalchemy import func
-    from helpers import strip_style_tags
+    from backend.shared.helpers import strip_style_tags
 
     song = db.get(Song, song_id)
     if not song:
@@ -413,7 +413,7 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
     if not song:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
 
-    from helpers import extract_title, generate_album_art
+    from backend.shared.helpers import extract_title, generate_album_art
     import json
 
     title = extract_title(song.lyrics or "", song.title)
@@ -468,7 +468,7 @@ async def upload_song_art(
 
     from datetime import datetime
     import os
-    from helpers import get_song_storage_info
+    from backend.shared.helpers import get_song_storage_info
 
     song_date = song.created_at.strftime("%Y-%m-%d") if song.created_at else datetime.now().strftime("%Y-%m-%d")
     storage = get_song_storage_info(song.title, song_date)
