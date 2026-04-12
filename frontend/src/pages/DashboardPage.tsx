@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
-import { Loader } from "../components/common/Loader";
 import { SongGrid } from "../features/library/SongGrid";
 import { AlbumList } from "../features/library/AlbumList";
 import { SearchBar } from "../features/library/SearchBar";
@@ -20,8 +19,7 @@ type Filter = {
   dateRange?: string;
 };
 
-const INITIAL_VISIBLE_SONGS = 12;
-const SONG_LOAD_BATCH = 12;
+const SONGS_PER_PAGE = 100;
 
 export function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -29,11 +27,10 @@ export function DashboardPage() {
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [visibleSongsCount, setVisibleSongsCount] = useState(INITIAL_VISIBLE_SONGS);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: songs = [] } = useQuery({ queryKey: ["songs"], queryFn: fetchSongs });
   const { data: personas = [] } = useQuery({ queryKey: ["personas"], queryFn: fetchPersonas });
@@ -52,9 +49,9 @@ export function DashboardPage() {
 
   const personaNames = useMemo(() => personas.map((p) => p.name), [personas]);
 
-  // Reset visible count when filters/search/sort change
+  // Reset pagination when filters/search/sort change
   useEffect(() => {
-    setVisibleSongsCount(INITIAL_VISIBLE_SONGS);
+    setCurrentPage(1);
   }, [searchQuery, filters, sortBy]);
 
   // Filter and sort songs
@@ -103,46 +100,57 @@ export function DashboardPage() {
     return result;
   }, [songs, searchQuery, filters, sortBy]);
 
-  const visibleSongs = useMemo(() => {
-    return filteredAndSortedSongs.slice(0, visibleSongsCount);
-  }, [filteredAndSortedSongs, visibleSongsCount]);
-
-  const hasMoreSongs = visibleSongsCount < filteredAndSortedSongs.length;
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedSongs.length / SONGS_PER_PAGE));
 
   useEffect(() => {
-    const trigger = loadMoreTriggerRef.current;
-
-    if (!trigger || !hasMoreSongs) {
-      return;
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
     }
+  }, [currentPage, totalPages]);
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
+  const paginatedSongs = useMemo(() => {
+    const startIndex = (currentPage - 1) * SONGS_PER_PAGE;
+    return filteredAndSortedSongs.slice(startIndex, startIndex + SONGS_PER_PAGE);
+  }, [currentPage, filteredAndSortedSongs]);
 
-        if (!entry?.isIntersecting) {
-          return;
-        }
+  const pageStart = filteredAndSortedSongs.length === 0
+    ? 0
+    : (currentPage - 1) * SONGS_PER_PAGE + 1;
+  const pageEnd = Math.min(currentPage * SONGS_PER_PAGE, filteredAndSortedSongs.length);
+  const showPaginationControls = filteredAndSortedSongs.length > SONGS_PER_PAGE;
 
-        setVisibleSongsCount((currentVisibleSongs) => {
-          if (currentVisibleSongs >= filteredAndSortedSongs.length) {
-            return currentVisibleSongs;
-          }
-
-          return Math.min(currentVisibleSongs + SONG_LOAD_BATCH, filteredAndSortedSongs.length);
-        });
-      },
-      {
-        rootMargin: "0px 0px 320px 0px"
-      }
-    );
-
-    observer.observe(trigger);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [filteredAndSortedSongs.length, hasMoreSongs]);
+  const paginationAction = filteredAndSortedSongs.length > 0 ? (
+    <div className="song-grid__pagination">
+      <span className="song-grid__pagination-summary">
+        {pageStart}-{pageEnd} of {filteredAndSortedSongs.length}
+      </span>
+      {showPaginationControls && (
+        <>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            disabled={currentPage === 1}
+            aria-label="Go to the previous songs page"
+          >
+            Previous
+          </Button>
+          <span className="song-grid__pagination-page">
+            Page {currentPage} / {totalPages}
+          </span>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+            disabled={currentPage === totalPages}
+            aria-label="Go to the next songs page"
+          >
+            Next
+          </Button>
+        </>
+      )}
+    </div>
+  ) : undefined;
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -220,24 +228,11 @@ export function DashboardPage() {
       ) : (
         <div className="stack" style={{ gap: 16 }}>
           <SongGrid
-            songs={visibleSongs}
+            songs={paginatedSongs}
             viewMode={viewMode}
             totalSongsCount={filteredAndSortedSongs.length}
+            headerAction={paginationAction}
           />
-
-          {hasMoreSongs && (
-            <div
-              ref={loadMoreTriggerRef}
-              className="song-grid__load-more"
-              aria-live="polite"
-              aria-label="Loading more songs as you scroll"
-            >
-              <Loader size={18} className="song-grid__load-more-spinner" />
-              <span className="song-grid__load-more-text">
-                Loading more songs...
-              </span>
-            </div>
-          )}
         </div>
       )}
     </div>

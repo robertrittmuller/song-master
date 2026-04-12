@@ -385,7 +385,9 @@ a {
 
 .song-grid__item--list {
   flex-direction: row;
-  align-items: center;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px;
 }
 
 .song-grid__thumbnail {
@@ -399,9 +401,22 @@ a {
   flex-shrink: 0;
 }
 
+.song-grid__thumbnail--list {
+  width: 58px;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  margin-top: 2px;
+}
+
 .song-grid__meta {
   flex: 1;
   min-width: 0;
+}
+
+.song-grid__item--list .song-grid__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .song-grid__title {
@@ -410,9 +425,49 @@ a {
   overflow-wrap: anywhere;
 }
 
+.song-grid__title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .song-grid__persona {
   color: var(--gray-400);
   font-size: 13px;
+}
+
+.song-grid__meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.song-grid__meta-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--gray-300);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.song-grid__summary {
+  margin: 0;
+  color: var(--gray-400);
+  font-size: 13px;
+  line-height: 1.45;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.song-grid__summary.is-error {
+  color: #fca5a5;
 }
 
 .song-grid__status {
@@ -425,31 +480,31 @@ a {
 }
 
 .song-grid__item--list .song-grid__status {
-  margin-left: auto;
-  align-self: center;
+  margin-left: 0;
+  align-self: flex-start;
 }
 
-.song-grid__load-more {
-  display: inline-flex;
+.song-grid__pagination {
+  display: flex;
   align-items: center;
-  justify-content: center;
   gap: 10px;
-  align-self: center;
-  min-width: 220px;
-  padding: 10px 18px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.song-grid__pagination-summary,
+.song-grid__pagination-page {
   color: var(--gray-300);
+  font-size: 12px;
 }
 
-.song-grid__load-more-spinner {
-  color: var(--primary-500);
+.song-grid__pagination-summary {
+  color: var(--gray-400);
 }
 
-.song-grid__load-more-text {
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
+.song-grid__pagination-page {
+  min-width: 78px;
+  text-align: center;
 }
 
 .generate-page {
@@ -927,11 +982,15 @@ h3 {
   }
 
   .song-grid__item--list {
-    align-items: flex-start;
+    gap: 12px;
   }
 
   .song-grid__item--list .song-grid__status {
     margin-left: 0;
+  }
+
+  .song-grid__pagination {
+    justify-content: flex-start;
   }
 
   .generation-submit-bar {
@@ -974,6 +1033,15 @@ h3 {
 
   .generation-submit-bar__actions .btn {
     width: 100%;
+  }
+
+  .song-grid__title-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .song-grid__thumbnail--list {
+    width: 50px;
   }
 
   h1 {

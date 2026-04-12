@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, File, status, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, File, Query, status, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.app.db.deps import get_db
@@ -104,8 +104,17 @@ def _parse_song_markdown(markdown: str) -> Dict[str, Optional[str]]:
 
 
 @router.get("", response_model=List[SongRead])
-def list_songs(db: Session = Depends(get_db)) -> List[SongRead]:
-    return db.query(Song).order_by(Song.created_at.desc()).limit(50).all()
+def list_songs(
+    db: Session = Depends(get_db),
+    limit: Optional[int] = Query(default=None, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> List[SongRead]:
+    songs_query = db.query(Song).order_by(Song.created_at.desc()).offset(offset)
+
+    if limit is not None:
+        songs_query = songs_query.limit(limit)
+
+    return songs_query.all()
 
 
 @router.get("/{song_id}", response_model=SongDetail)

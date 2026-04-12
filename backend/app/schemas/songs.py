@@ -48,7 +48,10 @@ class SongRead(BaseModel):
     persona: Optional[str]
     use_local: bool
     created_at: datetime
+    user_prompt: str
+    album_id: Optional[int] = None
     album_art: Optional[str] = None
+    error_message: Optional[str] = None
 
 
 class SongVersionRead(BaseModel):

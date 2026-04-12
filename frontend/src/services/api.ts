@@ -9,6 +9,11 @@ const client = axios.create({
   headers: { "Content-Type": "application/json" }
 });
 
+type FetchSongsOptions = {
+  limit?: number;
+  offset?: number;
+};
+
 export async function fetchPersonas(): Promise<Persona[]> {
   const { data } = await client.get<Persona[]>("/api/personas");
   return data;
@@ -69,8 +74,10 @@ export async function deleteAlbum(albumId: number): Promise<void> {
   await client.delete(`/api/albums/${albumId}`);
 }
 
-export async function fetchSongs(): Promise<Song[]> {
-  const { data } = await client.get<Song[]>("/api/songs");
+export async function fetchSongs(options: FetchSongsOptions = {}): Promise<Song[]> {
+  const { data } = await client.get<Song[]>("/api/songs", {
+    params: options
+  });
   return data;
 }
 
