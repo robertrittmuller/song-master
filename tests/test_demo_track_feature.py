@@ -98,6 +98,56 @@ class MiniMaxMusicServiceTests(unittest.TestCase):
         self.assertEqual(mock_post.call_args.kwargs["json"]["output_format"], "url")
         self.assertEqual(mock_post.call_args.kwargs["json"]["model"], "music-2.6")
 
+    def test_generate_demo_track_strips_asterisk_effect_tags_from_payload(self):
+        settings = Settings(
+            minimax_api_key="demo-key",
+            minimax_music_model="music-2.6",
+            minimax_api_base="https://api.minimax.io/v1",
+            minimax_request_timeout=5,
+        )
+        service = MiniMaxMusicService(settings=settings)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            abs_image_base = str(Path(temp_dir) / "2026-04-12 - Demo Song")
+            with patch(
+                "backend.app.services.minimax_service.get_song_storage_info",
+                return_value={
+                    "abs_folder": temp_dir,
+                    "abs_image_base": abs_image_base,
+                },
+            ), patch(
+                "backend.app.services.minimax_service.relativize_storage_path",
+                side_effect=lambda path: Path(path).name,
+            ), patch(
+                "backend.app.services.minimax_service.requests.post",
+                return_value=_MockResponse(
+                    json_body={
+                        "data": {
+                            "audio": "https://cdn.example.com/demo.mp3",
+                            "status": 2,
+                        },
+                        "base_resp": {
+                            "status_code": 0,
+                            "status_msg": "success",
+                        },
+                    }
+                ),
+            ) as mock_post, patch(
+                "backend.app.services.minimax_service.requests.get",
+                return_value=_MockResponse(content_chunks=[b"demo-audio"]),
+            ):
+                service.generate_demo_track(
+                    title="Demo Song",
+                    user_prompt="Huge rock energy.",
+                    lyrics="[Verse]\n*crowd cheering*\nCity lights ignite the dark",
+                    clean_lyrics="[Verse]\n*crowd cheering*\nCity lights ignite the dark",
+                )
+
+        self.assertEqual(
+            mock_post.call_args.kwargs["json"]["lyrics"],
+            "[Verse]\n\nCity lights ignite the dark",
+        )
+
 
 class DemoTrackRouteTests(unittest.TestCase):
     def setUp(self):

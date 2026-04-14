@@ -125,7 +125,9 @@ class MiniMaxMusicService:
         return f"{storage['abs_image_base']}_demo_{timestamp}.mp3"
 
     def _prepare_lyrics(self, clean_lyrics: Optional[str], lyrics: str) -> str:
-        prepared = (clean_lyrics or strip_style_tags(lyrics or "")).strip()
+        prepared = strip_style_tags(clean_lyrics or "").strip()
+        if not prepared:
+            prepared = strip_style_tags(lyrics or "").strip()
         if not prepared:
             raise ValueError("Song lyrics are required before creating a demo track.")
         if len(prepared) > 3500:

@@ -1442,6 +1442,11 @@ def strip_style_tags(lyrics: str) -> str:
     
     for line in lines:
         stripped_line = line.strip()
+
+        if re.match(r'^\*(?:[^*\n]|\*\*)+\*$', stripped_line):
+            continue
+
+        stripped_line = re.sub(r'^\*(?:[^*\n]|\*\*)+\*\s*', '', stripped_line)
         
         # Check if this line contains a structural header
         structural_header = None
