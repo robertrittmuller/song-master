@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import type { DragEvent } from "react";
+
+import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
 
 import { copyTextToClipboard } from "../../services/clipboard";
 
@@ -267,8 +270,90 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
     const [copied, setCopied] = useState(false);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [editedContent, setEditedContent] = useState("");
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [dropIndex, setDropIndex] = useState<number | null>(null);
     const sections = useMemo(() => parseLyrics(lyrics), [lyrics]);
     const canEdit = editable && !!onDraftChange;
+
+    const updateDraftSections = (updatedSections: LyricSection[]) => {
+        if (!onDraftChange) {
+            return;
+        }
+        onDraftChange(buildLyricsFromSections(updatedSections));
+        setEditingIndex(null);
+        setEditedContent("");
+    };
+
+    const moveSection = (fromIndex: number, toIndex: number) => {
+        if (!canEdit || fromIndex < 0 || fromIndex >= sections.length) {
+            return;
+        }
+
+        const boundedToIndex = Math.max(0, Math.min(toIndex, sections.length));
+        const adjustedToIndex = fromIndex < boundedToIndex ? boundedToIndex - 1 : boundedToIndex;
+        if (fromIndex === adjustedToIndex) {
+            return;
+        }
+
+        const updatedSections = [...sections];
+        const [section] = updatedSections.splice(fromIndex, 1);
+        updatedSections.splice(adjustedToIndex, 0, section);
+        updateDraftSections(updatedSections);
+    };
+
+    const handleDragStart = (event: DragEvent<HTMLButtonElement>, index: number) => {
+        if (!canEdit) {
+            event.preventDefault();
+            return;
+        }
+
+        setDraggedIndex(index);
+        setDropIndex(index);
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", String(index));
+    };
+
+    const handleDragOver = (event: DragEvent<HTMLDivElement>, index: number) => {
+        if (draggedIndex === null) {
+            return;
+        }
+
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        const rect = event.currentTarget.getBoundingClientRect();
+        const isAfterMiddle = event.clientY > rect.top + rect.height / 2;
+        setDropIndex(isAfterMiddle ? index + 1 : index);
+    };
+
+    const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+        if (draggedIndex === null || dropIndex === null) {
+            return;
+        }
+
+        event.preventDefault();
+        moveSection(draggedIndex, dropIndex);
+        setDraggedIndex(null);
+        setDropIndex(null);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedIndex(null);
+        setDropIndex(null);
+    };
+
+    const getSectionClassName = (index: number): string => {
+        const classNames = ["glass", "lyric-section-card"];
+        if (draggedIndex === index) {
+            classNames.push("is-dragging");
+        }
+        if (dropIndex === index && draggedIndex !== index) {
+            classNames.push("is-drop-before");
+        }
+        if (dropIndex === sections.length && index === sections.length - 1 && draggedIndex !== index) {
+            classNames.push("is-drop-after");
+        }
+        return classNames.join(" ");
+    };
 
     const handleCopy = async () => {
         // Reconstruct the parsed lyric sections. Explicit title lines are excluded during parsing.
@@ -301,6 +386,8 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
     useEffect(() => {
         setEditingIndex(null);
         setEditedContent("");
+        setDraggedIndex(null);
+        setDropIndex(null);
     }, [lyrics]);
 
     if (sections.length === 0) {
@@ -348,13 +435,15 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
             {sections.map((section, index) => (
                 <div
                     key={index}
-                    className="glass"
+                    className={getSectionClassName(index)}
                     style={{
                         borderLeft: `4px solid transparent`,
                         borderImageSource: getSectionColor(section.type),
                         borderImageSlice: 1,
                         cursor: canEdit ? "text" : "default"
                     }}
+                    onDragOver={(event) => handleDragOver(event, index)}
+                    onDrop={handleDrop}
                     onClick={() => {
                         if (!canEdit) {
                             return;
@@ -363,18 +452,55 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
                         setEditedContent(section.content);
                     }}
                 >
-                    <div
-                        style={{
-                            backgroundImage: getSectionColor(section.type),
-                            WebkitBackgroundClip: "text",
-                            WebkitTextFillColor: "transparent",
-                            backgroundClip: "text",
-                            fontWeight: 700,
-                            fontSize: 18,
-                            marginBottom: 8
-                        }}
-                    >
-                        {section.type}
+                    <div className="lyric-section-card__header">
+                        <div
+                            style={{
+                                backgroundImage: getSectionColor(section.type),
+                                WebkitBackgroundClip: "text",
+                                WebkitTextFillColor: "transparent",
+                                backgroundClip: "text",
+                                fontWeight: 700,
+                                fontSize: 18
+                            }}
+                        >
+                            {section.type}
+                        </div>
+
+                        {canEdit && sections.length > 1 && (
+                            <div className="lyric-section-card__controls" onClick={(event) => event.stopPropagation()}>
+                                <button
+                                    type="button"
+                                    className="lyric-section-card__icon-button"
+                                    aria-label={`Move ${section.type} up`}
+                                    title="Move up"
+                                    disabled={index === 0}
+                                    onClick={() => moveSection(index, index - 1)}
+                                >
+                                    <ArrowUp size={14} />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="lyric-section-card__icon-button"
+                                    aria-label={`Move ${section.type} down`}
+                                    title="Move down"
+                                    disabled={index === sections.length - 1}
+                                    onClick={() => moveSection(index, index + 2)}
+                                >
+                                    <ArrowDown size={14} />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="lyric-section-card__drag-handle"
+                                    aria-label={`Drag ${section.type}`}
+                                    title="Drag to reorder"
+                                    draggable
+                                    onDragStart={(event) => handleDragStart(event, index)}
+                                    onDragEnd={handleDragEnd}
+                                >
+                                    <GripVertical size={16} />
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {showTags && (section.tags.length > 0 || section.styles.length > 0) && (
@@ -434,17 +560,12 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
                                     style={{ padding: "4px 10px", fontSize: 12, height: "auto", minHeight: 0 }}
                                     onClick={(event) => {
                                         event.stopPropagation();
-                                        if (!onDraftChange) {
-                                            return;
-                                        }
                                         const updatedSections = sections.map((current, currentIndex) => (
                                             currentIndex === index
                                                 ? { ...current, content: editedContent }
                                                 : current
                                         ));
-                                        onDraftChange(buildLyricsFromSections(updatedSections));
-                                        setEditingIndex(null);
-                                        setEditedContent("");
+                                        updateDraftSections(updatedSections);
                                     }}
                                 >
                                     Save Section

@@ -670,6 +670,92 @@ a {
   text-align: center;
 }
 
+.lyric-section-card {
+  position: relative;
+  transition: opacity var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.lyric-section-card::before,
+.lyric-section-card::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  height: 3px;
+  border-radius: 3px;
+  background: #8bd7ff;
+  box-shadow: 0 0 14px rgba(14, 165, 233, 0.6);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lyric-section-card::before {
+  top: -10px;
+}
+
+.lyric-section-card::after {
+  bottom: -10px;
+}
+
+.lyric-section-card.is-drop-before::before,
+.lyric-section-card.is-drop-after::after {
+  opacity: 1;
+}
+
+.lyric-section-card.is-dragging {
+  opacity: 0.55;
+}
+
+.lyric-section-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.lyric-section-card__controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.lyric-section-card__icon-button,
+.lyric-section-card__drag-handle {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--gray-300);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.lyric-section-card__icon-button:hover:not(:disabled),
+.lyric-section-card__drag-handle:hover {
+  background: rgba(14, 165, 233, 0.12);
+  border-color: rgba(14, 165, 233, 0.35);
+  color: var(--gray-50);
+}
+
+.lyric-section-card__icon-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.lyric-section-card__drag-handle {
+  cursor: grab;
+}
+
+.lyric-section-card__drag-handle:active {
+  cursor: grabbing;
+}
+
 .animate-spin {
   animation: spin 1s linear infinite;
 }
