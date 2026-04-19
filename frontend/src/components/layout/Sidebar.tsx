@@ -1,3 +1,5 @@
+import { Plus, FileText, Library, Settings } from "lucide-react";
+
 import { Button } from "../ui/Button";
 
 interface SidebarProps {
@@ -6,10 +8,10 @@ interface SidebarProps {
 }
 
 const quickLinks = [
-  { to: "/generate", label: "New Song", accent: true, icon: "✨" },
-  { to: "/proposals", label: "Song Proposals", icon: "SP" },
-  { to: "/dashboard", label: "Library", icon: "📚" },
-  { to: "/settings", label: "Settings", icon: "⚙️" }
+  { to: "/generate", label: "New Song", accent: true, icon: Plus },
+  { to: "/proposals", label: "Song Proposals", icon: FileText },
+  { to: "/dashboard", label: "Library", icon: Library },
+  { to: "/settings", label: "Settings", icon: Settings }
 ];
 
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
@@ -83,9 +85,15 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                 }}
                 title={isCollapsed ? item.label : undefined}
               >
-                <span style={{ fontSize: isCollapsed ? "20px" : "16px" }}>{item.icon}</span>
+                <item.icon
+                  size={isCollapsed ? 20 : 18}
+                  style={{
+                    flexShrink: 0,
+                    opacity: isCollapsed ? 0.9 : 0.85
+                  }}
+                />
                 {!isCollapsed && (
-                  <span style={{ marginLeft: "8px" }}>{item.label}</span>
+                  <span style={{ marginLeft: "10px", fontWeight: 500 }}>{item.label}</span>
                 )}
               </Button>
             ))}
