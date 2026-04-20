@@ -1,4 +1,4 @@
-from backend.app.schemas.albums import AlbumCreate, AlbumRead
+from backend.app.schemas.albums import AlbumArtGenerateRequest, AlbumCreate, AlbumRead, AlbumUpdate
 from backend.app.schemas.auth import (
     AuthMessageResponse,
     AuthTokenResponse,
@@ -32,7 +32,9 @@ __all__ = [
     "PersonaCreate",
     "PersonaUpdate",
     "AlbumCreate",
+    "AlbumArtGenerateRequest",
     "AlbumRead",
+    "AlbumUpdate",
     "AuthMessageResponse",
     "AuthTokenResponse",
     "AuthUserRead",

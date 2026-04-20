@@ -116,6 +116,11 @@ def _ensure_auth_schema() -> None:
             )
 
         if "albums" in table_names:
+            album_columns = {column["name"] for column in inspector.get_columns("albums")}
+            if "album_art" not in album_columns:
+                connection.execute(text("ALTER TABLE albums ADD COLUMN album_art TEXT"))
+            if "art_prompt_direction" not in album_columns:
+                connection.execute(text("ALTER TABLE albums ADD COLUMN art_prompt_direction TEXT"))
             connection.execute(text("CREATE INDEX IF NOT EXISTS idx_albums_user_id ON albums(user_id)"))
 
         if "songs" in table_names and "albums" in table_names:

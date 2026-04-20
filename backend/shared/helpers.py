@@ -1241,6 +1241,57 @@ def get_song_storage_info(title: str, date: Optional[str] = None) -> Dict[str, s
     }
 
 
+def get_album_storage_info(album_name: str, album_id: Optional[int], date: Optional[str] = None) -> Dict[str, str]:
+    """Generate consistent folder and filenames for album artwork assets."""
+    if not date:
+        date = datetime.now().strftime("%Y-%m-%d")
+
+    forbidden_chars = '<>:"/\\|?*'
+    safe_name = "".join(char for char in album_name if char not in forbidden_chars).strip() or "Album"
+    album_segment = f"album-{album_id}" if album_id is not None else "album"
+    folder_name = f"{album_segment} - {safe_name}"
+    folder_path = os.path.join("images", "albums", folder_name)
+    image_base_path = os.path.join(folder_path, f"{date} - {safe_name}")
+
+    repo_root = get_repo_root()
+    abs_folder = os.path.abspath(os.path.join(repo_root, folder_path))
+    abs_image_base = os.path.abspath(os.path.join(repo_root, image_base_path))
+
+    return {
+        "folder": folder_path,
+        "image_base": image_base_path,
+        "abs_folder": abs_folder,
+        "abs_image_base": abs_image_base,
+    }
+
+
+def _resolve_generated_art_path(abs_output_base: str, filename_suffix: str = "") -> Optional[str]:
+    base_path = f"{abs_output_base}{filename_suffix}"
+    for ext in [".png", ".jpg", ".webp"]:
+        check_path = f"{base_path}{ext}"
+        if os.path.exists(check_path):
+            print(f"[DEBUG] Found actual file: {check_path}")
+            return relativize_storage_path(check_path)
+    return None
+
+
+def generate_artwork_from_prompt(prompt: str, abs_output_base: str, filename_suffix: str = "") -> Optional[str]:
+    """Generate artwork from a prepared prompt and return the repo-relative path."""
+    output_file = f"{abs_output_base}{filename_suffix}.jpg"
+    print(f"[DEBUG] output_file (initial): {output_file}")
+
+    try:
+        generate_album_art_image(prompt, output_file)
+        actual_file = _resolve_generated_art_path(abs_output_base, filename_suffix)
+        if actual_file:
+            return actual_file
+        print(f"[DEBUG] Image generation completed, checking file exists: {os.path.exists(output_file)}")
+        return relativize_storage_path(output_file) if os.path.exists(output_file) else None
+    except Exception as e:
+        print(f"Warning: Failed to generate album art: {e}")
+        return None
+
+
 def rename_song_files(old_title: str, new_title: str, date: str) -> Dict[str, str]:
     """
     Rename the song folder and files when the title changes.
@@ -1308,7 +1359,7 @@ def generate_album_art(
     vocal_gender: Optional[str] = None,
     date: Optional[str] = None,
     filename_suffix: str = "",
-) -> str:
+) -> Optional[str]:
     """Generate album artwork using integrated function with enriched prompt."""
     import os
     
@@ -1349,34 +1400,12 @@ def generate_album_art(
     # Use storage info helper for consistent paths
     storage = get_song_storage_info(title, date)
     os.makedirs(storage["abs_folder"], exist_ok=True)
-    
-    # Initial output file, format may vary based on API
-    output_file = f"{storage['abs_image_base']}{filename_suffix}.jpg"
-    print(f"[DEBUG] output_file (initial): {output_file}")
-    
-    try:
-        generate_album_art_image(artwork_prompt, output_file)
-        # The actual file might have different extension (PNG/WebP) based on API response
-        # Check for the actual file
-        base_path = f"{storage['abs_image_base']}{filename_suffix}"
-        actual_file = None
-        for ext in [".png", ".jpg", ".webp"]:
-            check_path = f"{base_path}{ext}"
-            if os.path.exists(check_path):
-                actual_file = check_path
-                print(f"[DEBUG] Found actual file: {actual_file}")
-                break
-        
-        if actual_file:
-            # Overwrite check - if we have multiple extensions, we might want to clean up others
-            # but for now we just return the actual one found.
-            return relativize_storage_path(actual_file)
-        else:
-            print(f"[DEBUG] Image generation completed, checking file exists: {os.path.exists(output_file)}")
-            return relativize_storage_path(output_file) if os.path.exists(output_file) else None
-    except Exception as e:
-        print(f"Warning: Failed to generate album art: {e}")
-        return None
+
+    return generate_artwork_from_prompt(
+        artwork_prompt,
+        storage["abs_image_base"],
+        filename_suffix=filename_suffix,
+    )
 
 
 def extract_song_details_for_art(song_path: str) -> tuple[str, str]:

@@ -194,8 +194,37 @@ export async function fetchAlbums(): Promise<Album[]> {
   return data;
 }
 
-export async function createAlbum(payload: { name: string; description?: string }): Promise<Album> {
+export async function createAlbum(payload: {
+  name: string;
+  description?: string;
+  art_prompt_direction?: string;
+}): Promise<Album> {
   const { data } = await client.post<Album>("/api/albums", payload);
+  return data;
+}
+
+export async function updateAlbum(
+  albumId: number,
+  payload: { name?: string; description?: string; art_prompt_direction?: string }
+): Promise<Album> {
+  const { data } = await client.patch<Album>(`/api/albums/${albumId}`, payload);
+  return data;
+}
+
+export async function generateAlbumCoverArt(
+  albumId: number,
+  payload: { art_prompt_direction?: string } = {}
+): Promise<Album> {
+  const { data } = await client.post<Album>(`/api/albums/${albumId}/generate-art`, payload);
+  return data;
+}
+
+export async function uploadAlbumArt(albumId: number, file: File): Promise<Album> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const { data } = await client.post<Album>(`/api/albums/${albumId}/upload-art`, formData, {
+    headers: { "Content-Type": "multipart/form-data" }
+  });
   return data;
 }
 

@@ -24,6 +24,8 @@ export type Album = {
   id: number;
   name: string;
   description?: string;
+  album_art?: string;
+  art_prompt_direction?: string;
   created_at: string;
   songs: Song[];
 };
