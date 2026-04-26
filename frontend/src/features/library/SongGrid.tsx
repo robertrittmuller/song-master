@@ -96,7 +96,7 @@ export function SongGrid({ songs = [], viewMode = "grid", maxRows, totalSongsCou
       : `${displayedSongs.length}`;
 
   const gridStyle = viewMode === "grid"
-    ? { gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))" }
+    ? { gridTemplateColumns: "repeat(auto-fill,220px)" }
     : { gridTemplateColumns: "1fr" };
 
   return (
