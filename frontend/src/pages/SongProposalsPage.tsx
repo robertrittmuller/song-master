@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Toggle } from "../components/ui/Toggle";
+import { ConfirmationModal } from "../components/ui/ConfirmationModal";
 import {
   deleteSongProposal,
   fetchSettings,
@@ -33,6 +34,7 @@ export function SongProposalsPage() {
   const [count, setCount] = useState<ProposalCount>(5);
   const [useLocal, setUseLocal] = useState(false);
   const [settingsInitialized, setSettingsInitialized] = useState(false);
+  const [confirmDeleteProposal, setConfirmDeleteProposal] = useState<SongProposal | null>(null);
 
   useEffect(() => {
     if (!settings || settingsInitialized) {
@@ -78,6 +80,17 @@ export function SongProposalsPage() {
         proposalTitle: proposal.title
       }
     });
+  };
+
+  const handleDelete = (proposal: SongProposal) => {
+    setConfirmDeleteProposal(proposal);
+  };
+
+  const confirmDelete = () => {
+    if (confirmDeleteProposal) {
+      deleteMutation.mutate(confirmDeleteProposal.id);
+      setConfirmDeleteProposal(null);
+    }
   };
 
   const errorMessage = getMutationErrorMessage(generateMutation.error);
@@ -207,7 +220,7 @@ export function SongProposalsPage() {
                       type="button"
                       variant="danger"
                       isLoading={deleteMutation.isPending && deleteMutation.variables === proposal.id}
-                      onClick={() => deleteMutation.mutate(proposal.id)}
+                      onClick={() => handleDelete(proposal)}
                     >
                       Delete
                     </Button>
@@ -254,7 +267,7 @@ export function SongProposalsPage() {
                       type="button"
                       variant="danger"
                       isLoading={deleteMutation.isPending && deleteMutation.variables === proposal.id}
-                      onClick={() => deleteMutation.mutate(proposal.id)}
+                      onClick={() => handleDelete(proposal)}
                     >
                       Delete
                     </Button>
@@ -264,6 +277,20 @@ export function SongProposalsPage() {
             )}
           </div>
         </details>
+      <ConfirmationModal
+        isOpen={confirmDeleteProposal !== null}
+        onClose={() => setConfirmDeleteProposal(null)}
+        onConfirm={confirmDelete}
+        title="Delete Proposal"
+        message={
+          confirmDeleteProposal
+            ? `Are you sure you want to delete the proposal "${confirmDeleteProposal.title}"? This action cannot be undone.`
+            : "Are you sure you want to delete this proposal? This action cannot be undone."
+        }
+        confirmText="Delete"
+        variant="danger"
+        isConfirming={deleteMutation.isPending}
+      />
       </div>
     </div>
   );
