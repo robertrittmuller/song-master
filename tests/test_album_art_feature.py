@@ -103,7 +103,7 @@ class AlbumArtFeatureTests(unittest.TestCase):
 
         with patch("backend.app.api.routes.albums.os.makedirs"), patch(
             "backend.app.api.routes.albums.generate_artwork_from_prompt",
-            return_value="images/albums/album-1-chrome-saints/2026-04-20 - Chrome Saints_art.png",
+            return_value="songs/albums/album-1-chrome-saints/2026-04-20 - Chrome Saints_art.png",
         ):
             updated = generate_album_cover_art(
                 album_id=album.id,
@@ -114,7 +114,7 @@ class AlbumArtFeatureTests(unittest.TestCase):
 
         self.assertEqual(
             updated.album_art,
-            "images/albums/album-1-chrome-saints/2026-04-20 - Chrome Saints_art.png",
+            "songs/albums/album-1-chrome-saints/2026-04-20 - Chrome Saints_art.png",
         )
         self.assertEqual(updated.art_prompt_direction, "Make it feel dangerous and elegant")
 

@@ -10,7 +10,7 @@ interface SidebarProps {
 const quickLinks = [
   { to: "/generate", label: "New Song", accent: true, icon: Plus },
   { to: "/proposals", label: "Song Proposals", icon: FileText },
-  { to: "/dashboard", label: "Library", icon: Library },
+  { to: "/", label: "Library", icon: Library },
   { to: "/settings", label: "Settings", icon: Settings }
 ];
 

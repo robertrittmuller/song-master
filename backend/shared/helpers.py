@@ -1250,7 +1250,7 @@ def get_album_storage_info(album_name: str, album_id: Optional[int], date: Optio
     safe_name = "".join(char for char in album_name if char not in forbidden_chars).strip() or "Album"
     album_segment = f"album-{album_id}" if album_id is not None else "album"
     folder_name = f"{album_segment} - {safe_name}"
-    folder_path = os.path.join("images", "albums", folder_name)
+    folder_path = os.path.join("songs", "albums", folder_name)
     image_base_path = os.path.join(folder_path, f"{date} - {safe_name}")
 
     repo_root = get_repo_root()

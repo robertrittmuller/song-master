@@ -5,7 +5,6 @@ import { AppLayout } from "./components/layout/AppLayout";
 import { useAuth } from "./features/auth/AuthProvider";
 import { DashboardPage } from "./pages/DashboardPage";
 import { GeneratePage } from "./pages/GeneratePage";
-import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SongDetailPage } from "./pages/SongDetailPage";
 import { PersonasPage } from "./pages/PersonasPage";
@@ -63,8 +62,8 @@ function ProtectedApp() {
   return (
     <AppLayout>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/dashboard" element={<Navigate to="/" replace />} />
         <Route path="/proposals" element={<SongProposalsPage />} />
         <Route path="/personas" element={<PersonasPage />} />
         <Route path="/settings" element={<SettingsPage />} />

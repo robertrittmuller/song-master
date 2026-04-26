@@ -3,10 +3,9 @@ import { useAuth } from "../../features/auth/AuthProvider";
 import { Button } from "../ui/Button";
 
 const nav = [
-  { path: "/", label: "Home" },
+  { path: "/", label: "Library" },
   { path: "/generate", label: "New Song", primary: true },
   { path: "/proposals", label: "Song Proposals" },
-  { path: "/dashboard", label: "Library" },
   { path: "/personas", label: "Personas" },
   { path: "/settings", label: "Settings" }
 ];

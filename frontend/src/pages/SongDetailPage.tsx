@@ -43,7 +43,7 @@ export function SongDetailPage() {
     mutationFn: deleteSong,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["songs"] });
-      navigate("/dashboard");
+      navigate("/");
     }
   });
 
