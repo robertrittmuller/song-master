@@ -1,4 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import type { DragEvent } from "react";
+
+import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
+
+import { copyTextToClipboard } from "../../services/clipboard";
 
 
 interface LyricSection {
@@ -24,6 +29,7 @@ const SECTION_COLORS: Record<string, string> = {
 };
 
 const NON_SUNG_LINE_PATTERN = /^\*[^*]+\*$/;
+const TITLE_LINE_PATTERN = /^(title:|song title:|##\s*song title\b)/i;
 const NON_SUNG_TAG_STYLE = {
     background: "rgba(34, 197, 94, 0.15)",
     color: "#86efac",
@@ -37,6 +43,43 @@ function isNonSungLine(line: string): boolean {
 function stripNonSungMarkers(line: string): string {
     const trimmed = line.trim();
     return trimmed.slice(1, -1).trim();
+}
+
+function isExplicitTitleLine(line: string): boolean {
+    return TITLE_LINE_PATTERN.test(line.trim());
+}
+
+function normalizeMetadataValue(value: string): string {
+    return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function dedupeMetadata(values: string[]): string[] {
+    const deduped: string[] = [];
+    const seen = new Set<string>();
+
+    values.forEach((value) => {
+        const trimmed = value.trim();
+        const normalized = normalizeMetadataValue(trimmed);
+        if (!normalized || seen.has(normalized)) {
+            return;
+        }
+        seen.add(normalized);
+        deduped.push(trimmed);
+    });
+
+    return deduped;
+}
+
+function dedupeSectionMetadata(section: LyricSection): LyricSection {
+    const tags = dedupeMetadata(section.tags);
+    const tagKeys = new Set(tags.map(normalizeMetadataValue));
+    const styles = dedupeMetadata(section.styles).filter((style) => !tagKeys.has(normalizeMetadataValue(style)));
+
+    return {
+        ...section,
+        tags,
+        styles,
+    };
 }
 
 function parseLyrics(lyrics: string): LyricSection[] {
@@ -53,10 +96,13 @@ function parseLyrics(lyrics: string): LyricSection[] {
             continue;
         }
 
-        // Skip the first non-empty line (usually the song title)
+        // Skip only explicit title markers. The backend usually stores lyrics without a title line,
+        // so the first non-empty line is often the first section header.
         if (isFirstLine) {
             isFirstLine = false;
-            continue;
+            if (isExplicitTitleLine(trimmed)) {
+                continue;
+            }
         }
 
         // Check for section headers and style tags
@@ -110,12 +156,12 @@ function parseLyrics(lyrics: string): LyricSection[] {
             // If it's a section header, start a new section
             if (sectionType) {
                 if (currentSection && (currentSection.content.trim() || currentSection.tags.length > 0 || currentSection.styles.length > 0)) {
-                    sections.push(currentSection);
+                    sections.push(dedupeSectionMetadata(currentSection));
                 }
                 currentSection = {
                     type: sectionType,
-                    tags,
-                    styles,
+                    tags: dedupeMetadata(tags),
+                    styles: dedupeMetadata(styles),
                     content: ""
                 };
 
@@ -128,8 +174,10 @@ function parseLyrics(lyrics: string): LyricSection[] {
             } else {
                 // If it's just tags/styles on a line (no explicit section name), add to current section
                 if (currentSection) {
-                    currentSection.tags.push(...tags);
-                    currentSection.styles.push(...styles);
+                    currentSection.tags = dedupeMetadata([...currentSection.tags, ...tags]);
+                    currentSection.styles = dedupeMetadata([...currentSection.styles, ...styles]).filter(
+                        (style) => !currentSection.tags.some((tag) => normalizeMetadataValue(tag) === normalizeMetadataValue(style))
+                    );
 
                     const lineContent = trimmed.replace(/\[[^\]]+\]/g, "").trim();
                     if (lineContent) {
@@ -140,8 +188,8 @@ function parseLyrics(lyrics: string): LyricSection[] {
                     // If we have tags but no section yet, start an Intro section with these tags
                     currentSection = {
                         type: "Intro",
-                        tags,
-                        styles,
+                        tags: dedupeMetadata(tags),
+                        styles: dedupeMetadata(styles),
                         content: ""
                     };
                     const lineContent = trimmed.replace(/\[[^\]]+\]/g, "").trim();
@@ -163,7 +211,9 @@ function parseLyrics(lyrics: string): LyricSection[] {
                 });
 
             if (inlineStyles.length > 0) {
-                currentSection.styles.push(...inlineStyles);
+                currentSection.styles = dedupeMetadata([...currentSection.styles, ...inlineStyles]).filter(
+                    (style) => !currentSection.tags.some((tag) => normalizeMetadataValue(tag) === normalizeMetadataValue(style))
+                );
             }
 
             // Clean content of style tags for the lyrics display
@@ -184,7 +234,7 @@ function parseLyrics(lyrics: string): LyricSection[] {
 
     // Don't forget to add the last section if it has content or tags
     if (currentSection && (currentSection.content.trim() || currentSection.tags.length > 0 || currentSection.styles.length > 0)) {
-        sections.push(currentSection);
+        sections.push(dedupeSectionMetadata(currentSection));
     }
 
     return sections;
@@ -203,7 +253,8 @@ function getSectionColor(type: string): string {
 }
 
 function buildLyricsFromSections(sections: LyricSection[]): string {
-    return sections.map(section => {
+    return sections.map((rawSection) => {
+        const section = dedupeSectionMetadata(rawSection);
         let header = `[${section.type}]`;
         const tags = [...section.tags, ...section.styles].map(t => `[${t}]`).join(" ");
         if (tags) {
@@ -219,20 +270,103 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
     const [copied, setCopied] = useState(false);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [editedContent, setEditedContent] = useState("");
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [dropIndex, setDropIndex] = useState<number | null>(null);
     const sections = useMemo(() => parseLyrics(lyrics), [lyrics]);
     const canEdit = editable && !!onDraftChange;
 
+    const updateDraftSections = (updatedSections: LyricSection[]) => {
+        if (!onDraftChange) {
+            return;
+        }
+        onDraftChange(buildLyricsFromSections(updatedSections));
+        setEditingIndex(null);
+        setEditedContent("");
+    };
+
+    const moveSection = (fromIndex: number, toIndex: number) => {
+        if (!canEdit || fromIndex < 0 || fromIndex >= sections.length) {
+            return;
+        }
+
+        const boundedToIndex = Math.max(0, Math.min(toIndex, sections.length));
+        const adjustedToIndex = fromIndex < boundedToIndex ? boundedToIndex - 1 : boundedToIndex;
+        if (fromIndex === adjustedToIndex) {
+            return;
+        }
+
+        const updatedSections = [...sections];
+        const [section] = updatedSections.splice(fromIndex, 1);
+        updatedSections.splice(adjustedToIndex, 0, section);
+        updateDraftSections(updatedSections);
+    };
+
+    const handleDragStart = (event: DragEvent<HTMLButtonElement>, index: number) => {
+        if (!canEdit) {
+            event.preventDefault();
+            return;
+        }
+
+        setDraggedIndex(index);
+        setDropIndex(index);
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", String(index));
+    };
+
+    const handleDragOver = (event: DragEvent<HTMLDivElement>, index: number) => {
+        if (draggedIndex === null) {
+            return;
+        }
+
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        const rect = event.currentTarget.getBoundingClientRect();
+        const isAfterMiddle = event.clientY > rect.top + rect.height / 2;
+        setDropIndex(isAfterMiddle ? index + 1 : index);
+    };
+
+    const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+        if (draggedIndex === null || dropIndex === null) {
+            return;
+        }
+
+        event.preventDefault();
+        moveSection(draggedIndex, dropIndex);
+        setDraggedIndex(null);
+        setDropIndex(null);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedIndex(null);
+        setDropIndex(null);
+    };
+
+    const getSectionClassName = (index: number): string => {
+        const classNames = ["glass", "lyric-section-card"];
+        if (draggedIndex === index) {
+            classNames.push("is-dragging");
+        }
+        if (dropIndex === index && draggedIndex !== index) {
+            classNames.push("is-drop-before");
+        }
+        if (dropIndex === sections.length && index === sections.length - 1 && draggedIndex !== index) {
+            classNames.push("is-drop-after");
+        }
+        return classNames.join(" ");
+    };
+
     const handleCopy = async () => {
-        // Reconstruct lyrics from sections, which already skip the title line.
+        // Reconstruct the parsed lyric sections. Explicit title lines are excluded during parsing.
         const textToCopy = sections.map(section => {
-            let header = `[${section.type}]`;
+            const dedupedSection = dedupeSectionMetadata(section);
+            let header = `[${dedupedSection.type}]`;
             if (showTags) {
-                const tags = [...section.tags, ...section.styles].map(t => `[${t}]`).join(" ");
+                const tags = [...dedupedSection.tags, ...dedupedSection.styles].map(t => `[${t}]`).join(" ");
                 if (tags) {
                     header += ` ${tags}`;
                 }
             }
-            let content = section.content;
+            let content = dedupedSection.content;
             if (!showEffectTags) {
                 const filteredLines = content.split("\n").filter(line => !isNonSungLine(line));
                 content = filteredLines.join("\n");
@@ -241,7 +375,7 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
         }).join("\n\n");
 
         try {
-            await navigator.clipboard.writeText(textToCopy);
+            await copyTextToClipboard(textToCopy);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
@@ -252,6 +386,8 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
     useEffect(() => {
         setEditingIndex(null);
         setEditedContent("");
+        setDraggedIndex(null);
+        setDropIndex(null);
     }, [lyrics]);
 
     if (sections.length === 0) {
@@ -299,13 +435,15 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
             {sections.map((section, index) => (
                 <div
                     key={index}
-                    className="glass"
+                    className={getSectionClassName(index)}
                     style={{
                         borderLeft: `4px solid transparent`,
                         borderImageSource: getSectionColor(section.type),
                         borderImageSlice: 1,
                         cursor: canEdit ? "text" : "default"
                     }}
+                    onDragOver={(event) => handleDragOver(event, index)}
+                    onDrop={handleDrop}
                     onClick={() => {
                         if (!canEdit) {
                             return;
@@ -314,18 +452,55 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
                         setEditedContent(section.content);
                     }}
                 >
-                    <div
-                        style={{
-                            backgroundImage: getSectionColor(section.type),
-                            WebkitBackgroundClip: "text",
-                            WebkitTextFillColor: "transparent",
-                            backgroundClip: "text",
-                            fontWeight: 700,
-                            fontSize: 18,
-                            marginBottom: 8
-                        }}
-                    >
-                        {section.type}
+                    <div className="lyric-section-card__header">
+                        <div
+                            style={{
+                                backgroundImage: getSectionColor(section.type),
+                                WebkitBackgroundClip: "text",
+                                WebkitTextFillColor: "transparent",
+                                backgroundClip: "text",
+                                fontWeight: 700,
+                                fontSize: 18
+                            }}
+                        >
+                            {section.type}
+                        </div>
+
+                        {canEdit && sections.length > 1 && (
+                            <div className="lyric-section-card__controls" onClick={(event) => event.stopPropagation()}>
+                                <button
+                                    type="button"
+                                    className="lyric-section-card__icon-button"
+                                    aria-label={`Move ${section.type} up`}
+                                    title="Move up"
+                                    disabled={index === 0}
+                                    onClick={() => moveSection(index, index - 1)}
+                                >
+                                    <ArrowUp size={14} />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="lyric-section-card__icon-button"
+                                    aria-label={`Move ${section.type} down`}
+                                    title="Move down"
+                                    disabled={index === sections.length - 1}
+                                    onClick={() => moveSection(index, index + 2)}
+                                >
+                                    <ArrowDown size={14} />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="lyric-section-card__drag-handle"
+                                    aria-label={`Drag ${section.type}`}
+                                    title="Drag to reorder"
+                                    draggable
+                                    onDragStart={(event) => handleDragStart(event, index)}
+                                    onDragEnd={handleDragEnd}
+                                >
+                                    <GripVertical size={16} />
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {showTags && (section.tags.length > 0 || section.styles.length > 0) && (
@@ -385,17 +560,12 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
                                     style={{ padding: "4px 10px", fontSize: 12, height: "auto", minHeight: 0 }}
                                     onClick={(event) => {
                                         event.stopPropagation();
-                                        if (!onDraftChange) {
-                                            return;
-                                        }
                                         const updatedSections = sections.map((current, currentIndex) => (
                                             currentIndex === index
                                                 ? { ...current, content: editedContent }
                                                 : current
                                         ));
-                                        onDraftChange(buildLyricsFromSections(updatedSections));
-                                        setEditingIndex(null);
-                                        setEditedContent("");
+                                        updateDraftSections(updatedSections);
                                     }}
                                 >
                                     Save Section

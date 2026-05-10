@@ -14,6 +14,8 @@ class Album(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     name = Column(String(255), nullable=False)
     description: Optional[str] = Column(Text)
+    album_art = Column(Text)
+    art_prompt_direction = Column(Text)
     settings = Column(Text)  # JSON string for album-level overrides
     is_public = Column(Boolean, default=False)
     tags = Column(Text)  # JSON array as string

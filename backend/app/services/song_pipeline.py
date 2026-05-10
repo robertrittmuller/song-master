@@ -6,28 +6,33 @@ from dotenv import load_dotenv
 from langgraph.graph import END, StateGraph
 from tqdm import tqdm
 
-from ai_functions import (
+from backend.shared.ai_functions import (
     build_prompts,
-    critique_song,
+    build_song_brief,
     draft_song,
     generate_metadata_summary,
-    preflight_song,
+    plan_song_structure,
     revise_lyrics,
-    run_parallel_reviews,
-    score_lyrics,
-    triage_preflight,
+    run_specialized_reviews,
 )
-from helpers import (
+from backend.shared.helpers import (
     SongState,
+    build_compact_style_context,
+    build_compact_tag_context,
+    build_structure_guidance,
+    contains_live_performance_terms,
     enhance_user_input,
     extract_song_details_for_art,
     extract_title,
-    remove_title_from_lyrics,
+    get_allowed_structure_names,
     generate_album_art,
     load_prompt_from_file,
     load_resources,
     parse_persona,
+    remove_title_from_lyrics,
     remove_thinking_tags,
+    sanitize_brief_for_no_live_performance,
+    sanitize_live_performance_text_block,
     save_song,
 )
 
@@ -96,25 +101,18 @@ def generate_song_pipeline(
             return remove_thinking_tags(fallback or "").strip()
         return cleaned
 
-    (
-        drafter_prompt,
-        review_prompt,
-        critic_prompt,
-        preflight_prompt,
-        revision_prompt,
-        scoring_prompt,
-        metadata_prompt,
-        preflight_triage_prompt,
-    ) = build_prompts()
+    prompts = build_prompts()
 
     persona_name = parse_persona(user_input, persona)
     resources = load_resources(persona_name)
 
     auto_select_fields = set()
+    no_live_performance = False
     if generation_config:
         raw_auto_fields = generation_config.get("auto_select_fields")
         if isinstance(raw_auto_fields, list):
             auto_select_fields = {str(field) for field in raw_auto_fields}
+        no_live_performance = bool(generation_config.get("no_live_performance", False))
 
     for field in auto_select_fields:
         if field in resources.default_params:
@@ -136,10 +134,34 @@ def generate_song_pipeline(
     if rhyme_scheme:
         resources.default_params["rhyme_scheme"] = rhyme_scheme
 
-    max_rounds = int(os.getenv("REVIEW_MAX_ROUNDS", "3"))
-    score_threshold = float(os.getenv("REVIEW_SCORE_THRESHOLD", "8.0"))
+    max_rounds = int(os.getenv("REVIEW_MAX_ROUNDS", "1"))
 
     prompt_user_input = enhance_user_input(user_input, song_name, style, vocal_gender, rhyme_scheme)
+    sanitized_style = None if (no_live_performance and contains_live_performance_terms(style)) else style
+    style_context = build_compact_style_context(
+        resources.styles,
+        prompt_user_input,
+        resources.default_params,
+        resources.persona_styles,
+        style=sanitized_style,
+    )
+    allowed_structure_names = get_allowed_structure_names(prompt_user_input)
+    tag_context = build_compact_tag_context(
+        resources.tags,
+        prompt_user_input,
+        resources.default_params,
+        resources.persona_styles,
+        style=sanitized_style,
+        allowed_structure_names=allowed_structure_names,
+    )
+    style_context = sanitize_live_performance_text_block(style_context, no_live_performance)
+    tag_context = sanitize_live_performance_text_block(tag_context, no_live_performance)
+    structure_guidance = build_structure_guidance(
+        prompt_user_input,
+        {},
+        resources.default_params,
+        allowed_structure_names,
+    )
 
     initial_state: SongState = {
         "user_input": user_input,
@@ -147,7 +169,7 @@ def generate_song_pipeline(
         "song_name": song_name,
         "persona": persona,
         "persona_name": persona_name,
-        "style": style,
+        "style": sanitized_style,
         "use_local": use_local,
         "resources": resources,
         "lyrics": "",
@@ -155,29 +177,81 @@ def generate_song_pipeline(
         "score": 0.0,
         "round": 0,
         "max_rounds": max_rounds,
-        "score_threshold": score_threshold,
-        "preflight_passed": False,
-        "preflight_issues": [],
+        "structure_plan": [],
+        "review_issues": [],
+        "suno_review_issues": [],
+        "quality_review_issues": [],
+        "needs_revision": False,
         "metadata": {},
+        "brief": {},
         "filename": None,
         "album_art": None,
+        "style_context": style_context,
+        "tag_context": tag_context,
+        "structure_guidance": structure_guidance,
         "vocal_gender": vocal_gender,
         "generate_album_art": should_generate_art,
+        "no_live_performance": no_live_performance,
     }
+
+    def brief_node(state: SongState):
+        """Generate a compact creative brief before lyric drafting starts."""
+        notify("Planning creative brief", 12)
+        brief = build_song_brief(
+            prompts["brief"],
+            state["prompt_user_input"],
+            state.get("style_context", ""),
+            state.get("tag_context", ""),
+            state["resources"].persona_styles,
+            state["resources"].default_params,
+            state["use_local"],
+        )
+        brief = sanitize_brief_for_no_live_performance(brief, state.get("no_live_performance", False))
+        notify("Creative brief ready", 18)
+        return {"brief": brief}
+
+    def structure_node(state: SongState):
+        """Select a constrained section scaffold from the creative brief."""
+        structure_guidance = build_structure_guidance(
+            state["prompt_user_input"],
+            state.get("brief", {}),
+            state["resources"].default_params,
+            get_allowed_structure_names(state["prompt_user_input"], state.get("brief", {})),
+        )
+        notify("Planning song structure", 20)
+        section_plan = plan_song_structure(
+            prompts["structure"],
+            state["prompt_user_input"],
+            state.get("brief", {}),
+            structure_guidance,
+            state.get("tag_context", ""),
+            state["resources"].default_params,
+            state["use_local"],
+        )
+        updated_brief = dict(state.get("brief", {}))
+        updated_brief["section_plan"] = section_plan
+        notify("Song structure selected", 26)
+        return {
+            "brief": updated_brief,
+            "structure_plan": section_plan,
+            "structure_guidance": structure_guidance,
+        }
 
     def draft_node(state: SongState):
         """Generate initial song draft using AI."""
-        notify("Generating initial draft", 20)
+        notify("Generating initial draft", 28)
         raw_lyrics = draft_song(
-            prompt_template=drafter_prompt,
+            prompt_template=prompts["draft"],
             enhanced_input=state["prompt_user_input"],
-            styles=state["resources"].styles,
-            tags=state["resources"].tags,
+            song_structure=state.get("structure_plan") or state.get("brief", {}).get("section_plan", []),
+            styles_context=state.get("style_context", ""),
+            tags_context=state.get("tag_context", ""),
+            brief=state.get("brief", {}),
             persona_styles=state["resources"].persona_styles,
             default_params=state["resources"].default_params,
             use_local=state["use_local"],
         )
-        notify("Draft generated", 25)
+        notify("Draft generated", 34)
 
         raw_lyrics = coerce_lyrics_output(raw_lyrics)
         if is_invalid_lyrics_output(raw_lyrics):
@@ -188,97 +262,85 @@ def generate_song_pipeline(
         clean_lyrics = remove_title_from_lyrics(raw_lyrics).strip()
         if is_invalid_lyrics_output(clean_lyrics):
             clean_lyrics = raw_lyrics
-
         return {"lyrics": clean_lyrics, "song_name": title}
 
     def review_node(state: SongState):
-        feedback = run_parallel_reviews(
-            review_prompt,
+        review_results = run_specialized_reviews(
+            {
+                "theme": prompts["review_theme"],
+                "quality": prompts["review_quality"],
+                "suno": prompts["review_suno"],
+            },
             state["lyrics"],
             state["use_local"],
             user_input=state["prompt_user_input"],
+            brief=state.get("brief", {}),
         )
-        revised_lyrics = coerce_lyrics_output(
-            revise_lyrics(
-                revision_prompt,
-                state["lyrics"],
-                feedback,
-                state["use_local"],
-                user_input=state["prompt_user_input"],
-            ),
-            fallback=state["lyrics"],
+        merged_issues = list(review_results.get("issues", []))
+
+        notify(
+            "Prompt-only review pass complete"
+            + ("" if not merged_issues else f" with {len(merged_issues)} issue(s)"),
+            42,
         )
-        score = score_lyrics(scoring_prompt, revised_lyrics, state["use_local"])
-        round_complete = state["round"] + 1
-        notify(f"Review round {round_complete} complete (score {score:.2f})", 40 + min(round_complete * 5, 10))
-        return {"lyrics": revised_lyrics, "feedback": feedback, "score": score, "round": round_complete}
+        suno_issues = [issue for issue in merged_issues if str(issue.get("review_type")) == "suno"]
+        quality_issues = [issue for issue in merged_issues if str(issue.get("review_type")) == "quality"]
+        penalty = 0.0
+        for issue in merged_issues:
+            priority = int(issue.get("priority", 1))
+            penalty += 2.5 if priority >= 3 else 1.0 if priority == 2 else 0.4
+        score = max(0.0, 10.0 - penalty)
+        needs_revision = any(int(issue.get("priority", 0)) >= 2 for issue in merged_issues)
+
+        notify(
+            "Review analysis ready"
+            + ("" if not merged_issues else f" with {len(merged_issues)} issue(s)"),
+            50 + min(state["round"] * 10, 10),
+        )
+        return {
+            "suno_review_issues": suno_issues,
+            "quality_review_issues": quality_issues,
+            "review_issues": merged_issues,
+            "feedback": str(review_results.get("feedback", "")).strip(),
+            "needs_revision": needs_revision,
+            "score": score,
+        }
 
     def review_router(state: SongState):
-        """Decide whether to continue reviewing or proceed to critic based on score and rounds."""
-        if state["score"] < state["score_threshold"] and state["round"] < state["max_rounds"]:
-            return "keep_reviewing"
-        return "go_critic"
-
-    def critic_node(state: SongState):
-        revised = coerce_lyrics_output(
-            critique_song(
-                critic_prompt,
-                revision_prompt,
-                state["lyrics"],
-                state["use_local"],
-                user_input=state["prompt_user_input"],
-            ),
-            fallback=state["lyrics"],
-        )
-        notify("Critic feedback applied", 55)
-        return {"lyrics": revised}
-
-    def preflight_node(state: SongState):
-        raw = preflight_song(
-            preflight_prompt,
-            state["lyrics"],
-            state["resources"].styles,
-            state["resources"].tags,
-            state["use_local"],
-            user_input=state["prompt_user_input"],
-            default_params=state["resources"].default_params,
-        )
-        triaged = triage_preflight(preflight_triage_prompt, raw, state["use_local"])
-        passed = bool(triaged.get("pass", False))
-        issues = triaged.get("issues", [])
-        notify("Preflight checks completed" + ("" if passed else f" with {len(issues)} issue(s) flagged"), 65)
-        return {"preflight_passed": passed, "preflight_issues": issues}
-
-    def preflight_router(state: SongState):
-        if not state["preflight_passed"] and state["round"] < state["max_rounds"]:
-            return "needs_fix"
-        return "ready_for_metadata"
+        if state.get("needs_revision") and state["round"] < state["max_rounds"]:
+            return "revise"
+        return "metadata"
 
     def targeted_revise_node(state: SongState):
-        """Revise lyrics specifically to address preflight issues."""
-        issues = state.get("preflight_issues", [])
-        feedback = "Fix these preflight issues:\n" + "\n".join(f"- {issue}" for issue in issues)
+        """Apply one tightly scoped revision pass based on the merged review issues."""
+        feedback = str(state.get("feedback", "")).strip()
+        if not feedback:
+            return {"round": state["round"] + 1}
         revised = coerce_lyrics_output(
             revise_lyrics(
-                revision_prompt,
+                prompts["revision"],
                 state["lyrics"],
                 feedback,
                 state["use_local"],
                 user_input=state["prompt_user_input"],
+                brief=state.get("brief", {}),
             ),
             fallback=state["lyrics"],
         )
-        notify("Applied targeted fixes from preflight", 50)
+        notify("Applied targeted lyric fixes", 55)
         return {"lyrics": revised, "feedback": feedback, "round": state["round"] + 1}
 
     def metadata_node(state: SongState):
         metadata = generate_metadata_summary(
-            metadata_prompt,
+            prompts["metadata"],
             state["lyrics"],
             state["prompt_user_input"],
             state["resources"].default_params,
             state["resources"].persona_styles,
             state["use_local"],
+            brief=state.get("brief", {}),
+            no_live_performance=state.get("no_live_performance", False),
+            style_catalog=state["resources"].styles,
         )
         # Merge default params into metadata to ensure they are persisted
         if isinstance(metadata, dict):
@@ -320,20 +382,20 @@ def generate_song_pipeline(
         return {"filename": filename}
 
     graph = StateGraph(SongState)
+    graph.add_node("brief", brief_node)
+    graph.add_node("structure", structure_node)
     graph.add_node("draft", draft_node)
     graph.add_node("review", review_node)
-    graph.add_node("critic", critic_node)
-    graph.add_node("preflight", preflight_node)
     graph.add_node("targeted_revise", targeted_revise_node)
     graph.add_node("metadata", metadata_node)
     graph.add_node("album_art", album_art_node)
     graph.add_node("save", save_node)
 
-    graph.set_entry_point("draft")
+    graph.set_entry_point("brief")
+    graph.add_edge("brief", "structure")
+    graph.add_edge("structure", "draft")
     graph.add_edge("draft", "review")
-    graph.add_conditional_edges("review", review_router, {"keep_reviewing": "review", "go_critic": "critic"})
-    graph.add_edge("critic", "preflight")
-    graph.add_conditional_edges("preflight", preflight_router, {"needs_fix": "targeted_revise", "ready_for_metadata": "metadata"})
+    graph.add_conditional_edges("review", review_router, {"revise": "targeted_revise", "metadata": "metadata"})
     graph.add_edge("targeted_revise", "review")
     graph.add_edge("metadata", "album_art")
     graph.add_edge("album_art", "save")

@@ -1,6 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -40,6 +40,11 @@ const SONG_PROMPT_PLACEHOLDER =
   "Describe the story, energy, perspective, references, must-include lines, or production ideas...";
 
 type GenerationMode = "simple" | "advanced";
+type GenerationLocationState = {
+  proposalPrompt?: string;
+  proposalTitle?: string;
+  proposalId?: number;
+};
 
 function normalizeOptionalText(value: string): string | undefined {
   const trimmed = value.trim();
@@ -58,6 +63,12 @@ function buildInstrumentValue(selectedInstruments: Set<string>, customInstrument
 
 export function GenerationForm() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = location.state as GenerationLocationState | null;
+  const searchParams = new URLSearchParams(location.search);
+  const initialProposalPrompt = locationState?.proposalPrompt || searchParams.get("prompt") || "";
+  const initialProposalTitle = locationState?.proposalTitle || searchParams.get("title") || "";
+  const initialProposalId = locationState?.proposalId;
   const { data: personas = [] } = useQuery({ queryKey: ["personas"], queryFn: fetchPersonas });
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: fetchSettings });
   const { data: albums = [] } = useQuery({ queryKey: ["albums"], queryFn: fetchAlbums });
@@ -67,8 +78,8 @@ export function GenerationForm() {
     queryFn: fetchStyles
   });
 
-  const [title, setTitle] = useState("");
-  const [prompt, setPrompt] = useState("");
+  const [title, setTitle] = useState(initialProposalTitle);
+  const [prompt, setPrompt] = useState(initialProposalPrompt);
   const [generationMode, setGenerationMode] = useState<GenerationMode>("simple");
   const [persona, setPersona] = useState<string | undefined>();
   const [albumId, setAlbumId] = useState<number | undefined>();
@@ -83,6 +94,7 @@ export function GenerationForm() {
   const [customInstruments, setCustomInstruments] = useState("");
   const [useLocal, setUseLocal] = useState(false);
   const [generateCoverArt, setGenerateCoverArt] = useState(false);
+  const [noLivePerformance, setNoLivePerformance] = useState(false);
   const [settingsInitialized, setSettingsInitialized] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const isAdvancedMode = generationMode === "advanced";
@@ -112,6 +124,7 @@ export function GenerationForm() {
     isAdvancedMode ? mood : undefined,
     isAdvancedMode ? vocalGender : undefined,
     isAdvancedMode ? rhymeScheme : undefined,
+    isAdvancedMode && noLivePerformance ? "no live performance" : "",
     isAdvancedMode && selectedInstrumentCount ? "instruments" : "",
     isAdvancedMode && albumId ? "album" : ""
   ].filter(Boolean).length;
@@ -193,6 +206,7 @@ export function GenerationForm() {
     mutation.mutate({
       user_prompt: prompt.trim(),
       title: title.trim(),
+      proposal_id: initialProposalId,
       persona: isAdvancedMode ? persona : undefined,
       style: normalizedStyle,
       genre: normalizedGenre,
@@ -205,8 +219,11 @@ export function GenerationForm() {
       use_local: submittedUseLocal,
       album_id: isAdvancedMode ? albumId : undefined,
       generate_album_art: submittedGenerateCoverArt,
-      generation_config: autoSelectFields.length
-        ? { auto_select_fields: autoSelectFields }
+      generation_config: autoSelectFields.length || (isAdvancedMode && noLivePerformance)
+        ? {
+            auto_select_fields: autoSelectFields.length ? autoSelectFields : undefined,
+            no_live_performance: isAdvancedMode ? noLivePerformance : undefined
+          }
         : undefined
     });
   };
@@ -312,18 +329,32 @@ export function GenerationForm() {
               </div>
 
               {isAdvancedMode && (
-                <label className={`generation-check ${useLocal ? "is-disabled" : ""}`}>
-                  <input
-                    type="checkbox"
-                    checked={generateCoverArt}
-                    onChange={(event) => setGenerateCoverArt(event.target.checked)}
-                    disabled={useLocal}
-                  />
-                  <span>
-                    <strong>Generate cover art</strong>
-                    <small>{useLocal ? "Disabled in local mode." : "Optional artwork for the finished song."}</small>
-                  </span>
-                </label>
+                <>
+                  <label className={`generation-check ${useLocal ? "is-disabled" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={generateCoverArt}
+                      onChange={(event) => setGenerateCoverArt(event.target.checked)}
+                      disabled={useLocal}
+                    />
+                    <span>
+                      <strong>Generate cover art</strong>
+                      <small>{useLocal ? "Disabled in local mode." : "Optional artwork for the finished song."}</small>
+                    </span>
+                  </label>
+
+                  <label className="generation-check">
+                    <input
+                      type="checkbox"
+                      checked={noLivePerformance}
+                      onChange={(event) => setNoLivePerformance(event.target.checked)}
+                    />
+                    <span>
+                      <strong>No Live Performance</strong>
+                      <small>Filter live-performance tags and add live cues to Suno excludes.</small>
+                    </span>
+                  </label>
+                </>
               )}
             </div>
           </div>

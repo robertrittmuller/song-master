@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 
 from backend.app.schemas import GenerationDefaults, SettingsResponse
-from helpers import get_default_song_params
+from backend.shared.helpers import get_default_song_params
 
 # Ensure .env is loaded so the API can surface real configuration values.
 load_dotenv()

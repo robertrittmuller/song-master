@@ -5,6 +5,9 @@ pydantic-settings
 python-dotenv
 sqlalchemy
 python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+email-validator
 litellm
 openai
 requests

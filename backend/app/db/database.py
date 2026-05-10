@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from backend.app.core.config import get_settings
@@ -67,4 +67,80 @@ def init_db() -> None:
     import backend.app.models  # noqa: F401 - ensures model metadata is registered
 
     Base.metadata.create_all(bind=engine)
+    _ensure_song_proposal_schema()
+    _ensure_auth_schema()
     cleanup_song_integrity()
+
+
+def _ensure_song_proposal_schema() -> None:
+    inspector = inspect(engine)
+    if "song_proposals" not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("song_proposals")}
+    with engine.begin() as connection:
+        if "status" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE song_proposals ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'open'")
+            )
+        if "accepted_at" not in existing_columns:
+            connection.execute(text("ALTER TABLE song_proposals ADD COLUMN accepted_at DATETIME"))
+        connection.execute(text("UPDATE song_proposals SET status = 'open' WHERE status IS NULL"))
+
+
+def _ensure_auth_schema() -> None:
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+
+    with engine.begin() as connection:
+        if "songs" in table_names:
+            song_columns = {column["name"] for column in inspector.get_columns("songs")}
+            if "user_id" not in song_columns:
+                connection.execute(
+                    text(
+                        "ALTER TABLE songs ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE"
+                    )
+                )
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_songs_user_id ON songs(user_id)"))
+
+        if "song_proposals" in table_names:
+            proposal_columns = {column["name"] for column in inspector.get_columns("song_proposals")}
+            if "user_id" not in proposal_columns:
+                connection.execute(
+                    text(
+                        "ALTER TABLE song_proposals ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE"
+                    )
+                )
+            connection.execute(
+                text("CREATE INDEX IF NOT EXISTS idx_song_proposals_user_id ON song_proposals(user_id)")
+            )
+
+        if "albums" in table_names:
+            album_columns = {column["name"] for column in inspector.get_columns("albums")}
+            if "album_art" not in album_columns:
+                connection.execute(text("ALTER TABLE albums ADD COLUMN album_art TEXT"))
+            if "art_prompt_direction" not in album_columns:
+                connection.execute(text("ALTER TABLE albums ADD COLUMN art_prompt_direction TEXT"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_albums_user_id ON albums(user_id)"))
+
+        if "songs" in table_names and "albums" in table_names:
+            connection.execute(
+                text(
+                    """
+                    UPDATE songs
+                    SET user_id = (
+                        SELECT albums.user_id
+                        FROM albums
+                        WHERE albums.id = songs.album_id
+                    )
+                    WHERE user_id IS NULL
+                      AND album_id IS NOT NULL
+                      AND EXISTS (
+                          SELECT 1
+                          FROM albums
+                          WHERE albums.id = songs.album_id
+                            AND albums.user_id IS NOT NULL
+                      )
+                    """
+                )
+            )

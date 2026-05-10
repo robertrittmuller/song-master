@@ -1,15 +1,98 @@
+from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, File, status, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, File, Query, status, UploadFile
 from sqlalchemy.orm import Session
 
-from backend.app.db.deps import get_db
-from backend.app.models import GenerationSession, Song, SongFile, SongVersion
-from backend.app.schemas import SongCreate, SongDetail, SongLyricsUpdate, SongRead, SongStatus, SongUpdate
+from backend.app.db.deps import get_current_user, get_db
+from backend.app.models import Album, GenerationSession, Song, SongFile, SongProposal, SongVersion, User
+from backend.app.schemas import DemoTrackStatus, SongCreate, SongDetail, SongLyricsUpdate, SongRead, SongStatus, SongUpdate
+from backend.app.services.demo_track_generator import demo_track_generation_manager
 from backend.app.services.persona_service import sync_persona_style_tags
 from backend.app.services.song_generator import generation_manager
 
 router = APIRouter(prefix="/api/songs", tags=["songs"])
+
+
+def _get_user_song(db: Session, current_user: User, song_id: int) -> Song:
+    song = db.query(Song).filter(Song.id == song_id, Song.user_id == current_user.id).first()
+    if not song:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    return song
+
+
+def _ensure_user_album(db: Session, current_user: User, album_id: Optional[int]) -> Optional[Album]:
+    if album_id is None:
+        return None
+
+    album = db.query(Album).filter(Album.id == album_id, Album.user_id == current_user.id).first()
+    if not album:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Album not found")
+    return album
+
+
+def _art_mime_type(file_path: str) -> str:
+    suffix = Path(file_path).suffix.lower()
+    if suffix == ".png":
+        return "image/png"
+    if suffix == ".webp":
+        return "image/webp"
+    return "image/jpeg"
+
+
+def _upsert_song_art_file(
+    db: Session,
+    song_id: int,
+    file_path: str,
+    is_primary: bool,
+) -> SongFile:
+    from backend.shared.helpers import resolve_storage_path
+
+    path = Path(file_path)
+    abs_path = Path(resolve_storage_path(file_path))
+    song_file = (
+        db.query(SongFile)
+        .filter(SongFile.song_id == song_id, SongFile.file_path == file_path)
+        .first()
+    )
+
+    if not song_file:
+        song_file = SongFile(
+            song_id=song_id,
+            file_type="artwork",
+            file_path=file_path,
+            file_name=path.name,
+        )
+
+    song_file.file_type = "artwork"
+    song_file.file_path = file_path
+    song_file.file_name = path.name
+    song_file.file_size = abs_path.stat().st_size if abs_path.exists() else None
+    song_file.mime_type = _art_mime_type(file_path)
+    song_file.is_primary = is_primary
+    db.add(song_file)
+    return song_file
+
+
+def _clear_primary_art_files(db: Session, song_id: int) -> None:
+    db.query(SongFile).filter(
+        SongFile.song_id == song_id,
+        SongFile.file_type == "artwork",
+    ).update({SongFile.is_primary: False})
+
+
+def _song_demo_track_status(song: Song) -> DemoTrackStatus:
+    has_demo_track = any(song_file.file_type == "demo_track" for song_file in song.files or [])
+    return DemoTrackStatus(
+        song_id=song.id,
+        progress=100 if has_demo_track else 0,
+        current_stage="Demo track ready" if has_demo_track else None,
+        status="completed" if has_demo_track else "idle",
+        estimated_seconds_remaining=None,
+        logs=[],
+        error_message=None,
+    )
 
 
 def _extract_section(markdown: str, heading: str, level: str = "##") -> str:
@@ -104,26 +187,44 @@ def _parse_song_markdown(markdown: str) -> Dict[str, Optional[str]]:
 
 
 @router.get("", response_model=List[SongRead])
-def list_songs(db: Session = Depends(get_db)) -> List[SongRead]:
-    return db.query(Song).order_by(Song.created_at.desc()).limit(50).all()
+def list_songs(
+    db: Session = Depends(get_db),
+    limit: Optional[int] = Query(default=None, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(get_current_user),
+) -> List[SongRead]:
+    songs_query = (
+        db.query(Song)
+        .filter(Song.user_id == current_user.id)
+        .order_by(Song.created_at.desc())
+        .offset(offset)
+    )
+
+    if limit is not None:
+        songs_query = songs_query.limit(limit)
+
+    return songs_query.all()
 
 
 @router.get("/{song_id}", response_model=SongDetail)
-def get_song(song_id: int, db: Session = Depends(get_db)) -> SongDetail:
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
-    return song
+def get_song(
+    song_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongDetail:
+    return _get_user_song(db, current_user, song_id)
 
 
 @router.get("/{song_id}/status", response_model=SongStatus)
-def get_song_status(song_id: int, db: Session = Depends(get_db)) -> SongStatus:
+def get_song_status(
+    song_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongStatus:
+    song = _get_user_song(db, current_user, song_id)
     cached = generation_manager.get_status(song_id)
     if cached:
         return cached
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
     return SongStatus(
         song_id=song.id,
         progress=0,
@@ -135,11 +236,26 @@ def get_song_status(song_id: int, db: Session = Depends(get_db)) -> SongStatus:
     )
 
 
+@router.get("/{song_id}/demo-track/status", response_model=DemoTrackStatus)
+def get_demo_track_status(
+    song_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DemoTrackStatus:
+    song = _get_user_song(db, current_user, song_id)
+    cached = demo_track_generation_manager.get_status(song_id)
+    if cached:
+        return cached
+    return _song_demo_track_status(song)
+
+
 @router.delete("/{song_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_song(song_id: int, db: Session = Depends(get_db)) -> None:
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+def delete_song(
+    song_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    song = _get_user_song(db, current_user, song_id)
 
     # Clean up dependent rows explicitly so SQLite dev databases do not retain
     # orphaned records if foreign key enforcement was previously disabled.
@@ -151,12 +267,29 @@ def delete_song(song_id: int, db: Session = Depends(get_db)) -> None:
 
 
 @router.post("/generate", response_model=SongDetail, status_code=status.HTTP_201_CREATED)
-async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> SongDetail:
+async def create_song(
+    payload: SongCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongDetail:
     """Persist a new song record and start an async generation task."""
     import json
 
     title = payload.title or "Untitled"
+    proposal = None
+    if payload.proposal_id is not None:
+        proposal = (
+            db.query(SongProposal)
+            .filter(SongProposal.id == payload.proposal_id, SongProposal.user_id == current_user.id)
+            .first()
+        )
+        if not proposal:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song proposal not found")
+
+    _ensure_user_album(db, current_user, payload.album_id)
+
     song = Song(
+        user_id=current_user.id,
         title=title,
         user_prompt=payload.user_prompt,
         persona=payload.persona,
@@ -168,6 +301,9 @@ async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> Son
         generation_config=json.dumps(payload.generation_config) if payload.generation_config else None,
     )
     db.add(song)
+    if proposal is not None:
+        proposal.status = "accepted"
+        proposal.accepted_at = datetime.utcnow()
     db.commit()
     db.refresh(song)
     generation_manager.start_generation(song.id, payload)
@@ -176,7 +312,9 @@ async def create_song(payload: SongCreate, db: Session = Depends(get_db)) -> Son
 
 @router.post("/import", response_model=SongDetail, status_code=status.HTTP_201_CREATED)
 async def import_song_markdown(
-    file: UploadFile = File(...), db: Session = Depends(get_db)
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SongDetail:
     """Import a song from a Song Master markdown file."""
     if not file.filename or not file.filename.lower().endswith(".md"):
@@ -198,7 +336,7 @@ async def import_song_markdown(
     clean_lyrics = parsed.get("clean_lyrics")
 
     if not clean_lyrics and lyrics:
-        from helpers import strip_style_tags
+        from backend.shared.helpers import strip_style_tags
 
         clean_lyrics = strip_style_tags(lyrics)
 
@@ -225,6 +363,7 @@ async def import_song_markdown(
         metadata["instruments"] = parsed["instruments"]
 
     song = Song(
+        user_id=current_user.id,
         title=title,
         user_prompt=user_prompt,
         lyrics=lyrics,
@@ -241,17 +380,21 @@ async def import_song_markdown(
 
 @router.patch("/{song_id}", response_model=SongDetail)
 def update_song(
-    song_id: int, payload: SongUpdate, db: Session = Depends(get_db)
+    song_id: int,
+    payload: SongUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SongDetail:
     """Update song metadata (e.g., move to an album, change persona)."""
     import json
     from datetime import datetime
 
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    song = _get_user_song(db, current_user, song_id)
 
     update_data = payload.model_dump(exclude_unset=True)
+
+    if "album_id" in update_data and update_data["album_id"] is not None:
+        _ensure_user_album(db, current_user, update_data["album_id"])
 
     # Handle title changes and rename files/folders
     if "title" in update_data and update_data["title"] != song.title:
@@ -261,7 +404,7 @@ def update_song(
                 detail="Cannot rename song while it is generating"
             )
 
-        from helpers import rename_song_files, get_song_storage_info
+        from backend.shared.helpers import rename_song_files, get_song_storage_info
         import os
         
         old_title = song.title
@@ -372,15 +515,16 @@ def update_song(
 
 @router.post("/{song_id}/lyrics", response_model=SongDetail)
 def update_song_lyrics(
-    song_id: int, payload: SongLyricsUpdate, db: Session = Depends(get_db)
+    song_id: int,
+    payload: SongLyricsUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SongDetail:
     """Update song lyrics and snapshot the previous version."""
     from sqlalchemy import func
-    from helpers import strip_style_tags
+    from backend.shared.helpers import strip_style_tags
 
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    song = _get_user_song(db, current_user, song_id)
 
     new_lyrics = payload.lyrics
     if song.lyrics and song.lyrics != new_lyrics:
@@ -407,16 +551,20 @@ def update_song_lyrics(
 
 
 @router.post("/{song_id}/regenerate-art", response_model=SongDetail)
-async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> SongDetail:
+async def regenerate_song_art(
+    song_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongDetail:
     """Trigger album art regeneration for an existing song."""
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    song = _get_user_song(db, current_user, song_id)
 
-    from helpers import extract_title, generate_album_art
+    from backend.shared.helpers import extract_title, generate_album_art
     import json
 
     title = extract_title(song.lyrics or "", song.title)
+    song_date = song.created_at.strftime("%Y-%m-%d") if song.created_at else datetime.now().strftime("%Y-%m-%d")
+    filename_suffix = f"_art_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
 
     # Extract mood from metadata_json if available
     metadata = {}
@@ -434,25 +582,61 @@ async def regenerate_song_art(song_id: int, db: Session = Depends(get_db)) -> So
         persona_name=song.persona,
         style=song.style,
         mood=mood,
-        vocal_gender=song.vocal_gender
+        vocal_gender=song.vocal_gender,
+        date=song_date,
+        filename_suffix=filename_suffix,
     )
 
     if artwork_path:
+        if song.album_art:
+            _upsert_song_art_file(db, song.id, song.album_art, is_primary=False)
+        _clear_primary_art_files(db, song.id)
         song.album_art = artwork_path
+        _upsert_song_art_file(db, song.id, artwork_path, is_primary=True)
+        db.add(song)
         db.commit()
         db.refresh(song)
 
     return song
 
 
+@router.post("/{song_id}/demo-track", response_model=DemoTrackStatus)
+async def create_demo_track(
+    song_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DemoTrackStatus:
+    """Create a demo track for an existing song via MiniMax music generation."""
+    song = _get_user_song(db, current_user, song_id)
+
+    if song.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Demo tracks can only be created for completed songs.",
+        )
+    if song.use_local:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Create Demo Track is not available for local-only songs.",
+        )
+    if not (song.clean_lyrics or song.lyrics):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Song lyrics are required before creating a demo track.",
+        )
+
+    return demo_track_generation_manager.start_generation(song.id)
+
+
 @router.post("/{song_id}/upload-art", response_model=SongDetail)
 async def upload_song_art(
-    song_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)
+    song_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SongDetail:
     """Upload a custom album art image (JPEG or PNG) for a song."""
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    song = _get_user_song(db, current_user, song_id)
 
     allowed_types = {"image/jpeg", "image/png"}
     if file.content_type not in allowed_types:
@@ -466,16 +650,16 @@ async def upload_song_art(
     if extension not in {".jpg", ".jpeg", ".png"}:
         extension = ".jpg" if file.content_type == "image/jpeg" else ".png"
 
-    from datetime import datetime
     import os
-    from helpers import get_song_storage_info
+    from backend.shared.helpers import get_song_storage_info
 
     song_date = song.created_at.strftime("%Y-%m-%d") if song.created_at else datetime.now().strftime("%Y-%m-%d")
     storage = get_song_storage_info(song.title, song_date)
     os.makedirs(storage["abs_folder"], exist_ok=True)
 
-    file_path_rel = f"{storage['image_base']}_custom{extension}"
-    file_path = f"{storage['abs_image_base']}_custom{extension}"
+    filename_suffix = f"_custom_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}"
+    file_path_rel = f"{storage['image_base']}{filename_suffix}{extension}"
+    file_path = f"{storage['abs_image_base']}{filename_suffix}{extension}"
 
     try:
         with open(file_path, "wb") as out_file:
@@ -490,7 +674,11 @@ async def upload_song_art(
             detail="Failed to save uploaded album art."
         ) from exc
 
+    if song.album_art:
+        _upsert_song_art_file(db, song.id, song.album_art, is_primary=False)
+    _clear_primary_art_files(db, song.id)
     song.album_art = file_path_rel
+    _upsert_song_art_file(db, song.id, file_path_rel, is_primary=True)
     db.add(song)
     db.commit()
     db.refresh(song)
@@ -498,11 +686,13 @@ async def upload_song_art(
 
 
 @router.post("/{song_id}/regenerate-lyrics", response_model=SongDetail)
-async def regenerate_song_lyrics(song_id: int, db: Session = Depends(get_db)) -> SongDetail:
+async def regenerate_song_lyrics(
+    song_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongDetail:
     """Trigger lyric regeneration for an existing song."""
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    song = _get_user_song(db, current_user, song_id)
 
     generation_manager.regenerate_lyrics(song_id, db)
     return song
@@ -510,12 +700,13 @@ async def regenerate_song_lyrics(song_id: int, db: Session = Depends(get_db)) ->
 
 @router.post("/{song_id}/live-feedback", response_model=SongDetail)
 async def live_listen_feedback(
-    song_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)
+    song_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SongDetail:
     """Submit an audio file for live feedback from a multimodal LLM."""
-    song = db.get(Song, song_id)
-    if not song:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Song not found")
+    song = _get_user_song(db, current_user, song_id)
 
     if song.use_local:
         raise HTTPException(status_code=400, detail="Live Listen Feedback is not available for local models.")

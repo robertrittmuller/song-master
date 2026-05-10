@@ -7,7 +7,10 @@ import { SongGrid } from "../features/library/SongGrid";
 import { fetchSongs } from "../services/api";
 
 export function LandingPage() {
-  const { data: songs = [] } = useQuery({ queryKey: ["songs"], queryFn: fetchSongs });
+  const { data: songs = [] } = useQuery({
+    queryKey: ["songs", { limit: 12 }],
+    queryFn: () => fetchSongs({ limit: 12 })
+  });
 
   return (
     <div className="stack" style={{ gap: 20 }}>

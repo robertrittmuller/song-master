@@ -8,12 +8,13 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { ConfirmationModal } from "../components/ui/ConfirmationModal";
 import { LiveProgress } from "../features/progress/LiveProgress";
+import { DemoTrackCard } from "../features/songViewer/DemoTrackCard";
 import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
 import { LyricVersionTabs } from "../features/songViewer/LyricVersionTabs";
 import { LyricDiffView } from "../features/songViewer/LyricDiffView";
-import { deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, updateSongLyrics, regenerateLyrics, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+import { API_BASE, createDemoTrack, deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, updateSongLyrics, regenerateLyrics, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
+import { copyTextToClipboard } from "../services/clipboard";
+import type { SongFile } from "../types/api";
 
 export function SongDetailPage() {
   const params = useParams();
@@ -24,7 +25,8 @@ export function SongDetailPage() {
   const { data: song, isLoading } = useQuery({
     queryKey: ["song", songId],
     queryFn: () => fetchSong(songId),
-    enabled: Number.isFinite(songId)
+    enabled: Number.isFinite(songId),
+    refetchOnMount: "always"
   });
 
   const { data: albums = [] } = useQuery({
@@ -41,7 +43,7 @@ export function SongDetailPage() {
     mutationFn: deleteSong,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["songs"] });
-      navigate("/dashboard");
+      navigate("/");
     }
   });
 
@@ -59,6 +61,13 @@ export function SongDetailPage() {
     }
   });
 
+  const createDemoTrackMutation = useMutation({
+    mutationFn: createDemoTrack,
+    onSuccess: (status) => {
+      queryClient.setQueryData(["demo-track-status", songId], status);
+    }
+  });
+
   const uploadArtMutation = useMutation({
     mutationFn: (file: File) => uploadSongArt(songId, file),
     onSuccess: () => {
@@ -73,7 +82,8 @@ export function SongDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [editedDescription, setEditedDescription] = useState("");
-  const [editedLyrics, setEditedLyrics] = useState("");
+  const [editedLyrics, setEditedLyrics] = useState<string | null>(null);
+  const [selectedArtPath, setSelectedArtPath] = useState<string | null>(null);
   const [selectedArtFileName, setSelectedArtFileName] = useState("No file selected");
   const [selectedFeedbackFileName, setSelectedFeedbackFileName] = useState("No file selected");
   const editRef = useRef<HTMLDivElement>(null);
@@ -135,6 +145,48 @@ export function SongDetailPage() {
   }, [song]);
 
   const hasAlbumArt = Boolean(song?.album_art);
+  const hasDemoTrack = Boolean(song?.files?.some((file) => file.file_type === "demo_track"));
+  const artworkHistory = useMemo<SongFile[]>(() => {
+    if (!song) {
+      return [];
+    }
+
+    const artworkByPath = new Map<string, SongFile>();
+    for (const file of song.files ?? []) {
+      if (file.file_type === "artwork" && file.file_path) {
+        artworkByPath.set(file.file_path, {
+          ...file,
+          is_primary: file.file_path === song.album_art || file.is_primary,
+        });
+      }
+    }
+
+    if (song.album_art && !artworkByPath.has(song.album_art)) {
+      const fileName = song.album_art.split("/").pop() || "album-art";
+      artworkByPath.set(song.album_art, {
+        id: -1,
+        file_type: "artwork",
+        file_path: song.album_art,
+        file_name: fileName,
+        is_primary: true,
+        created_at: song.created_at,
+      });
+    }
+
+    return Array.from(artworkByPath.values()).sort((a, b) => {
+      const aIsCurrent = a.file_path === song.album_art ? 1 : 0;
+      const bIsCurrent = b.file_path === song.album_art ? 1 : 0;
+      if (aIsCurrent !== bIsCurrent) {
+        return bIsCurrent - aIsCurrent;
+      }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [song]);
+  const selectedArtwork = artworkHistory.find((file) => file.file_path === selectedArtPath) ?? artworkHistory[0];
+
+  useEffect(() => {
+    setSelectedArtPath(song?.album_art ?? null);
+  }, [song?.album_art, songId]);
 
   useEffect(() => {
     if (song && !isEditing) {
@@ -147,11 +199,13 @@ export function SongDetailPage() {
     if (!song) {
       return;
     }
-    if (editedLyrics && editedLyrics !== (song.lyrics || "")) {
-      return;
-    }
-    setEditedLyrics(song.lyrics || "");
-  }, [song, editedLyrics]);
+    setEditedLyrics((currentLyrics) => {
+      if (currentLyrics === null || currentLyrics === (song.lyrics || "")) {
+        return song.lyrics || "";
+      }
+      return currentLyrics;
+    });
+  }, [song]);
 
   const [copiedStyles, setCopiedStyles] = useState(false);
   const [copiedExcludeStyles, setCopiedExcludeStyles] = useState(false);
@@ -172,10 +226,21 @@ export function SongDetailPage() {
 
   const [selectedVersionId, setSelectedVersionId] = useState<number | "current">("current");
   const [isDiffMode, setIsDiffMode] = useState(false);
+  const [demoTrackResponse, setDemoTrackResponse] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant: "primary" | "ai-glow" | "danger";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    variant: "primary",
+  });
 
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
-    type: "regenerate_art" | "regenerate_lyrics" | "delete_song" | "live_listen" | null;
+    type: "regenerate_art" | "regenerate_lyrics" | "delete_song" | "live_listen" | "create_demo_track" | null;
   }>({
     isOpen: false,
     type: null,
@@ -185,11 +250,12 @@ export function SongDetailPage() {
     setIsEditing(false);
     setEditedTitle("");
     setEditedDescription("");
-    setEditedLyrics("");
+    setEditedLyrics(null);
     setSelectedVersionId("current");
     setIsDiffMode(false);
     setConfirmDialog({ isOpen: false, type: null });
     setPendingLiveFeedbackFile(null);
+    setDemoTrackResponse({ isOpen: false, title: "", message: "", variant: "primary" });
   }, [songId]);
 
   const closeConfirmDialog = () => {
@@ -210,6 +276,18 @@ export function SongDetailPage() {
       if (pendingLiveFeedbackFile) {
         void submitLiveFeedback(pendingLiveFeedbackFile);
       }
+    } else if (confirmDialog.type === "create_demo_track") {
+      createDemoTrackMutation.mutate(song.id, {
+        onError: (err: any) => {
+          console.error(err);
+          setDemoTrackResponse({
+            isOpen: true,
+            title: "Create Demo Track",
+            message: err.response?.data?.detail || err.message || "Failed to start demo track generation.",
+            variant: "danger",
+          });
+        },
+      });
     }
     closeConfirmDialog();
   };
@@ -250,7 +328,7 @@ export function SongDetailPage() {
       : String(metadata.suno_styles);
 
     try {
-      await navigator.clipboard.writeText(styles);
+      await copyTextToClipboard(styles);
       setCopiedStyles(true);
       setTimeout(() => setCopiedStyles(false), 2000);
     } catch (err) {
@@ -265,7 +343,7 @@ export function SongDetailPage() {
       : String(metadata.suno_exclude_styles);
 
     try {
-      await navigator.clipboard.writeText(styles);
+      await copyTextToClipboard(styles);
       setCopiedExcludeStyles(true);
       setTimeout(() => setCopiedExcludeStyles(false), 2000);
     } catch (err) {
@@ -397,10 +475,10 @@ ${cleanLyrics}
   };
 
   const canEditLyrics = song?.status === "completed" && selectedVersionId === "current" && !isDiffMode;
-  const lyricsChanged = editedLyrics !== (song?.lyrics || "");
-  const canSaveLyrics = lyricsChanged && editedLyrics.trim().length > 0;
+  const lyricsChanged = editedLyrics !== null && editedLyrics !== (song?.lyrics || "");
+  const canSaveLyrics = lyricsChanged && (editedLyrics?.trim().length || 0) > 0;
   const hasLyricsDraft = lyricsChanged;
-  const displayLyrics = hasLyricsDraft ? editedLyrics : (song?.lyrics || "");
+  const displayLyrics = editedLyrics ?? (song?.lyrics || "");
   const viewedLyrics = useMemo(() => {
     if (!song) return "";
     if (selectedVersionId === "current") {
@@ -573,7 +651,7 @@ ${cleanLyrics}
                 <button
                   className="btn ghost"
                   style={{ padding: "4px 8px", fontSize: 12, height: "auto", minHeight: 0 }}
-                  onClick={() => updateLyricsMutation.mutate(editedLyrics)}
+                  onClick={() => updateLyricsMutation.mutate(editedLyrics || "")}
                   disabled={!canEditLyrics || !canSaveLyrics || updateLyricsMutation.isPending}
                 >
                   Save as New Version
@@ -624,7 +702,7 @@ ${cleanLyrics}
               <LyricsSectionView
                 lyrics={displayLyrics}
                 editable={canEditLyrics}
-                onDraftChange={setEditedLyrics}
+                onDraftChange={(nextLyrics) => setEditedLyrics(nextLyrics)}
               />
             ) : isDiffMode ? (
               <LyricDiffView
@@ -639,19 +717,19 @@ ${cleanLyrics}
             <Card
               title="Album Art"
               action={
-                song.album_art ? (
+                selectedArtwork ? (
                   <button
                     className="btn ghost"
                     style={{ padding: "4px 8px", fontSize: 12, height: "auto", minHeight: 0 }}
                     onClick={async () => {
-                      const imageUrl = `${API_BASE}/${song.album_art}`;
+                      const imageUrl = `${API_BASE}/${selectedArtwork.file_path}`;
                       try {
                         const response = await fetch(imageUrl);
                         const blob = await response.blob();
                         const url = window.URL.createObjectURL(blob);
                         const link = document.createElement("a");
                         link.href = url;
-                        link.download = `${song.title.replace(/\s+/g, "_")}_art.png`;
+                        link.download = selectedArtwork.file_name || `${song.title.replace(/\s+/g, "_")}_art.png`;
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
@@ -669,16 +747,42 @@ ${cleanLyrics}
                 ) : null
               }
             >
-              {song.album_art ? (
-                <img
-                  src={encodeURI(`${API_BASE}/${song.album_art}?t=${new Date().getTime()}`)}
-                  alt={`${song.title} cover art`}
-                  style={{
-                    width: "100%",
-                    borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,0.1)"
-                  }}
-                />
+              {selectedArtwork ? (
+                <>
+                  <img
+                    src={encodeURI(`${API_BASE}/${selectedArtwork.file_path}`)}
+                    alt={`${song.title} cover art`}
+                    style={{
+                      width: "100%",
+                      borderRadius: 12,
+                      border: "1px solid rgba(255,255,255,0.1)"
+                    }}
+                  />
+                  {artworkHistory.length > 1 && (
+                    <div className="art-history" aria-label="Artwork history">
+                      {artworkHistory.map((file, index) => {
+                        const isSelected = file.file_path === selectedArtwork.file_path;
+                        const isCurrent = file.file_path === song.album_art;
+                        return (
+                          <button
+                            key={file.file_path}
+                            type="button"
+                            className={`art-history__item ${isSelected ? "is-selected" : ""}`}
+                            onClick={() => setSelectedArtPath(file.file_path)}
+                            aria-pressed={isSelected}
+                            title={isCurrent ? "Current art" : `Previous art ${index}`}
+                          >
+                            <img
+                              src={encodeURI(`${API_BASE}/${file.file_path}`)}
+                              alt={isCurrent ? "Current artwork thumbnail" : `Previous artwork ${index}`}
+                            />
+                            <span>{isCurrent ? "Current" : new Date(file.created_at).toLocaleDateString()}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="glass" style={{ padding: 16, textAlign: "center", color: "var(--gray-400)" }}>
                   No album art yet.
@@ -742,6 +846,12 @@ ${cleanLyrics}
                 </button>
               </form>
             </Card>
+
+            <DemoTrackCard
+              song={song}
+              isCreating={createDemoTrackMutation.isPending}
+              onRequestCreate={() => setConfirmDialog({ isOpen: true, type: "create_demo_track" })}
+            />
 
             {!song.use_local && (
               <Card title="Live Listen Feedback">
@@ -941,18 +1051,21 @@ ${cleanLyrics}
         title={
           confirmDialog.type === "regenerate_art" ? (hasAlbumArt ? "Regenerate Album Art" : "Generate Album Art") :
           confirmDialog.type === "regenerate_lyrics" ? "Regenerate Lyrics" :
+          confirmDialog.type === "create_demo_track" ? (hasDemoTrack ? "Regenerate Demo Track" : "Create Demo Track") :
           confirmDialog.type === "live_listen" ? "Live Listen Feedback" :
           "Delete Song"
         }
         message={
           confirmDialog.type === "regenerate_art" ? `Are you sure you want to ${hasAlbumArt ? "regenerate" : "generate"} the cover art for "${song.title}"?` :
           confirmDialog.type === "regenerate_lyrics" ? `Are you sure you want to regenerate the lyrics for "${song.title}"? This will use the original request and keep the current album art.` :
+          confirmDialog.type === "create_demo_track" ? `This will send the saved lyrics and metadata for "${song.title}" to the MiniMax Music Generation API. Continue?` :
           confirmDialog.type === "live_listen" ? "This will submit the audio to an external LLM for analysis and regenerate the lyrics based on feedback. Continue?" :
           `Are you sure you want to delete "${song.title}"? This action cannot be undone.`
         }
         confirmText={
           confirmDialog.type === "delete_song" ? "Delete" :
           confirmDialog.type === "live_listen" ? "Submit" :
+          confirmDialog.type === "create_demo_track" ? (hasDemoTrack ? "Regenerate" : "Create") :
           confirmDialog.type === "regenerate_art" ? (hasAlbumArt ? "Regenerate" : "Generate") :
           "Regenerate"
         }
@@ -960,9 +1073,21 @@ ${cleanLyrics}
         isConfirming={
           confirmDialog.type === "regenerate_art" ? regenerateArtMutation.isPending :
           confirmDialog.type === "regenerate_lyrics" ? regenerateLyricsMutation.isPending :
+          confirmDialog.type === "create_demo_track" ? createDemoTrackMutation.isPending :
           confirmDialog.type === "live_listen" ? isLiveFeedbackSubmitting :
           deleteMutation.isPending
         }
+      />
+
+      <ConfirmationModal
+        isOpen={demoTrackResponse.isOpen}
+        onClose={() => setDemoTrackResponse({ isOpen: false, title: "", message: "", variant: "primary" })}
+        onConfirm={() => setDemoTrackResponse({ isOpen: false, title: "", message: "", variant: "primary" })}
+        title={demoTrackResponse.title}
+        message={demoTrackResponse.message}
+        confirmText="OK"
+        variant={demoTrackResponse.variant}
+        showCancel={false}
       />
 
       <ConfirmationModal

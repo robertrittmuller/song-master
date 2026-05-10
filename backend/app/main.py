@@ -3,9 +3,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from backend.app.api.routes import health, personas, albums, settings as settings_routes, songs, styles, instruments
+from backend.app.api.routes import (
+    albums,
+    auth,
+    backups,
+    health,
+    instruments,
+    personas,
+    settings as settings_routes,
+    song_proposals,
+    songs,
+    styles,
+)
 from backend.app.core.config import get_settings
 from backend.app.db.database import init_db
+from backend.app.services.demo_track_generator import demo_track_generation_manager
 from backend.app.websocket import progress as progress_ws
 from backend.app.services.song_generator import generation_manager
 
@@ -16,6 +28,7 @@ app = FastAPI(title=app_settings.app_name, version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=app_settings.cors_origins,
+    allow_origin_regex=app_settings.cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,11 +44,15 @@ def on_startup() -> None:
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
+    await demo_track_generation_manager.shutdown()
     await generation_manager.shutdown()
 
 
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(albums.router)
+app.include_router(backups.router)
+app.include_router(song_proposals.router)
 app.include_router(songs.router)
 app.include_router(personas.router)
 app.include_router(settings_routes.router)

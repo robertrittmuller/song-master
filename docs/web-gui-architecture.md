@@ -6,7 +6,7 @@ Song Master currently ships as a small full-stack application:
 
 - A FastAPI backend under `backend/app` exposes song, album, persona, settings, style, and progress endpoints.
 - A Vite + React TypeScript frontend under `frontend/src` consumes that API.
-- The CLI in `song_master.py` is now a thin HTTP client that submits work to the backend instead of running the LangGraph pipeline locally.
+- The CLI is installed as `song-master` and lives in `cli/song_master.py`; it is a thin HTTP client that submits work to the backend instead of running the LangGraph pipeline locally.
 - The lyric-generation pipeline itself lives in `backend/app/services/song_pipeline.py` and is shared by the backend runtime.
 
 This document describes the implementation that exists in the repository today. Future-state ideas should be documented separately so they are not confused with the shipped stack.
@@ -171,7 +171,7 @@ frontend/src/
 
 The core songwriting flow is not owned by the CLI anymore.
 
-- `song_master.py`
+- `cli/song_master.py`
   - Parses CLI flags
   - Sends `/api/songs/generate`
   - Polls `/api/songs/{id}/status`

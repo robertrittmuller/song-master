@@ -19,6 +19,8 @@ type Filter = {
   dateRange?: string;
 };
 
+const SONGS_PER_PAGE = 100;
+
 export function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<Filter>({});
@@ -28,7 +30,7 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [visibleSongsCount, setVisibleSongsCount] = useState(12);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: songs = [] } = useQuery({ queryKey: ["songs"], queryFn: fetchSongs });
   const { data: personas = [] } = useQuery({ queryKey: ["personas"], queryFn: fetchPersonas });
@@ -47,9 +49,9 @@ export function DashboardPage() {
 
   const personaNames = useMemo(() => personas.map((p) => p.name), [personas]);
 
-  // Reset visible count when filters/search/sort change
+  // Reset pagination when filters/search/sort change
   useEffect(() => {
-    setVisibleSongsCount(12);
+    setCurrentPage(1);
   }, [searchQuery, filters, sortBy]);
 
   // Filter and sort songs
@@ -98,9 +100,57 @@ export function DashboardPage() {
     return result;
   }, [songs, searchQuery, filters, sortBy]);
 
-  const visibleSongs = useMemo(() => {
-    return filteredAndSortedSongs.slice(0, visibleSongsCount);
-  }, [filteredAndSortedSongs, visibleSongsCount]);
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedSongs.length / SONGS_PER_PAGE));
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedSongs = useMemo(() => {
+    const startIndex = (currentPage - 1) * SONGS_PER_PAGE;
+    return filteredAndSortedSongs.slice(startIndex, startIndex + SONGS_PER_PAGE);
+  }, [currentPage, filteredAndSortedSongs]);
+
+  const pageStart = filteredAndSortedSongs.length === 0
+    ? 0
+    : (currentPage - 1) * SONGS_PER_PAGE + 1;
+  const pageEnd = Math.min(currentPage * SONGS_PER_PAGE, filteredAndSortedSongs.length);
+  const showPaginationControls = filteredAndSortedSongs.length > SONGS_PER_PAGE;
+
+  const paginationAction = filteredAndSortedSongs.length > 0 ? (
+    <div className="song-grid__pagination">
+      <span className="song-grid__pagination-summary">
+        {pageStart}-{pageEnd} of {filteredAndSortedSongs.length}
+      </span>
+      {showPaginationControls && (
+        <>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            disabled={currentPage === 1}
+            aria-label="Go to the previous songs page"
+          >
+            Previous
+          </Button>
+          <span className="song-grid__pagination-page">
+            Page {currentPage} / {totalPages}
+          </span>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+            disabled={currentPage === totalPages}
+            aria-label="Go to the next songs page"
+          >
+            Next
+          </Button>
+        </>
+      )}
+    </div>
+  ) : undefined;
 
   return (
     <div className="stack" style={{ gap: 20 }}>
@@ -177,17 +227,12 @@ export function DashboardPage() {
         </Card>
       ) : (
         <div className="stack" style={{ gap: 16 }}>
-          <SongGrid songs={visibleSongs} viewMode={viewMode} />
-
-          {filteredAndSortedSongs.length > visibleSongsCount && (
-            <Button
-              variant="secondary"
-              style={{ alignSelf: "center", minWidth: 200 }}
-              onClick={() => setVisibleSongsCount(prev => prev + 12)}
-            >
-              More Songs ({filteredAndSortedSongs.length - visibleSongsCount} remaining)
-            </Button>
-          )}
+          <SongGrid
+            songs={paginatedSongs}
+            viewMode={viewMode}
+            totalSongsCount={filteredAndSortedSongs.length}
+            headerAction={paginationAction}
+          />
         </div>
       )}
     </div>

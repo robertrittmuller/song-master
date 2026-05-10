@@ -8,6 +8,7 @@ from pydantic.config import ConfigDict
 class SongCreate(BaseModel):
     user_prompt: str = Field(..., description="The song description or request")
     title: str = Field(..., description="The custom title for the song")
+    proposal_id: Optional[int] = Field(default=None, description="Associated song proposal ID")
     persona: Optional[str] = Field(default=None, description="Persona slug or name")
     vocal_gender: Optional[str] = Field(default=None, description="Vocal gender (Male, Female, Duet)")
     style: Optional[str] = Field(default=None, description="Core style for the song")
@@ -48,7 +49,10 @@ class SongRead(BaseModel):
     persona: Optional[str]
     use_local: bool
     created_at: datetime
+    user_prompt: str
+    album_id: Optional[int] = None
     album_art: Optional[str] = None
+    error_message: Optional[str] = None
 
 
 class SongVersionRead(BaseModel):
@@ -57,6 +61,19 @@ class SongVersionRead(BaseModel):
     id: int
     version_number: int
     lyrics: str
+    created_at: datetime
+
+
+class SongFileRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    file_type: str
+    file_path: str
+    file_name: str
+    file_size: Optional[int] = None
+    mime_type: Optional[str] = None
+    is_primary: Optional[bool] = False
     created_at: datetime
 
 
@@ -74,6 +91,7 @@ class SongDetail(SongRead):
     error_message: Optional[str] = None
     live_feedback: Optional[str] = None
     versions: List[SongVersionRead] = []
+    files: List[SongFileRead] = []
 
 
 class GenerationLog(BaseModel):
@@ -82,6 +100,16 @@ class GenerationLog(BaseModel):
 
 
 class SongStatus(BaseModel):
+    song_id: int
+    progress: int
+    current_stage: Optional[str]
+    status: str
+    estimated_seconds_remaining: Optional[int] = None
+    logs: List[GenerationLog] = Field(default_factory=list)
+    error_message: Optional[str] = None
+
+
+class DemoTrackStatus(BaseModel):
     song_id: int
     progress: int
     current_stage: Optional[str]
