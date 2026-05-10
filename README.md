@@ -1,577 +1,307 @@
 ![Header Image](images/header.jpg)
+
 # Song Master
 
-A powerful (yet easy to use) script for generating song lyrics using AI models, specifically designed for creating Suno AI-compatible songs with custom styles, metadata, and structured formatting.
+Song Master is a container-first full-stack app for generating and managing AI-assisted, Suno-compatible songs. The current app is built around a FastAPI backend, a Vite + React TypeScript frontend, SQLite persistence, authenticated user workspaces, and a LangGraph-backed songwriting pipeline.
 
-## Overview
+The web UI is now the primary product experience. The CLI still exists as a thin helper client in `cli/song_master.py`, but generation work is owned by the backend.
 
-Song Master is a Python script that leverages AI models (both local and OpenRouter) to generate complete song lyrics with proper formatting, style tags, and metadata for Suno AI. It includes pre-flight checks, song drafting, and review processes to ensure high-quality output.
+## Current Capabilities
 
-## Web GUI (FastAPI + React)
+- **Authenticated workspace**: Sign up or log in through the React app. API resources are bearer-token/JWT protected and scoped to the current user.
+- **Song generation**: Generate songs from a prompt with persona, style, genre, tempo, key, instruments, mood, vocal, rhyme, and cover-art controls.
+- **Song proposals**: Generate structured song ideas first, then promote a proposal into the generation workflow.
+- **Live progress**: Track generation through HTTP status polling and authenticated WebSocket updates.
+- **Library management**: Browse songs and albums with search, filters, sorting, grid/list views, imports, and detail pages.
+- **Lyrics workflow**: Edit lyrics, keep version history, compare versions, regenerate lyrics, and view clean lyrics without style tags.
+- **Artwork workflow**: Generate, regenerate, upload, and track song or album artwork.
+- **Demo tracks**: Create MiniMax-backed MP3 demo tracks from completed remote-generation songs.
+- **Live Listen feedback**: Upload an MP3 for AI feedback and lyric revision.
+- **Backup/restore**: Export and restore account-owned songs, albums, proposals, lyric history, settings, and files.
+- **Persona management**: Create, edit, delete, and apply markdown-backed personas.
 
-An initial web experience now lives alongside the CLI. The backend is a FastAPI app that mirrors the CLI pipeline, and the frontend is a Vite + React TypeScript UI shaped by the wireframes in `docs/`.
+## Stack
 
-Quick start:
-- Backend: `uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000`
-- Frontend: `cd frontend && npm install && npm run dev` (the default client now targets the current browser hostname on port `8000`; set `VITE_API_BASE` only if you need a different API origin)
-- API docs: `http://localhost:8000/docs`
-- CLI generation now delegates to the backend API, so start the FastAPI server first (set `SONG_MASTER_API_BASE` in `.env` or pass `--api-base` to override).
+- **Backend**: FastAPI, SQLAlchemy, SQLite, Pydantic settings, in-process background generation tasks
+- **Frontend**: React 18, TypeScript, Vite, React Router, TanStack React Query, Axios
+- **Realtime**: WebSocket endpoint at `/ws/songs/{song_id}/progress`
+- **Storage**: SQLite in `backend/data/song_master.db`, generated files under `songs/` and `images/`
+- **Local orchestration**: Docker Compose
 
-Data is stored in `backend/data/song_master.db`. Personas/styles are read from the existing repo assets so the web app matches the CLI outputs.
+## Quick Start
 
-### New Web GUI Features
+Use Docker Compose for local development. The repo is intended to run as containers rather than through a host Python virtualenv or host npm install.
 
-The web UI now mirrors the CLI pipeline with richer editing, library management, and AI feedback tools:
+1. Clone and enter the repo:
 
-<table>
-  <tr>
-    <th>Song Generation</th>
-    <th>Dashboard + Library</th>
-  </tr>
-  <tr>
-    <td valign="top">
-      <img src="images/screencap02.jpg" alt="Generate" />
-    </td>
-    <td valign="top">
-      <img src="images/screencap03.jpg" alt="Library" />
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <p>Build a new song with persona selection, cover-art toggles, and detailed musical controls for tempo, key, mood, and instruments.</p>
-    </td>
-    <td valign="top">
-      <p>Browse albums and songs with search, filters, and grid/list views. Import existing markdown and jump back into the workflow fast.</p>
-    </td>
-  </tr>
-  <tr>
-    <th>Song Detail + Live Listen</th>
-    <th>Expanded Song Detail</th>
-  </tr>
-  <tr>
-    <td valign="top">
-      <img src="images/screencap01.jpg" alt="Song Detail" />
-    </td>
-    <td valign="top">
-      <img src="images/screencap04.jpg" alt="Song Detail Expanded" />
-    </td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <p>Edit titles and descriptions inline, manage lyrics and versions, upload or regenerate album art, and submit MP3s for "Live Listen" feedback.</p>
-    </td>
-    <td valign="top">
-      <p>Deep lyric navigation with section highlights, metadata chips, live feedback history, and album art previews.</p>
-    </td>
-  </tr>
-</table>
-
-**Key GUI Highlights:**
-- **Editable Song Detail**: Inline title/description updates, lyric versioning, and diff views
-- **Library Management**: Album grouping, search, filters, and grid/list toggles
-- **Persona Workflow**: Manage personas and apply them during generation
-- **Create Demo Track**: Generate a MiniMax-backed MP3 demo track directly from a completed song
-- **Live Listen Feedback**: Upload MP3s for AI feedback and lyric refresh
-- **Album Art Controls**: Regenerate, upload, and download cover art assets
-
-## Table of Contents
-
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-  - [Basic Usage](#basic-usage)
-  - [With Local Model](#with-local-model)
-  - [With Prompt File](#with-prompt-file)
-  - [With Custom Song Name](#with-custom-song-name)
-  - [With Persona](#with-persona)
-  - [Regenerate Cover Art](#regenerate-cover-art)
-  - [Command Line Options](#command-line-options)
-- [Examples](#examples)
-  - [Example Input](#example-input)
-  - [Local Model Output](#local-model-output)
-  - [OpenRouter Model Output](#openrouter-model-output)
-  - [Cover Art Output](#cover-art-output)
-  - [Key Differences Between Models](#key-differences-between-models)
-- [Configuration](#configuration)
-  - [Environment Variables](#environment-variables)
-  - [Custom Styles](#custom-styles)
-- [Technical Deep Dive: Agentic Songwriting Flow](#technical-deep-dive-agentic-songwriting-flow)
-- [Album Structure](#album-structure)
-- [Contributing](#contributing)
-- [License](#license)
-- [Support](#support)
-
-## Features
-
-- **Dual AI Support**: Works with both local AI models and OpenRouter API
-- **Structured Output**: Generates Suno AI-compatible format with styles, metadata, and lyrics
-- **Pre-flight Checks**: Validates prompts and suggests improvements before generation
-- **Custom Styles**: Supports custom style definitions and tagging
-- **Metadata Generation**: Automatically generates emotional arc, target audience, and commercial potential data
-- **Review Process**: Built-in song review and refinement capabilities
-
-## Installation
-
-### Option 1: Docker Compose (Recommended)
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/your-username/song-master.git
+git clone https://github.com/robertrittmuller/song-master.git
 cd song-master
 ```
 
-2. Set up environment variables:
+2. Create your environment file:
+
 ```bash
 cp .env.example .env
-# Edit .env with your API keys and configuration
 ```
 
-3. Start all services with Docker Compose:
-```bash
-docker-compose up
-```
+Edit `.env` with the API keys and defaults you need. At minimum, remote song generation needs an OpenRouter/LiteLLM-compatible key. Demo-track creation needs MiniMax credentials.
 
-4. Access the application:
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:8000
-   - API Documentation: http://localhost:8000/docs
-
-### Option 2: Local Development
-
-1. Clone the repository:
-```bash
-git clone https://github.com/your-username/song-master.git
-cd song-master
-```
-
-2. Install Python dependencies:
-```bash
-pip install -r requirements.txt
-pip install -e .
-```
-
-3. Install frontend dependencies:
-```bash
-cd frontend && npm install
-```
-
-4. Set up environment variables:
-```bash
-cp .env.example .env
-# Edit .env with your API keys and configuration
-```
-
-5. Start the backend:
-```bash
-uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-6. Start the frontend (in a new terminal):
-```bash
-cd frontend && npm run dev
-```
-
-## Usage
-
-### Basic Usage
+3. Start the stack:
 
 ```bash
-song-master "Your song prompt here"
+docker compose up --build
 ```
 
-### With Local Model
+If your environment uses the older Compose binary:
 
 ```bash
-song-master "Your song prompt here" --local
+docker-compose up --build
 ```
 
-### With Prompt File
+4. Open the app:
+
+- Frontend: <http://localhost:5173>
+- Backend API: <http://localhost:8000>
+- API docs: <http://localhost:8000/docs>
+- Health endpoint: <http://localhost:8000/healthz>
+
+The first browser visit should go to signup/login. After signup, the frontend stores the bearer token in local storage and attaches it to API and WebSocket requests.
+
+## Common Development Commands
+
+Run these from the repo root.
 
 ```bash
-song-master --prompt-file path/to/prompt.txt
+# Start containers
+docker compose up
+
+# Rebuild images
+docker compose build
+
+# Install frontend dependencies inside the frontend container
+docker compose exec frontend npm install
+
+# Build the frontend inside the frontend container
+docker compose exec frontend npm run build
+
+# Run backend unit tests inside the backend container
+docker compose exec backend python -m unittest discover tests
+
+# Check backend logs
+docker compose logs backend
+
+# Check frontend logs
+docker compose logs frontend
 ```
 
-### With Custom Song Name
-
-```bash
-song-master "Your song prompt here" --name "My Song Title"
-```
-
-### With Persona
-
-```bash
-song-master "Your song prompt here" --persona "antidote"
-```
-
-### Regenerate Cover Art
-
-```bash
-song-master --regen-cover path/to/song.md
-```
-
-### Command Line Options
-
-- `prompt`: The song description or request (optional if using --prompt-file)
-- `--prompt-file`: Path to a .txt file containing the song description
-- `--local`: Use local LM Studio LLM and disable image generation
-- `--name`: Optional song name/title
-- `--persona`: Specify persona by name or path to persona .md file
-- `--regen-cover`: Path to existing song file to regenerate album art
-
-## Examples
-
-### Example Input
-
-The following input was used to generate the example outputs:
-
-```
-Generate some lyrics for a song that's all about testing ideas. Make it in the style of an 80s hair band and give it a thumping beat.
-```
-
-### Local Model Output
-
-The local model generates a more narrative-focused song with detailed storytelling:
-
-**Audio Sample:**
-
-[![Listen on Suno](https://img.shields.io/badge/Listen%20on-Suno-blue?logo=music)](https://suno.com/song/8499a320-90b9-45ac-8b42-9a33816943a7)
-
-```markdown
-## Testing Ideas
-### A powerful 80s hair metal anthem about confronting inner doubts and boldly testing personal truths, driven by explosive guitar riffs, pounding drums, and a soaring, anthemic chorus. The song blends raw emotional intensity with glam rock swagger and stadium-ready energy.
-
-## Suno Styles
-80s hair metal, glam rock, arena rock, explosive guitar riffs, pounding drums, anthemic, party anthem, high-energy, melodic hooks, gang vocals, power ballad dynamics, rock and roll lifestyle, catchy chorus, guitar solo, festive, passionate, raw energy, stadium rock, glam metal swagger, Spatial Audio, Dolby Atmos mix, high-fidelity
-
-## Suno Exclude-styles
-melodic hooks, catchy chorus
-
-## Additional Metadata
-- **Emotional Arc**: happy
-- **Target Audience**: Fans of classic 80s rock, arena rock enthusiasts, and listeners who enjoy high-energy, emotionally charged performances with a nostalgic edge.
-- **Commercial Potential**: High — ideal for rock radio, sports events, and nostalgic playlists, with strong potential as a viral anthem for self-empowerment and personal breakthrough.
-- **Technical Notes**: BPM: 120, Key: C, Instruments: guitar,bass,drums
-- **User Prompt**: Generate some lyrics for a song that's all about testing ideas. Make it in the style of an 80s hair band and give it a thumping beat.
-
-### Song Lyrics:
-## Testing Ideas
-
-[Verse 1]  
-Cracked coffee cup on the kitchen sink,  
-Steam still rising—water's been cold for hours.  
-A letter folded twice in my coat pocket—  
-The name I wrote, then erased, then rewrote.  
-Saw it in the subway light,  
-A face I still see in every mirror.  
-No map, no proof—just the weight of a word  
-I've carried since the night you left.
-
-[Pre-Chorus]  
-I don't need a name,  
-I don't need a stage—  
-The silence broke, and my voice found its way.  
-Got the wound, got the truth,  
-Gonna say it now—no more running.
-
-[Chorus]  
-Feel the rush, feel the rise—  
-No fear, no lie—just the truth that won't stay quiet.  
-One breath, and the air went still—  
-The world held its breath, and I heard my own name.  
-Yeah, I'm testin' ideas,  
-Gonna break the mold, gonna make it real—  
-One word, and the silence breaks.
-
-[Verse 2]  
-Wired for waiting, built for the pause,  
-Got a line I've written, and I'm gonna say it.  
-From the train's cold hum to the stair's worn wood,  
-From the silence to the breath I've been afraid to say.  
-I don't care if it's right or wrong—  
-If it breaks, it's already strong.  
-Got a rhythm in my throat,  
-A truth I've been afraid to speak—  
-And I've been told I'm too soft to be heard.
-
-[Pre-Chorus]  
-I don't need a plan,  
-I don't need a plan—  
-The silence broke, and my voice found its way.  
-Got the fire, got the drive,  
-Gonna light it up, gonna give it life.
-
-[Chorus]  
-Feel the rush, feel the rise—  
-No fear, no lie—just the truth that won't stay quiet.  
-One breath, and the air went still—  
-The world held its breath, and I heard my own name.  
-Yeah, I'm testin' ideas,  
-Gonna break the mold, gonna make it real—  
-One word, and the silence breaks.
-
-[Bridge]  
-No second guess, no time to wait—  
-The world's a cup, and I'm the hand that holds it.  
-I don't need a name, I don't need a crown—  
-Just the word I've been afraid to say.
-
-[Guitar Solo — bendy, bluesy, soaring over pounding drums]  
-[Big Finish]  
-[Explosive Riff]  
-[Choir]  
-[Male Vocal]  
-[Chorus — Gang Vocals, Anthemic, Full Band]  
-Feel the rush, feel the rise—  
-No fear, no lie—just the truth that won't stay quiet.  
-One breath, and the air went still—  
-The world held its breath, and I heard my own name.  
-Yeah, I'm testin' ideas,  
-Gonna break the mold, gonna make it real—  
-One word, and the silence breaks.
-
-[Outro]  
-[Fade Out and End]  
-[End]  
-[Big Finish]  
-[Powerful Outro]  
-[Fading, layered, triumphant]
-```
-
-### OpenRouter Model Output
-
-The OpenRouter model generates a more energetic, performance-focused song with explicit style tags:
-
-**Audio Sample:** 
-
-[![Listen on Suno](https://img.shields.io/badge/Listen%20on-Suno-blue?logo=music)](https://suno.com/song/c1c907b3-c84a-439b-b68b-f8dc0336263d)
-
-```markdown
-## Testing Ideas
-### High‑energy 80s hair‑metal anthem about bold creativity and pushing ideas into the spotlight with swagger and arena‑rock power.
-
-## Suno Styles
-80s hair metal, glam rock, arena rock, anthemic, high-energy, glam metal, party anthem, explosive guitar riffs, pounding drums, melodic hooks, gang vocals, power ballad dynamics, rock and roll lifestyle, catchy chorus, guitar solo, festive, passionate, raw energy, stadium rock, glam metal swagger, Spatial Audio, Dolby Atmos mix, high-fidelity
-
-## Suno Exclude-styles
-None
-
-## Additional Metadata
-- **Emotional Arc**: happy
-- **Target Audience**: Fans of 80s rock, glam metal, and energetic stadium‑style anthems.
-- **Commercial Potential**: Strong potential for nostalgia‑driven rock playlists and high‑energy promotional use.
-- **Technical Notes**: BPM: 120, Key: C, Instruments: guitar,bass,drums
-- **User Prompt**: Generate some lyrics for a song that's all about testing ideas. Make it in the style of an 80s hair band and give it a thumping beat.
-
-### Song Lyrics:
-## Testing Ideas
-
-[Intro] [style: 80s hair metal, glam rock, arena rock, party anthem, high-energy]  
-Lights rise, crowds surge, hearts rumble through the night  
-We cut the neon haze, break open the sky's white  
-
-[Verse 1] [style: 80s hair metal]  
-Got a wild plan ridin' on the restless air  
-Clear visions sparkin' as the brave ones dare  
-Chasin' echoes down a half‑lit road  
-Every bold impulse primed to overload  
-
-[Pre-chorus] [style: glam rock]  
-Turn it up, turn it up, feel the pull draw near  
-Unchained heartbeats roarin' loud and clear  
-
-[Chorus] [style: arena rock, anthemic]  
-We're breakin' the silence, makin' truth reveal  
-Pushin' the edge till the moment feels real  
-Cut through the doubt, shake off the old fear  
-Lift your voice high — we're breakin' the silence  
-
-[Verse 2] [style: hair metal swagger]  
-Got a live spark rollin' through the riff  
-A shockwave risin' with a skyline lift  
-Every wrong turn feeds fire to our mark  
-We carve our path with voices cuttin' the dark  
-
-[Pre-chorus] [style: glam metal]  
-Turn it up, turn it up, let the weight fall free  
-Every strike we throw's a raw victory  
-
-[Chorus] [style: arena rock, anthemic]  
-We're breakin' the silence, makin' truth reveal  
-Pushin' the edge till the moment feels real  
-Cut through the doubt, shake off the old fear  
-Lift your voice high — we're breakin' the silence  
-
-[Guitar Solo — wild, bend-heavy, high-energy]
-
-[Bridge] [style: power ballad dynamics]  
-When the world says "stop," we just shout back "go!"  
-Every spark hits harder, drivin' through the low  
-Hold tight to the madness, feel the quake come down  
-We light the whole sky up every time we stand our ground  
-
-[Chorus] [style: arena rock + gang vocals]  
-We're breakin' the silence, makin' truth reveal  
-Pushin' the edge till the moment feels real  
-Cut through the doubt, shake off the old fear  
-Lift your voice high — we're breakin' the silence  
-
-[Big Finish]  
-Breakin' the silence — keep shoutin' through the years!
-```
-
-## Key Differences Between Models
-
-| Aspect | Local Model (Qwen3 30B A3B 2507) | OpenRouter Model (GPT-5.1 CHAT) |
-|--------|-------------|------------------|
-| **Style** | More narrative and emotional | More energetic and performance-focused |
-| **Structure** | Traditional verse-chorus structure | Explicit style tags per section |
-| **Content** | Storytelling with personal elements | Direct and energetic messaging |
-| **Formatting** | Standard formatting | Detailed style annotations |
-| **Exclude Styles** | Specific exclusions (melodic hooks, catchy chorus) | No exclusions |
-
-### Cover Art Output
-
-The script also generates cover art for the songs using Nano Banana on OpenRouter. Here's an example of the cover art created for the "Testing Ideas" song:
-
-![Testing Ideas Cover Art](examples/openrouter/Testing_Ideas_cover.jpg)
-
+`frontend/package.json` currently has a placeholder `lint` script and no real test script.
 
 ## Configuration
 
-### Environment Variables
-
-Create a `.env` file with the following variables:
+The template lives in `.env.example`. Important settings include:
 
 ```env
-# OpenRouter API Key (optional, for OpenRouter provider)
-OPENROUTER_API_KEY=your_api_key_here
-
-# LiteLLM Configuration (preferred for remote usage)
+# Remote LLM / OpenRouter-compatible usage
+OPENROUTER_API_KEY=your_openrouter_api_key_here
 LITELLM_MODEL=openrouter/openai/gpt-5.1-chat
-LITELLM_API_KEY=your_api_key_here
+LITELLM_API_KEY=${OPENROUTER_API_KEY}
 LITELLM_API_BASE=https://openrouter.ai/api/v1
+LITELLM_MULTIMODAL_MODEL=openrouter/google/gemini-3-flash-preview
+LITELLM_IMAGE_MODEL=google/gemini-3-pro-image-preview
 
-# MiniMax Music Generation (required for Create Demo Track)
-# These values belong in the root .env file.
+# MiniMax demo-track generation
 MINIMAX_API_KEY=your_minimax_api_key_here
 MINIMAX_MUSIC_MODEL=music-2.6
 MINIMAX_API_BASE=https://api.minimax.io/v1
 MINIMAX_REQUEST_TIMEOUT=180
 
-# Local Model Configuration (LM Studio)
-LMSTUDIO_API_KEY=lm-studio
+# LM Studio local mode
+LMSTUDIO_API_KEY=
 LMSTUDIO_BASE_URL=http://localhost:1234/v1
-LMSTUDIO_LLM_MODEL=your_model_name
+LMSTUDIO_LLM_MODEL=qwen/qwen3-30b-a3b-2507
 
-# Generation Settings
-LLM_MAX_TOKENS=4096
+# Generation defaults
+LLM_MAX_TOKENS=8192
 LLM_TEMPERATURE=0.7
+REVIEW_MAX_ROUNDS=3
+DEFAULT_SONG_GENRE=rock
+DEFAULT_PERSONA=None
+DEFAULT_TEMPO=120
+DEFAULT_KEY=C
+DEFAULT_INSTRUMENTS=guitar,bass,drums
+DEFAULT_MOOD=happy
 
-# API base for CLI/HTTP clients (FastAPI)
+# App and auth
 SONG_MASTER_API_BASE=http://localhost:8000
+SECRET_KEY=replace_with_a_long_random_secret
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
 ```
 
-### Custom Styles
+Settings exposed to the frontend are read-only and assembled server-side from environment/default values.
 
-Edit `styles/styles.json` to add custom style definitions:
+## Web App Workflow
 
-```json
-{
-  "custom_styles": {
-    "your_style": {
-      "description": "Description of your style",
-      "tags": ["tag1", "tag2", "tag3"],
-      "exclude_tags": ["exclude1"]
-    }
-  }
-}
+1. Sign up or log in.
+2. Optionally create personas or generate song proposals.
+3. Generate a song from `/generate`.
+4. Watch progress on the generation screen.
+5. Review the completed song detail page.
+6. Edit lyrics, compare versions, regenerate lyrics/art, upload custom art, or create a demo track.
+7. Use Settings to download or restore a ZIP backup of account-owned content.
+
+## CLI
+
+The package exposes a `song-master` console script through `pyproject.toml`.
+
+```bash
+song-master "Your song prompt here"
+song-master --prompt-file path/to/prompt.txt
+song-master "Your song prompt here" --name "My Song Title"
+song-master "Your song prompt here" --persona "antidote"
+song-master "Your song prompt here" --local
+song-master --regen-cover path/to/song.md
 ```
 
-## Technical Deep Dive: Agentic Songwriting Flow
-The agentic process implemented via LangGraph still powers Song Master, but the ownership boundary has changed. The CLI is now a thin client that submits work to the FastAPI backend; the backend owns the real generation lifecycle and persists progress, lyrics, metadata, and assets for both the web UI and CLI callers.
+Current backend song routes require bearer auth. The browser handles that flow automatically; the CLI does not yet provide an interactive login/token flow. Use the web UI for normal generation, or use the CLI only in environments where API authentication has already been handled. `--regen-cover` remains a local helper for regenerating album art from an existing markdown file.
 
-- **CLI client (`cli/song_master.py`)**: Installed as the `song-master` console script, it parses prompt/name/persona/local flags, calls `/api/songs/generate`, polls `/api/songs/{id}/status`, fetches the final record, and optionally saves a local markdown copy for convenience.
+Useful CLI options:
 
-- **Backend task manager (`backend/app/services/song_generator.py`)**: Creates the initial song row, starts an in-process background task, caches progress updates, and writes final results back to the database and filesystem.
+- `prompt`: Song description or request, optional when using `--prompt-file`
+- `--prompt-file`: Path to a `.txt` file containing the prompt
+- `--local`: Use local LM Studio generation mode and skip image generation
+- `--name`: Optional song title
+- `--persona`: Persona name or path to a persona markdown file
+- `--regen-cover`: Regenerate art for an existing song markdown file and exit
+- `--api-base`: Override `SONG_MASTER_API_BASE`
+- `--poll-interval`: Seconds between generation status polls
 
-- **Pipeline orchestration (`backend/app/services/song_pipeline.py`)**: A LangGraph `StateGraph` wires together the agentic steps and keeps shared state (lyrics, score, metadata, persona, resources, and round counters).
+## API Surface
 
-- **Resource loading (`helpers.load_resources`)**: Styles from `styles/styles.json`, tag snippets in `tags/*.txt`, persona-specific style tokens from `personas/*.md`, and baseline song params (genre/tempo/key/instruments/mood). Persona style tokens get re-used later to bias metadata and tags.
+Most application routes require `Authorization: Bearer <token>` from `/api/auth/signup` or `/api/auth/login`.
 
-- **Prompt assembly (`ai_functions.build_prompts`)**: The brief/structure/drafter/reviewer/revision/metadata prompts are built once, with the styles/tags/persona tokens inlined so every call has the same grounding data.
+```text
+GET  /healthz
 
-- **Planning + drafting (`brief_node` → `structure_node` → `draft_node`)**: The backend first asks the model for a creative brief, then a locked section plan, then the lyric draft itself. The drafter follows the structure returned by the planner directly instead of a deterministic blueprint or repair pass.
+POST /api/auth/signup
+POST /api/auth/login
+GET  /api/auth/me
+POST /api/auth/change-password
 
-- **Prompt-only review loop (`review_node` → `targeted_revise_node`)**: Theme, quality, and Suno-format reviewers run in parallel threads, their issues are merged into one edit plan, and `revise_lyrics` applies that plan. The graph loops until no meaningful issues remain or `REVIEW_MAX_ROUNDS` is exhausted.
+GET  /api/songs
+POST /api/songs/generate
+POST /api/songs/import
+GET  /api/songs/{id}
+GET  /api/songs/{id}/status
+PATCH /api/songs/{id}
+POST /api/songs/{id}/lyrics
+POST /api/songs/{id}/regenerate-art
+POST /api/songs/{id}/upload-art
+POST /api/songs/{id}/regenerate-lyrics
+POST /api/songs/{id}/demo-track
+GET  /api/songs/{id}/demo-track/status
+POST /api/songs/{id}/live-feedback
+DELETE /api/songs/{id}
 
-- **Metadata + cover art (`metadata_node` → `album_art_node`)**: The metadata agent emits JSON (description, Suno styles/exclude, target audience, commercial potential) and injects persona style tokens to keep the song "on persona." Album art is generated unless `--local` is set; regeneration can be run directly with `--regen-cover`.
+GET  /api/song-proposals
+POST /api/song-proposals/generate
+DELETE /api/song-proposals/{id}
 
-- **Persistence (`save_node`)**: The final song, metadata, and user prompt are saved to `songs/{YYYYMMDD}_{Title}.md`, with optional `{Title}_cover.jpg` beside it.
+GET  /api/albums
+POST /api/albums
+GET  /api/albums/{id}
+PATCH /api/albums/{id}
+POST /api/albums/{id}/generate-art
+POST /api/albums/{id}/upload-art
+DELETE /api/albums/{id}
 
+GET  /api/personas
+GET  /api/personas/{name}
+POST /api/personas
+PUT  /api/personas/{name}
+DELETE /api/personas/{name}
+
+GET  /api/settings
+GET  /api/styles
+GET  /api/instruments
+
+GET  /api/backups/export
+POST /api/backups/restore
+
+WS   /ws/songs/{id}/progress?token=<access_token>
+```
+
+## Generation Pipeline
+
+The backend owns the real generation lifecycle.
 
 ```mermaid
 flowchart TD
-    A[CLI or Web UI request] --> B[FastAPI create song]
-    B --> C[Background generation task]
-    C --> D[Load styles, tags, persona tokens, defaults]
-    D --> E[Build prompts and enhance input]
-    E --> F[Generate creative brief]
-    F --> G[Plan structure]
-    G --> H[Draft song]
-    H --> I[Prompt-only reviews]
-    I -->|issues and rounds left| J[Targeted revise]
-    J --> I
-    I --> K[Metadata summary]
-    K --> L{Local mode}
-    L -->|yes| M[Skip cover art]
-    L -->|no| N[Generate cover art]
-    M --> O[Save song, metadata, and status]
+    A["React UI or CLI request"] --> B["FastAPI authenticated route"]
+    B --> C["Create song row"]
+    C --> D["Background generation manager"]
+    D --> E["Load styles, tags, personas, defaults"]
+    E --> F["Build prompts"]
+    F --> G["Creative brief"]
+    G --> H["Structure plan"]
+    H --> I["Draft lyrics"]
+    I --> J["Parallel reviews"]
+    J -->|issues remain| K["Targeted revision"]
+    K --> J
+    J --> L["Metadata summary"]
+    L --> M{"Generate art?"}
+    M -->|yes| N["Album art"]
+    M -->|no| O["Persist result"]
     N --> O
+    O --> P["SQLite records and files"]
 ```
 
+Key implementation files:
 
-## Album Structure
+- `backend/app/main.py`: FastAPI entry point, CORS, startup/shutdown, router registration, static mounts
+- `backend/app/api/routes/`: API route modules
+- `backend/app/services/song_generator.py`: background generation lifecycle and progress cache
+- `backend/app/services/song_pipeline.py`: LangGraph song generation flow
+- `backend/app/services/demo_track_generator.py`: MiniMax demo-track background tasks
+- `frontend/src/services/api.ts`: frontend API client and auth token attachment
+- `frontend/src/App.tsx`: route protection and app routes
+- `cli/song_master.py`: CLI helper client
 
-```
+## Repository Layout
+
+```text
 song-master/
-├── README.md                 # This file
-├── pyproject.toml            # Package metadata and CLI entry point
-├── cli/
-│   ├── __init__.py
-│   └── song_master.py        # CLI entry point
 ├── backend/
-│   ├── app/                  # FastAPI backend
-│   └── shared/               # Shared backend and CLI logic
-├── requirements.txt          # Python dependencies
-├── .env.example              # Environment variables template
-├── examples/                 # Example outputs
-│   ├── local/                # Local model examples
-│   ├── openrouter/           # OpenRouter model examples
-│   └── testing-ideas.txt     # Example input
-├── prompts/                  # AI prompts
+│   ├── app/                  # FastAPI app, routes, models, schemas, services
+│   ├── data/                 # SQLite database directory
+│   └── shared/               # Shared generation helpers and AI functions
+├── cli/                      # song-master console script
+├── docs/                     # GUI architecture and requirements context
+├── examples/                 # Example prompts and outputs
+├── frontend/                 # Vite + React TypeScript app
+├── images/                   # Static/readme images and generated image assets
+├── personas/                 # Markdown-backed persona definitions
+├── prompts/                  # Prompt templates
+├── songs/                    # Generated song markdown and related assets
 ├── styles/                   # Style definitions
-├── personas/                 # AI personas
-├── tags/                     # Default tags
-└── tools/                    # Utility scripts
-  ├── check_requirements.py  # Dependency import check
-  └── create_album_art.py   # Album art helper
+├── tags/                     # Tag snippets
+├── tests/                    # Backend unit tests
+├── tools/                    # Utility scripts
+├── docker-compose.yml
+├── Dockerfile.backend
+├── Dockerfile.frontend
+├── pyproject.toml
+└── requirements.txt
 ```
 
-## Contributing
+## Notes
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+- `docs/web-gui-architecture.md` and `docs/web-gui-requirements.md` are useful context, but behavior should be verified against the code.
+- `plans/` is historical context unless a task explicitly asks for it.
+- Demo-track audio generation is sanitized at request time before MiniMax submission.
+- Frontend clipboard behavior should use `frontend/src/services/clipboard.ts`.
 
 ## License
 
-This album is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-
-For issues and questions:
-- Create an issue on GitHub
-- Check the examples directory for reference outputs
-- Review the prompts directory for AI interaction templates
+Song Master is licensed under the MIT License. See `LICENSE` for details.
