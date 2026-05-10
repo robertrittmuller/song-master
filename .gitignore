@@ -3,6 +3,12 @@
 /plans
 .DS_Store
 .env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
 __pycache__/
 *.pyc
 node_modules/
