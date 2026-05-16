@@ -576,7 +576,7 @@ ${cleanLyrics}
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <div className="tag">{song.status}</div>
-            {song.status === "completed" && !song.use_local && (
+            {song.status === "completed" && (
               <Button
                 variant="secondary"
                 size="sm"
@@ -853,8 +853,7 @@ ${cleanLyrics}
               onRequestCreate={() => setConfirmDialog({ isOpen: true, type: "create_demo_track" })}
             />
 
-            {!song.use_local && (
-              <Card title="Live Listen Feedback">
+            <Card title="Live Listen Feedback">
                 <div className="stack" style={{ gap: 12 }}>
                   <p style={{ color: "var(--gray-300)", fontSize: 13, margin: 0, lineHeight: 1.4 }}>
                     Upload an MP3 of your current generated song. The AI will listen and provide feedback to improve the lyrics fit.
@@ -930,7 +929,6 @@ ${cleanLyrics}
                   )}
                 </div>
               </Card>
-            )}
 
             <Card title="Metadata">
               <div className="stack" style={{ gap: 16 }}>

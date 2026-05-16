@@ -708,9 +708,6 @@ async def live_listen_feedback(
     """Submit an audio file for live feedback from a multimodal LLM."""
     song = _get_user_song(db, current_user, song_id)
 
-    if song.use_local:
-        raise HTTPException(status_code=400, detail="Live Listen Feedback is not available for local models.")
-
     from backend.app.services.live_listen_service import process_live_listen_feedback
     
     # We must read song data as dict for the service
@@ -720,7 +717,13 @@ async def live_listen_feedback(
         "user_prompt": song.user_prompt
     }
 
-    result = await process_live_listen_feedback(song_id, file, song_data, song.use_local)
+    try:
+        result = await process_live_listen_feedback(song_id, file, song_data, song.use_local)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
     # Update song with revised lyrics
     if "revised_lyrics" in result:

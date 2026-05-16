@@ -2,6 +2,7 @@ import os
 import shutil
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from typing import Dict
 
 from fastapi import UploadFile
 
@@ -9,10 +10,28 @@ from backend.shared.ai_functions import build_prompts, review_song_with_audio, r
 from backend.shared.helpers import remove_thinking_tags
 
 
+def _is_live_listen_error(feedback: str) -> bool:
+    normalized = (feedback or "").strip()
+    if not normalized:
+        return True
+
+    return normalized.startswith((
+        "Audio review is not supported",
+        "Multimodal LLM error:",
+        "Error reading audio file:",
+    ))
+
+
 async def process_live_listen_feedback(song_id: int, file: UploadFile, song_data: dict, use_local: bool):
     """
     Process the uploaded audio file to get feedback and revise the song lyrics.
     """
+    del song_id
+
+    # Live Listen relies on remote multimodal and text models even for songs that
+    # were originally created in local mode.
+    live_listen_uses_local = False
+
     # Save the uploaded file temporarily
     suffix = Path(file.filename).suffix
     with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -26,7 +45,9 @@ async def process_live_listen_feedback(song_id: int, file: UploadFile, song_data
             raise ValueError("Song has no lyrics to review.")
 
         # Get feedback from multimodal LLM
-        feedback = review_song_with_audio(current_lyrics, tmp_path, use_local)
+        feedback = review_song_with_audio(current_lyrics, tmp_path, live_listen_uses_local)
+        if _is_live_listen_error(feedback):
+            raise ValueError(feedback)
 
         # Get revision prompt template
         prompts = build_prompts()
@@ -38,7 +59,7 @@ async def process_live_listen_feedback(song_id: int, file: UploadFile, song_data
                 revision_prompt,
                 current_lyrics,
                 feedback,
-                use_local,
+                live_listen_uses_local,
                 user_input=song_data.get("user_prompt", ""),
                 brief=None,
             )
