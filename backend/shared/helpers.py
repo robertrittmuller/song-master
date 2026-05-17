@@ -1179,7 +1179,14 @@ def remove_title_from_lyrics(lyrics: str) -> str:
     while new_lines and not new_lines[0].strip():
         new_lines.pop(0)
         
-    return "\n".join(new_lines).strip()
+    return normalize_lyrics_section_tags("\n".join(new_lines).strip())
+
+
+def normalize_lyrics_section_tags(lyrics: str) -> str:
+    """Normalize generated structural tags to the tag vocabulary expected by downstream consumers."""
+    normalized = lyrics or ""
+    normalized = re.sub(r"\[(solo)\s+\d+\]", r"[\1]", normalized, flags=re.IGNORECASE)
+    return normalized
 
 
 def get_repo_root() -> str:
@@ -1452,6 +1459,8 @@ def parse_persona_styles_list(persona_styles: str):
 def strip_style_tags(lyrics: str) -> str:
     """Remove style tags while preserving song structure headers like [Verse 1], [Chorus], etc."""
     import re
+
+    lyrics = normalize_lyrics_section_tags(lyrics)
     
     # Split into lines and process each line
     lines = lyrics.split('\n')
@@ -1465,7 +1474,9 @@ def strip_style_tags(lyrics: str) -> str:
         r'\[Bridge\]',
         r'\[Outro\]',
         r'\[Intro\]',
+        r'\[Solo\]',
         r'\[Guitar Solo\]',
+        r'\[[^\]\n]+\s+Solo\]',
         r'\[Instrumental\]'
     ]
     

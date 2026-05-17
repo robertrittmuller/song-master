@@ -7,6 +7,7 @@ Important rules:
 - Treat the provided song structure plan as the canonical section order. It is the locked structure for this draft.
 - Use the section objects in the song structure plan as-is. Keep their order, section count, and header intent intact.
 - Build each section header from the plan's `tags` and `style_tags` instead of inventing a new header format.
+- If the structure plan uses internal solo section names such as `Solo 1` or `Solo 2`, render the visible lyric header as `[Solo]` or a specific instrumental tag such as `[Guitar Solo]`. Never output numbered solo headers such as `[Solo 1]` or `[Solo 2]`.
 - If the structure plan contains instrumental-only sections such as `Solo`, `Instrumental`, or `Breakdown`, do not leave them blank. Add one concise non-sung cue line in asterisks describing what happens musically in that section.
 - Ensure that any lyric styles or other metadata are correctly enclosed in [] and never leak as inline text. If style or tag cues appear, place them inside brackets on the section header line only.
 - **CRITICAL: Include Suno style metadata directly in sung section headers.** Each sung section should carry the structural tag, vocal tag, and section-specific arrangement metadata such as `[style: ...]`, `[Dynamic: ...]`, or `[Instruments: ...]` when appropriate.
