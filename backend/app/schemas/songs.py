@@ -19,6 +19,7 @@ class SongCreate(BaseModel):
     mood: Optional[str] = Field(default=None, description="Mood of the song")
     rhyme_scheme: Optional[str] = Field(default=None, description="Rhyme scheme pattern: AABB, ABAB, ABBA, AAAA, AABCCB, or Free Verse")
     use_local: bool = Field(default=False, description="Whether to use local LLM mode")
+    lyrics_model: Optional[str] = Field(default=None, description="LLM model to use for lyric generation")
     album_id: Optional[int] = Field(default=None, description="Associated album ID")
     generation_config: Optional[dict[str, Any]] = Field(
         default=None, description="Advanced generation parameters"
@@ -39,6 +40,10 @@ class SongLyricsUpdate(BaseModel):
     lyrics: str
 
 
+class SongRegenerateLyricsRequest(BaseModel):
+    lyrics_model: Optional[str] = Field(default=None, description="LLM model to use for lyric regeneration")
+
+
 class SongRead(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -48,6 +53,7 @@ class SongRead(BaseModel):
     score: Optional[int]
     persona: Optional[str]
     use_local: bool
+    lyrics_model: Optional[str] = None
     created_at: datetime
     user_prompt: str
     album_id: Optional[int] = None
@@ -60,6 +66,7 @@ class SongVersionRead(BaseModel):
 
     id: int
     version_number: int
+    lyrics_model: Optional[str] = None
     lyrics: str
     created_at: datetime
 

@@ -60,7 +60,11 @@ app.include_router(styles.router)
 app.include_router(instruments.router)
 app.include_router(progress_ws.router)
 
-# Mount static files for album art and other song assets
-# Use absolute path relative to backend app directory (/app)
-app.mount("/songs", StaticFiles(directory=str(Path(__file__).parent.parent.parent / "songs")), name="songs")
-app.mount("/images", StaticFiles(directory=str(Path(__file__).parent.parent.parent / "images")), name="images")
+storage_root = Path(__file__).parent.parent.parent
+
+# Mount static files for album art and other song assets.
+# Legacy album records may point at /images/albums even though album cover files
+# are stored with the rest of the song assets under songs/albums.
+app.mount("/images/albums", StaticFiles(directory=str(storage_root / "songs" / "albums")), name="album-images")
+app.mount("/songs", StaticFiles(directory=str(storage_root / "songs")), name="songs")
+app.mount("/images", StaticFiles(directory=str(storage_root / "images")), name="images")

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,15 @@ from backend.app.services.song_pipeline import generate_song_pipeline
 from backend.shared.helpers import resolve_storage_path, strip_style_tags
 
 
+def resolve_lyrics_model(use_local: bool, requested_model: Optional[str] = None) -> str:
+    """Return the concrete LLM model used for a lyric-generation request."""
+    if requested_model and requested_model.strip():
+        return requested_model.strip()
+    if use_local:
+        return os.getenv("LMSTUDIO_LLM_MODEL", "local-model")
+    return os.getenv("LITELLM_MODEL") or os.getenv("LLM_MODEL", "openai/gpt-3.5-turbo")
+
+
 class SongGenerationManager:
     """Task manager that runs the real CLI pipeline in the background."""
 
@@ -27,7 +37,7 @@ class SongGenerationManager:
             return
         self.tasks[song_id] = asyncio.create_task(self._run_generation(song_id, payload))
 
-    def regenerate_lyrics(self, song_id: int, db: Session) -> None:
+    def regenerate_lyrics(self, song_id: int, db: Session, lyrics_model: Optional[str] = None) -> None:
         if song_id in self.tasks:
             return
         
@@ -64,6 +74,7 @@ class SongGenerationManager:
             rhyme_scheme=metadata.get("rhyme_scheme"),
             vocal_gender=song.vocal_gender,
             use_local=song.use_local,
+            lyrics_model=lyrics_model or song.lyrics_model,
             album_id=song.album_id,
             generation_config=generation_config,
             generate_album_art=False, # Explicitly disable art regeneration
@@ -128,7 +139,8 @@ class SongGenerationManager:
                         ),
                     )
 
-            add_log("Starting pipeline", progress=5)
+            effective_lyrics_model = resolve_lyrics_model(payload.use_local, payload.lyrics_model)
+            add_log(f"Starting pipeline with {effective_lyrics_model}", progress=5)
 
             loop = asyncio.get_running_loop()
             # Run the real CLI workflow in a thread to avoid blocking the event loop.
@@ -148,6 +160,7 @@ class SongGenerationManager:
                     mood=payload.mood,
                     vocal_gender=payload.vocal_gender,
                     rhyme_scheme=payload.rhyme_scheme,
+                    lyrics_model=effective_lyrics_model,
                     generation_config=payload.generation_config,
                     progress_callback=add_log,
                 ),
@@ -170,12 +183,14 @@ class SongGenerationManager:
                     session.add(SongVersion(
                         song_id=song_id,
                         version_number=next_version,
-                        lyrics=song.lyrics
+                        lyrics_model=song.lyrics_model,
+                        lyrics=song.lyrics,
                     ))
 
                 song.status = "completed"
                 song.title = final_state.get("song_name") or song.title
                 song.lyrics = lyrics
+                song.lyrics_model = effective_lyrics_model
                 song.clean_lyrics = strip_style_tags(lyrics) if lyrics else None
                 song.metadata_json = json.dumps(metadata) if metadata else None
                 if album_art is not None:

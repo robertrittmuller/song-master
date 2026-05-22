@@ -232,15 +232,16 @@ class LiteLLMWrapper:
             raise ValueError(f"LiteLLM call failed: {exc}") from exc
 
 
-def get_llm(use_local: bool = False):
+def get_llm(use_local: bool = False, model_override: Optional[str] = None):
 
     temperature = float(os.getenv("LLM_TEMPERATURE", "0.7"))
     max_tokens = int(os.getenv("LLM_MAX_TOKENS", "4096"))
+    selected_model = model_override.strip() if model_override else None
 
     if use_local:
         lmstudio_api_key = os.getenv("LMSTUDIO_API_KEY", "lm-studio")
         lmstudio_base_url = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
-        lmstudio_model = os.getenv("LMSTUDIO_LLM_MODEL", "local-model")
+        lmstudio_model = selected_model or os.getenv("LMSTUDIO_LLM_MODEL", "local-model")
 
         return LMStudioLLM(
             model=lmstudio_model,
@@ -250,7 +251,7 @@ def get_llm(use_local: bool = False):
             base_url=lmstudio_base_url,
         )
 
-    litellm_model = os.getenv("LITELLM_MODEL")
+    litellm_model = selected_model or os.getenv("LITELLM_MODEL")
     litellm_api_key = os.getenv("LITELLM_API_KEY")
     litellm_base_url = os.getenv("LITELLM_API_BASE")
 
@@ -263,7 +264,7 @@ def get_llm(use_local: bool = False):
             base_url=litellm_base_url,
         )
 
-    model = os.getenv("LLM_MODEL", "openai/gpt-3.5-turbo")
+    model = selected_model or os.getenv("LLM_MODEL", "openai/gpt-3.5-turbo")
     openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
     openrouter_base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
@@ -555,6 +556,7 @@ def build_song_brief(
     persona_styles: str,
     default_params: Dict[str, Optional[str]],
     use_local: bool,
+    model: Optional[str] = None,
 ) -> Dict[str, Any]:
     formatted_prompt = prompt_template.format(
         user_input=user_input,
@@ -563,7 +565,7 @@ def build_song_brief(
         persona_styles=persona_styles or "None provided",
         default_params=str(default_params),
     )
-    raw_response = get_llm(use_local).invoke(formatted_prompt)
+    raw_response = get_llm(use_local, model).invoke(formatted_prompt)
     parsed = _load_json_response(raw_response)
     return _normalize_brief_payload(parsed)
 
@@ -576,6 +578,7 @@ def plan_song_structure(
     tags_context: str,
     default_params: Dict[str, Optional[str]],
     use_local: bool,
+    model: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     from backend.shared.helpers import get_allowed_structure_names
 
@@ -588,7 +591,7 @@ def plan_song_structure(
         allowed_section_names=", ".join(allowed_section_names),
         default_params=str(default_params),
     )
-    parsed = _load_json_response(get_llm(use_local).invoke(formatted_prompt))
+    parsed = _load_json_response(get_llm(use_local, model).invoke(formatted_prompt))
     if not isinstance(parsed, dict):
         raise ValueError("The model did not return a usable song structure.")
     return _normalize_section_plan_payload(parsed.get("sections") or parsed.get("section_plan"))
@@ -604,6 +607,7 @@ def draft_song(
     persona_styles: str,
     default_params: Dict[str, Optional[str]],
     use_local: bool,
+    model: Optional[str] = None,
 ) -> str:
     formatted_prompt = prompt_template.format(
         user_input=enhanced_input,
@@ -614,7 +618,7 @@ def draft_song(
         persona_styles=persona_styles or "None provided",
         default_params=str(default_params),
     )
-    return get_llm(use_local).invoke(formatted_prompt)
+    return get_llm(use_local, model).invoke(formatted_prompt)
 
 
 def revise_lyrics(
@@ -624,6 +628,7 @@ def revise_lyrics(
     use_local: bool,
     user_input: str = "",
     brief: Optional[Dict[str, Any]] = None,
+    model: Optional[str] = None,
 ) -> str:
     formatted_prompt = prompt_template.format(
         lyrics=lyrics,
@@ -631,7 +636,7 @@ def revise_lyrics(
         user_input=user_input,
         brief=json.dumps(brief or {}, ensure_ascii=True, indent=2),
     )
-    return get_llm(use_local).invoke(formatted_prompt)
+    return get_llm(use_local, model).invoke(formatted_prompt)
 
 
 def _normalize_review_issue(review_type: str, issue: Any) -> Optional[Dict[str, Any]]:
@@ -704,6 +709,7 @@ def run_specialized_reviews(
     use_local: bool,
     user_input: str = "",
     brief: Optional[Dict[str, Any]] = None,
+    model: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Run three focused reviewers and merge their issues into a compact edit plan."""
     brief_text = json.dumps(brief or {}, ensure_ascii=True, indent=2)
@@ -711,7 +717,7 @@ def run_specialized_reviews(
     def _call(item: tuple[str, PromptTemplate]) -> tuple[str, Dict[str, Any]]:
         review_type, prompt_template = item
         formatted_prompt = prompt_template.format(lyrics=lyrics, user_input=user_input, brief=brief_text)
-        raw = get_llm(use_local).invoke(formatted_prompt)
+        raw = get_llm(use_local, model).invoke(formatted_prompt)
         return review_type, _normalize_review_payload(review_type, raw)
 
     role_weights = {"theme": 3, "quality": 2, "suno": 1}
@@ -769,6 +775,7 @@ def generate_metadata_summary(
     brief: Optional[Dict[str, Any]] = None,
     no_live_performance: bool = False,
     style_catalog: Optional[Dict[str, str]] = None,
+    model: Optional[str] = None,
 ):
     from backend.shared.helpers import (
         build_live_performance_exclude_styles,
@@ -818,7 +825,7 @@ def generate_metadata_summary(
         brief=json.dumps(brief or {}, ensure_ascii=True, indent=2),
     )
     try:
-        raw = get_llm(use_local).invoke(formatted_prompt)
+        raw = get_llm(use_local, model).invoke(formatted_prompt)
         parsed = _load_json_response(raw)
         if not isinstance(parsed, dict):
             fallback["suno_exclude_styles"] = build_live_performance_exclude_styles(

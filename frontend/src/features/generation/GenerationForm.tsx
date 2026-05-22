@@ -61,6 +61,10 @@ function buildInstrumentValue(selectedInstruments: Set<string>, customInstrument
   return combined.length ? combined.join(", ") : undefined;
 }
 
+function modelDisplayName(modelId: string, modelName?: string | null): string {
+  return (modelName || modelId).replace(/^openrouter\//, "");
+}
+
 export function GenerationForm() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -93,11 +97,15 @@ export function GenerationForm() {
   const [selectedInstruments, setSelectedInstruments] = useState<Set<string>>(new Set());
   const [customInstruments, setCustomInstruments] = useState("");
   const [useLocal, setUseLocal] = useState(false);
+  const [lyricsModel, setLyricsModel] = useState("");
   const [generateCoverArt, setGenerateCoverArt] = useState(false);
   const [noLivePerformance, setNoLivePerformance] = useState(false);
   const [settingsInitialized, setSettingsInitialized] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const isAdvancedMode = generationMode === "advanced";
+  const modelOptions = (settings?.models || []).filter((model) => model.source === (useLocal ? "local" : "remote"));
+  const fallbackModel = useLocal ? settings?.local_model : settings?.model;
+  const selectedModelOption = modelOptions.find((model) => model.id === lyricsModel);
 
   useEffect(() => {
     if (!settings || settingsInitialized) {
@@ -105,6 +113,7 @@ export function GenerationForm() {
     }
 
     setUseLocal(settings.use_local);
+    setLyricsModel(settings.use_local ? settings.local_model : settings.model);
     setSettingsInitialized(true);
   }, [settings, settingsInitialized]);
 
@@ -156,6 +165,13 @@ export function GenerationForm() {
     });
   };
 
+  const handleUseLocalChange = (value: boolean) => {
+    setUseLocal(value);
+    if (settings) {
+      setLyricsModel(value ? settings.local_model : settings.model);
+    }
+  };
+
   const clearInstrumentSelection = () => {
     setSelectedInstruments(new Set());
     setCustomInstruments("");
@@ -178,6 +194,7 @@ export function GenerationForm() {
       ? buildInstrumentValue(selectedInstruments, customInstruments)
       : undefined;
     const submittedUseLocal = useLocal;
+    const submittedLyricsModel = normalizeOptionalText(lyricsModel);
     const submittedGenerateCoverArt = isAdvancedMode
       ? submittedUseLocal ? false : generateCoverArt
       : DEFAULT_GENERATE_COVER_ART;
@@ -217,6 +234,7 @@ export function GenerationForm() {
       vocal_gender: normalizedVocalGender,
       rhyme_scheme: normalizedRhymeScheme,
       use_local: submittedUseLocal,
+      lyrics_model: submittedLyricsModel,
       album_id: isAdvancedMode ? albumId : undefined,
       generate_album_art: submittedGenerateCoverArt,
       generation_config: autoSelectFields.length || (isAdvancedMode && noLivePerformance)
@@ -321,11 +339,33 @@ export function GenerationForm() {
                 <ToggleShell activeLabel={useLocal ? "Local" : "Remote"}>
                   <Toggle
                     value={useLocal}
-                    onChange={setUseLocal}
+                    onChange={handleUseLocalChange}
                     leftLabel="Remote"
                     rightLabel="Local"
                   />
                 </ToggleShell>
+              </div>
+
+              <div className="generation-field">
+                <label className="generation-label" htmlFor="lyrics-model">Lyrics Model</label>
+                <select
+                  id="lyrics-model"
+                  value={lyricsModel || fallbackModel || ""}
+                  onChange={(event) => setLyricsModel(event.target.value)}
+                  className="generation-input"
+                >
+                  {modelOptions.map((model) => (
+                    <option key={`${model.source}-${model.id}`} value={model.id}>
+                      {modelDisplayName(model.id, model.name)}{model.recommended ? " (recommended)" : ""}
+                    </option>
+                  ))}
+                  {modelOptions.length === 0 && fallbackModel && (
+                    <option value={fallbackModel}>{modelDisplayName(fallbackModel)}</option>
+                  )}
+                </select>
+                <p className="generation-help">
+                  {selectedModelOption?.recommended ? "Recommended model from server settings." : "Available models are loaded from the configured provider."}
+                </p>
               </div>
 
               {isAdvancedMode && (

@@ -19,6 +19,7 @@ class Song(Base):
     style = Column(String(100))
     vocal_gender = Column(String(50))
     use_local = Column(Boolean, default=False)
+    lyrics_model = Column(String(255))
     lyrics: Optional[str] = Column(Text)
     clean_lyrics: Optional[str] = Column(Text)
     metadata_json = Column("metadata", Text)  # JSON string

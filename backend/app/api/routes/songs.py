@@ -7,10 +7,19 @@ from sqlalchemy.orm import Session
 
 from backend.app.db.deps import get_current_user, get_db
 from backend.app.models import Album, GenerationSession, Song, SongFile, SongProposal, SongVersion, User
-from backend.app.schemas import DemoTrackStatus, SongCreate, SongDetail, SongLyricsUpdate, SongRead, SongStatus, SongUpdate
+from backend.app.schemas import (
+    DemoTrackStatus,
+    SongCreate,
+    SongDetail,
+    SongLyricsUpdate,
+    SongRead,
+    SongRegenerateLyricsRequest,
+    SongStatus,
+    SongUpdate,
+)
 from backend.app.services.demo_track_generator import demo_track_generation_manager
 from backend.app.services.persona_service import sync_persona_style_tags
-from backend.app.services.song_generator import generation_manager
+from backend.app.services.song_generator import generation_manager, resolve_lyrics_model
 
 router = APIRouter(prefix="/api/songs", tags=["songs"])
 
@@ -296,6 +305,7 @@ async def create_song(
         style=payload.style,
         vocal_gender=payload.vocal_gender,
         use_local=payload.use_local,
+        lyrics_model=resolve_lyrics_model(payload.use_local, payload.lyrics_model),
         album_id=payload.album_id,
         status="pending",
         generation_config=json.dumps(payload.generation_config) if payload.generation_config else None,
@@ -538,11 +548,13 @@ def update_song_lyrics(
             SongVersion(
                 song_id=song_id,
                 version_number=next_version,
+                lyrics_model=song.lyrics_model,
                 lyrics=song.lyrics,
             )
         )
 
     song.lyrics = new_lyrics
+    song.lyrics_model = None
     song.clean_lyrics = strip_style_tags(new_lyrics) if new_lyrics else None
     db.add(song)
     db.commit()
@@ -688,13 +700,14 @@ async def upload_song_art(
 @router.post("/{song_id}/regenerate-lyrics", response_model=SongDetail)
 async def regenerate_song_lyrics(
     song_id: int,
+    payload: Optional[SongRegenerateLyricsRequest] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> SongDetail:
     """Trigger lyric regeneration for an existing song."""
     song = _get_user_song(db, current_user, song_id)
 
-    generation_manager.regenerate_lyrics(song_id, db)
+    generation_manager.regenerate_lyrics(song_id, db, lyrics_model=payload.lyrics_model if payload else None)
     return song
 
 
@@ -738,6 +751,7 @@ async def live_listen_feedback(
             db.add(SongVersion(
                 song_id=song_id,
                 version_number=next_version,
+                lyrics_model=song.lyrics_model,
                 lyrics=song.lyrics
             ))
 

@@ -1662,6 +1662,7 @@ class SongState(TypedDict, total=False):
     instruments: Optional[str]
     mood: Optional[str]
     vocal_gender: Optional[str]
+    lyrics_model: Optional[str]
     no_live_performance: bool
 
 

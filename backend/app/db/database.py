@@ -67,9 +67,26 @@ def init_db() -> None:
     import backend.app.models  # noqa: F401 - ensures model metadata is registered
 
     Base.metadata.create_all(bind=engine)
+    _ensure_lyrics_model_schema()
     _ensure_song_proposal_schema()
     _ensure_auth_schema()
     cleanup_song_integrity()
+
+
+def _ensure_lyrics_model_schema() -> None:
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+
+    with engine.begin() as connection:
+        if "songs" in table_names:
+            song_columns = {column["name"] for column in inspector.get_columns("songs")}
+            if "lyrics_model" not in song_columns:
+                connection.execute(text("ALTER TABLE songs ADD COLUMN lyrics_model VARCHAR(255)"))
+
+        if "song_versions" in table_names:
+            version_columns = {column["name"] for column in inspector.get_columns("song_versions")}
+            if "lyrics_model" not in version_columns:
+                connection.execute(text("ALTER TABLE song_versions ADD COLUMN lyrics_model VARCHAR(255)"))
 
 
 def _ensure_song_proposal_schema() -> None:

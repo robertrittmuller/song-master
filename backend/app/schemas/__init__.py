@@ -9,7 +9,7 @@ from backend.app.schemas.auth import (
 )
 from backend.app.schemas.backups import BackupRestoreResult
 from backend.app.schemas.personas import Persona, PersonaCreate, PersonaUpdate
-from backend.app.schemas.settings import GenerationDefaults, SettingsResponse
+from backend.app.schemas.settings import GenerationDefaults, ModelOption, SettingsResponse
 from backend.app.schemas.songs import (
     DemoTrackStatus,
     GenerationLog,
@@ -17,6 +17,7 @@ from backend.app.schemas.songs import (
     SongDetail,
     SongFileRead,
     SongLyricsUpdate,
+    SongRegenerateLyricsRequest,
     SongRead,
     SongStatus,
     SongUpdate,
@@ -41,6 +42,7 @@ __all__ = [
     "BackupRestoreResult",
     "ChangePasswordRequest",
     "GenerationDefaults",
+    "ModelOption",
     "LoginRequest",
     "SettingsResponse",
     "SignUpRequest",
@@ -50,6 +52,7 @@ __all__ = [
     "SongDetail",
     "SongFileRead",
     "SongLyricsUpdate",
+    "SongRegenerateLyricsRequest",
     "SongRead",
     "SongStatus",
     "SongUpdate",

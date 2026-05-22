@@ -12,9 +12,14 @@ import { DemoTrackCard } from "../features/songViewer/DemoTrackCard";
 import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
 import { LyricVersionTabs } from "../features/songViewer/LyricVersionTabs";
 import { LyricDiffView } from "../features/songViewer/LyricDiffView";
-import { API_BASE, createDemoTrack, deleteSong, fetchSong, regenerateAlbumArt, fetchAlbums, updateSong, updateSongLyrics, regenerateLyrics, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
+import { API_BASE, createDemoTrack, deleteSong, fetchSong, fetchSettings, regenerateAlbumArt, fetchAlbums, updateSong, updateSongLyrics, regenerateLyrics, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
 import { copyTextToClipboard } from "../services/clipboard";
 import type { SongFile } from "../types/api";
+
+function modelDisplayName(modelId?: string | null): string {
+  if (!modelId) return "Manual edit";
+  return modelId.replace(/^openrouter\//, "");
+}
 
 export function SongDetailPage() {
   const params = useParams();
@@ -39,6 +44,11 @@ export function SongDetailPage() {
     queryFn: fetchPersonas
   });
 
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: fetchSettings
+  });
+
   const deleteMutation = useMutation({
     mutationFn: deleteSong,
     onSuccess: () => {
@@ -55,7 +65,8 @@ export function SongDetailPage() {
   });
 
   const regenerateLyricsMutation = useMutation({
-    mutationFn: regenerateLyrics,
+    mutationFn: (payload: { songId: number; lyrics_model?: string }) =>
+      regenerateLyrics(payload.songId, payload.lyrics_model ? { lyrics_model: payload.lyrics_model } : {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["song", songId] });
     }
@@ -86,6 +97,7 @@ export function SongDetailPage() {
   const [selectedArtPath, setSelectedArtPath] = useState<string | null>(null);
   const [selectedArtFileName, setSelectedArtFileName] = useState("No file selected");
   const [selectedFeedbackFileName, setSelectedFeedbackFileName] = useState("No file selected");
+  const [regenerateLyricsModel, setRegenerateLyricsModel] = useState("");
   const editRef = useRef<HTMLDivElement>(null);
   const uploadArtInputRef = useRef<HTMLInputElement>(null);
   const liveFeedbackInputRef = useRef<HTMLInputElement>(null);
@@ -183,10 +195,16 @@ export function SongDetailPage() {
     });
   }, [song]);
   const selectedArtwork = artworkHistory.find((file) => file.file_path === selectedArtPath) ?? artworkHistory[0];
+  const regenerateModelOptions = (settings?.models || []).filter((model) => model.source === (song?.use_local ? "local" : "remote"));
+  const regenerateFallbackModel = song?.lyrics_model || (song?.use_local ? settings?.local_model : settings?.regenerate_model || settings?.model);
 
   useEffect(() => {
     setSelectedArtPath(song?.album_art ?? null);
   }, [song?.album_art, songId]);
+
+  useEffect(() => {
+    setRegenerateLyricsModel(regenerateFallbackModel || "");
+  }, [regenerateFallbackModel, songId]);
 
   useEffect(() => {
     if (song && !isEditing) {
@@ -256,6 +274,7 @@ export function SongDetailPage() {
     setConfirmDialog({ isOpen: false, type: null });
     setPendingLiveFeedbackFile(null);
     setDemoTrackResponse({ isOpen: false, title: "", message: "", variant: "primary" });
+    setRegenerateLyricsModel("");
   }, [songId]);
 
   const closeConfirmDialog = () => {
@@ -269,7 +288,7 @@ export function SongDetailPage() {
     if (confirmDialog.type === "regenerate_art") {
       regenerateArtMutation.mutate(song.id);
     } else if (confirmDialog.type === "regenerate_lyrics") {
-      regenerateLyricsMutation.mutate(song.id);
+      regenerateLyricsMutation.mutate({ songId: song.id, lyrics_model: regenerateLyricsModel || regenerateFallbackModel || undefined });
     } else if (confirmDialog.type === "delete_song") {
       deleteMutation.mutate(song.id);
     } else if (confirmDialog.type === "live_listen") {
@@ -486,6 +505,13 @@ ${cleanLyrics}
     }
     return song.versions?.find((version) => version.id === selectedVersionId)?.lyrics || "";
   }, [displayLyrics, selectedVersionId, song]);
+  const viewedLyricsModel = useMemo(() => {
+    if (!song) return null;
+    if (selectedVersionId === "current") {
+      return song.lyrics_model || null;
+    }
+    return song.versions?.find((version) => version.id === selectedVersionId)?.lyrics_model || null;
+  }, [selectedVersionId, song]);
 
   if (isLoading) return <p style={{ color: "var(--gray-400)" }}>Loading...</p>;
   if (!song) return <p style={{ color: "var(--gray-400)" }}>Song not found.</p>;
@@ -587,14 +613,33 @@ ${cleanLyrics}
               </Button>
             )}
             {song.status === "completed" && (
-              <Button
-                variant="secondary"
-                size="sm"
-                isLoading={regenerateLyricsMutation.isPending}
-                onClick={() => setConfirmDialog({ isOpen: true, type: "regenerate_lyrics" })}
-              >
-                Regenerate Lyrics
-              </Button>
+              <>
+                <select
+                  className="input"
+                  style={{ width: 260, padding: "7px 10px", fontSize: 13 }}
+                  value={regenerateLyricsModel || regenerateFallbackModel || ""}
+                  onChange={(event) => setRegenerateLyricsModel(event.target.value)}
+                  disabled={regenerateLyricsMutation.isPending}
+                  aria-label="Lyrics regeneration model"
+                >
+                  {regenerateModelOptions.map((model) => (
+                    <option key={`${model.source}-${model.id}`} value={model.id}>
+                      {modelDisplayName(model.name || model.id)}{model.recommended ? " (recommended)" : ""}
+                    </option>
+                  ))}
+                  {regenerateModelOptions.length === 0 && regenerateFallbackModel && (
+                    <option value={regenerateFallbackModel}>{modelDisplayName(regenerateFallbackModel)}</option>
+                  )}
+                </select>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  isLoading={regenerateLyricsMutation.isPending}
+                  onClick={() => setConfirmDialog({ isOpen: true, type: "regenerate_lyrics" })}
+                >
+                  Regenerate Lyrics
+                </Button>
+              </>
             )}
             <Button
               variant="danger"
@@ -637,7 +682,7 @@ ${cleanLyrics}
         {song.status !== "completed" && Number.isFinite(songId) && (
           <LiveProgress
             songId={songId}
-            onRetry={() => regenerateLyricsMutation.mutate(song.id)}
+            onRetry={() => regenerateLyricsMutation.mutate({ songId: song.id, lyrics_model: regenerateLyricsModel || regenerateFallbackModel || undefined })}
           />
         )}
       </Card>
@@ -678,6 +723,13 @@ ${cleanLyrics}
                 onToggleDiffMode={setIsDiffMode}
               />
             )}
+
+            <div className="glass" style={{ padding: 10, marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gray-500)", textTransform: "uppercase", marginBottom: 3 }}>
+                Lyrics Model
+              </div>
+              <div style={{ fontSize: 13, color: "var(--gray-200)" }}>{modelDisplayName(viewedLyricsModel)}</div>
+            </div>
 
             {hasLyricsDraft && (
               <div className="glass" style={{ padding: 10, marginBottom: 12 }}>
@@ -1055,7 +1107,7 @@ ${cleanLyrics}
         }
         message={
           confirmDialog.type === "regenerate_art" ? `Are you sure you want to ${hasAlbumArt ? "regenerate" : "generate"} the cover art for "${song.title}"?` :
-          confirmDialog.type === "regenerate_lyrics" ? `Are you sure you want to regenerate the lyrics for "${song.title}"? This will use the original request and keep the current album art.` :
+          confirmDialog.type === "regenerate_lyrics" ? `Are you sure you want to regenerate the lyrics for "${song.title}" with ${modelDisplayName(regenerateLyricsModel || regenerateFallbackModel)}? This will use the original request and keep the current album art.` :
           confirmDialog.type === "create_demo_track" ? `This will send the saved lyrics and metadata for "${song.title}" to the MiniMax Music Generation API. Continue?` :
           confirmDialog.type === "live_listen" ? "This will submit the audio to an external LLM for analysis and regenerate the lyrics based on feedback. Continue?" :
           `Are you sure you want to delete "${song.title}"? This action cannot be undone.`

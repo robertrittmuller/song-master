@@ -33,6 +33,7 @@ export type Album = {
 export type SongVersion = {
   id: number;
   version_number: number;
+  lyrics_model?: string | null;
   lyrics: string;
   created_at: string;
 };
@@ -56,6 +57,7 @@ export type Song = {
   persona?: string;
   description?: string;
   use_local: boolean;
+  lyrics_model?: string | null;
   created_at: string;
   user_prompt?: string;
   lyrics?: string;
@@ -107,10 +109,20 @@ export type SongProposal = {
 export type Settings = {
   llm_provider: string;
   model: string;
+  local_model: string;
+  regenerate_model?: string | null;
   temperature: number;
   max_tokens: number;
   use_local: boolean;
   local_url?: string | null;
+  recommended_models: string[];
+  recommended_local_models: string[];
+  models: {
+    id: string;
+    name?: string | null;
+    source: "remote" | "local" | string;
+    recommended: boolean;
+  }[];
   generation: {
     genre?: string;
     persona?: string;

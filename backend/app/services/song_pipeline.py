@@ -55,6 +55,7 @@ def generate_song_pipeline(
     mood: Optional[str] = None,
     vocal_gender: Optional[str] = None,
     rhyme_scheme: Optional[str] = None,
+    lyrics_model: Optional[str] = None,
     generation_config: Optional[dict[str, Any]] = None,
     progress_callback: Optional[ProgressCallback] = None,
 ) -> SongState:
@@ -190,6 +191,7 @@ def generate_song_pipeline(
         "tag_context": tag_context,
         "structure_guidance": structure_guidance,
         "vocal_gender": vocal_gender,
+        "lyrics_model": lyrics_model,
         "generate_album_art": should_generate_art,
         "no_live_performance": no_live_performance,
     }
@@ -205,6 +207,7 @@ def generate_song_pipeline(
             state["resources"].persona_styles,
             state["resources"].default_params,
             state["use_local"],
+            model=state.get("lyrics_model"),
         )
         brief = sanitize_brief_for_no_live_performance(brief, state.get("no_live_performance", False))
         notify("Creative brief ready", 18)
@@ -227,6 +230,7 @@ def generate_song_pipeline(
             state.get("tag_context", ""),
             state["resources"].default_params,
             state["use_local"],
+            model=state.get("lyrics_model"),
         )
         updated_brief = dict(state.get("brief", {}))
         updated_brief["section_plan"] = section_plan
@@ -250,6 +254,7 @@ def generate_song_pipeline(
             persona_styles=state["resources"].persona_styles,
             default_params=state["resources"].default_params,
             use_local=state["use_local"],
+            model=state.get("lyrics_model"),
         )
         notify("Draft generated", 34)
 
@@ -275,6 +280,7 @@ def generate_song_pipeline(
             state["use_local"],
             user_input=state["prompt_user_input"],
             brief=state.get("brief", {}),
+            model=state.get("lyrics_model"),
         )
         merged_issues = list(review_results.get("issues", []))
 
@@ -324,6 +330,7 @@ def generate_song_pipeline(
                 state["use_local"],
                 user_input=state["prompt_user_input"],
                 brief=state.get("brief", {}),
+                model=state.get("lyrics_model"),
             ),
             fallback=state["lyrics"],
         )
@@ -341,6 +348,7 @@ def generate_song_pipeline(
             brief=state.get("brief", {}),
             no_live_performance=state.get("no_live_performance", False),
             style_catalog=state["resources"].styles,
+            model=state.get("lyrics_model"),
         )
         # Merge default params into metadata to ensure they are persisted
         if isinstance(metadata, dict):

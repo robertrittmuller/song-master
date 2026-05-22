@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from backend.app.db.base import Base
@@ -11,6 +11,7 @@ class SongVersion(Base):
     id = Column(Integer, primary_key=True, index=True)
     song_id = Column(Integer, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
     version_number = Column(Integer, nullable=False)
+    lyrics_model = Column(String(255))
     lyrics = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 

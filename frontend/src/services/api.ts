@@ -281,6 +281,7 @@ export async function createSong(payload: {
   instruments?: string;
   mood?: string;
   use_local?: boolean;
+  lyrics_model?: string;
   album_id?: number;
   vocal_gender?: string;
   rhyme_scheme?: string;
@@ -329,8 +330,8 @@ export async function regenerateAlbumArt(songId: number): Promise<Song> {
   return data;
 }
 
-export async function regenerateLyrics(songId: number): Promise<Song> {
-  const { data } = await client.post<Song>(`/api/songs/${songId}/regenerate-lyrics`);
+export async function regenerateLyrics(songId: number, payload: { lyrics_model?: string } = {}): Promise<Song> {
+  const { data } = await client.post<Song>(`/api/songs/${songId}/regenerate-lyrics`, payload);
   return data;
 }
 

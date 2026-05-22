@@ -4,6 +4,9 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     container_name: song-master-backend
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "8000:8000"
     volumes:
