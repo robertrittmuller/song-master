@@ -11,7 +11,9 @@ from backend.app.schemas import (
     DemoTrackStatus,
     SongCreate,
     SongDetail,
+    SongLiveFeedbackDemoTrackRequest,
     SongLyricsUpdate,
+    SongRegenerateArtRequest,
     SongRead,
     SongRegenerateLyricsRequest,
     SongStatus,
@@ -565,13 +567,14 @@ def update_song_lyrics(
 @router.post("/{song_id}/regenerate-art", response_model=SongDetail)
 async def regenerate_song_art(
     song_id: int,
+    payload: Optional[SongRegenerateArtRequest] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> SongDetail:
     """Trigger album art regeneration for an existing song."""
     song = _get_user_song(db, current_user, song_id)
 
-    from backend.shared.helpers import extract_title, generate_album_art
+    from backend.shared.helpers import extract_title, generate_album_art, normalize_album_art_aspect_ratio
     import json
 
     title = extract_title(song.lyrics or "", song.title)
@@ -587,6 +590,20 @@ async def regenerate_song_art(
             pass
             
     mood = metadata.get("mood")
+
+    generation_config = {}
+    if song.generation_config:
+        try:
+            parsed_config = json.loads(song.generation_config)
+            if isinstance(parsed_config, dict):
+                generation_config = parsed_config
+        except json.JSONDecodeError:
+            pass
+
+    requested_aspect_ratio = payload.aspect_ratio if payload else None
+    aspect_ratio = normalize_album_art_aspect_ratio(
+        requested_aspect_ratio or generation_config.get("art_aspect_ratio")
+    )
     
     artwork_path = generate_album_art(
         title,
@@ -597,6 +614,7 @@ async def regenerate_song_art(
         vocal_gender=song.vocal_gender,
         date=song_date,
         filename_suffix=filename_suffix,
+        aspect_ratio=aspect_ratio,
     )
 
     if artwork_path:
@@ -604,6 +622,8 @@ async def regenerate_song_art(
             _upsert_song_art_file(db, song.id, song.album_art, is_primary=False)
         _clear_primary_art_files(db, song.id)
         song.album_art = artwork_path
+        generation_config["art_aspect_ratio"] = aspect_ratio
+        song.generation_config = json.dumps(generation_config)
         _upsert_song_art_file(db, song.id, artwork_path, is_primary=True)
         db.add(song)
         db.commit()
@@ -759,6 +779,83 @@ async def live_listen_feedback(
         song.live_feedback = result.get("feedback")
         # We could also store the feedback in the DB if we had a column for it,
         # but for now we just update the lyrics.
+        db.add(song)
+        db.commit()
+        db.refresh(song)
+
+    return song
+
+
+@router.post("/{song_id}/live-feedback/demo-track", response_model=SongDetail)
+async def live_listen_feedback_from_demo_track(
+    song_id: int,
+    payload: SongLiveFeedbackDemoTrackRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongDetail:
+    """Submit an existing song demo track for live feedback from a multimodal LLM."""
+    song = _get_user_song(db, current_user, song_id)
+
+    demo_track = (
+        db.query(SongFile)
+        .filter(
+            SongFile.song_id == song_id,
+            SongFile.file_type == "demo_track",
+            SongFile.file_path == payload.file_path,
+        )
+        .first()
+    )
+    if not demo_track:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Demo track not found for this song.",
+        )
+
+    from backend.app.services.live_listen_service import process_live_listen_feedback_from_path
+    from backend.shared.helpers import resolve_storage_path
+
+    audio_path = Path(resolve_storage_path(demo_track.file_path))
+    if not audio_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Demo track file is missing from storage.",
+        )
+
+    song_data = {
+        "lyrics": song.lyrics,
+        "title": song.title,
+        "user_prompt": song.user_prompt,
+    }
+
+    try:
+        result = await process_live_listen_feedback_from_path(
+            song_id,
+            str(audio_path),
+            song_data,
+            song.use_local,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    if "revised_lyrics" in result:
+        from backend.app.models import SongVersion
+
+        if song.lyrics:
+            current_versions = db.query(SongVersion).filter(SongVersion.song_id == song_id).all()
+            next_version = len(current_versions) + 1
+
+            db.add(SongVersion(
+                song_id=song_id,
+                version_number=next_version,
+                lyrics_model=song.lyrics_model,
+                lyrics=song.lyrics
+            ))
+
+        song.lyrics = result["revised_lyrics"]
+        song.live_feedback = result.get("feedback")
         db.add(song)
         db.commit()
         db.refresh(song)

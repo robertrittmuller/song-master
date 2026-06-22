@@ -49,6 +49,8 @@ export type SongFile = {
   created_at: string;
 };
 
+export type AlbumArtAspectRatio = "1:1" | "4:5" | "3:4" | "4:3" | "16:9" | "9:16";
+
 export type Song = {
   id: number;
   title: string;

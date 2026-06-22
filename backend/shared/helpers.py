@@ -149,6 +149,22 @@ _STRUCTURE_BASE_ORDER = (
     "Chorus 3",
     "Outro",
 )
+ALBUM_ART_ASPECT_RATIO_DESCRIPTIONS = {
+    "1:1": "square 1:1",
+    "4:5": "portrait 4:5",
+    "3:4": "portrait 3:4",
+    "4:3": "landscape 4:3",
+    "16:9": "wide landscape 16:9",
+    "9:16": "vertical 9:16",
+}
+
+
+def normalize_album_art_aspect_ratio(aspect_ratio: Optional[str]) -> str:
+    """Return a supported album-art aspect ratio, defaulting to Suno's 3:4 cover size."""
+    if not aspect_ratio:
+        return "3:4"
+    normalized = str(aspect_ratio).strip()
+    return normalized if normalized in ALBUM_ART_ASPECT_RATIO_DESCRIPTIONS else "3:4"
 
 
 def _tokenize_context_text(text: str) -> List[str]:
@@ -1366,6 +1382,7 @@ def generate_album_art(
     vocal_gender: Optional[str] = None,
     date: Optional[str] = None,
     filename_suffix: str = "",
+    aspect_ratio: Optional[str] = None,
 ) -> Optional[str]:
     """Generate album artwork using integrated function with enriched prompt."""
     import os
@@ -1376,6 +1393,13 @@ def generate_album_art(
     
     # Base prompt elements
     prompt_parts = [f"Album cover for song '{title}'"]
+
+    normalized_aspect_ratio = normalize_album_art_aspect_ratio(aspect_ratio)
+    ratio_description = ALBUM_ART_ASPECT_RATIO_DESCRIPTIONS[normalized_aspect_ratio]
+    prompt_parts.append(
+        f"Create the image in a {ratio_description} aspect ratio. "
+        "Use the full frame as album artwork with no borders or letterboxing."
+    )
     
     # Add user theme/prompt
     prompt_parts.append(f"with theme '{user_input}'")
@@ -1656,6 +1680,7 @@ class SongState(TypedDict, total=False):
     style_context: str
     tag_context: str
     generate_album_art: bool
+    album_art_aspect_ratio: str
     genre: Optional[str]
     tempo: Optional[str]
     key: Optional[str]

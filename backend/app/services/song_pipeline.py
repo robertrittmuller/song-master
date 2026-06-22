@@ -28,6 +28,7 @@ from backend.shared.helpers import (
     generate_album_art,
     load_prompt_from_file,
     load_resources,
+    normalize_album_art_aspect_ratio,
     parse_persona,
     remove_title_from_lyrics,
     remove_thinking_tags,
@@ -109,11 +110,15 @@ def generate_song_pipeline(
 
     auto_select_fields = set()
     no_live_performance = False
+    album_art_aspect_ratio = "3:4"
     if generation_config:
         raw_auto_fields = generation_config.get("auto_select_fields")
         if isinstance(raw_auto_fields, list):
             auto_select_fields = {str(field) for field in raw_auto_fields}
         no_live_performance = bool(generation_config.get("no_live_performance", False))
+        album_art_aspect_ratio = normalize_album_art_aspect_ratio(
+            generation_config.get("art_aspect_ratio")
+        )
 
     for field in auto_select_fields:
         if field in resources.default_params:
@@ -193,6 +198,7 @@ def generate_song_pipeline(
         "vocal_gender": vocal_gender,
         "lyrics_model": lyrics_model,
         "generate_album_art": should_generate_art,
+        "album_art_aspect_ratio": album_art_aspect_ratio,
         "no_live_performance": no_live_performance,
     }
 
@@ -371,7 +377,8 @@ def generate_song_pipeline(
             persona_name=state.get("persona_name"),
             style=state.get("style"),
             mood=state.get("mood") or state.get("resources").default_params.get("mood"),
-            vocal_gender=state.get("vocal_gender") or state.get("resources").default_params.get("vocal_gender")
+            vocal_gender=state.get("vocal_gender") or state.get("resources").default_params.get("vocal_gender"),
+            aspect_ratio=state.get("album_art_aspect_ratio"),
         )
         notify(f"Album artwork generated: {artwork_path}", 85)
         return {"album_art": artwork_path}

@@ -13,6 +13,7 @@ import {
   fetchSettings,
   fetchStyles
 } from "../../services/api";
+import type { AlbumArtAspectRatio } from "../../types/api";
 
 const KEY_OPTIONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const MOOD_OPTIONS = ["happy", "sad", "energetic", "calm", "dark", "uplifting", "angry", "romantic"];
@@ -36,6 +37,14 @@ const AUTO_SELECT_FIELDS = [
   "rhyme_scheme"
 ] as const;
 const DEFAULT_GENERATE_COVER_ART = false;
+const ALBUM_ART_ASPECT_RATIO_OPTIONS: { value: AlbumArtAspectRatio; label: string }[] = [
+  { value: "1:1", label: "Square · 1:1" },
+  { value: "4:5", label: "Portrait · 4:5" },
+  { value: "3:4", label: "Portrait · 3:4" },
+  { value: "4:3", label: "Landscape · 4:3" },
+  { value: "16:9", label: "Wide · 16:9" },
+  { value: "9:16", label: "Vertical · 9:16" }
+];
 const SONG_PROMPT_PLACEHOLDER =
   "Describe the story, energy, perspective, references, must-include lines, or production ideas...";
 
@@ -99,6 +108,7 @@ export function GenerationForm() {
   const [useLocal, setUseLocal] = useState(false);
   const [lyricsModel, setLyricsModel] = useState("");
   const [generateCoverArt, setGenerateCoverArt] = useState(false);
+  const [albumArtAspectRatio, setAlbumArtAspectRatio] = useState<AlbumArtAspectRatio>("3:4");
   const [noLivePerformance, setNoLivePerformance] = useState(false);
   const [settingsInitialized, setSettingsInitialized] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -133,6 +143,7 @@ export function GenerationForm() {
     isAdvancedMode ? mood : undefined,
     isAdvancedMode ? vocalGender : undefined,
     isAdvancedMode ? rhymeScheme : undefined,
+    isAdvancedMode && generateCoverArt && !useLocal ? "cover art" : "",
     isAdvancedMode && noLivePerformance ? "no live performance" : "",
     isAdvancedMode && selectedInstrumentCount ? "instruments" : "",
     isAdvancedMode && albumId ? "album" : ""
@@ -237,10 +248,11 @@ export function GenerationForm() {
       lyrics_model: submittedLyricsModel,
       album_id: isAdvancedMode ? albumId : undefined,
       generate_album_art: submittedGenerateCoverArt,
-      generation_config: autoSelectFields.length || (isAdvancedMode && noLivePerformance)
+      generation_config: autoSelectFields.length || (isAdvancedMode && (noLivePerformance || submittedGenerateCoverArt))
         ? {
             auto_select_fields: autoSelectFields.length ? autoSelectFields : undefined,
-            no_live_performance: isAdvancedMode ? noLivePerformance : undefined
+            no_live_performance: isAdvancedMode ? noLivePerformance : undefined,
+            art_aspect_ratio: submittedGenerateCoverArt ? albumArtAspectRatio : undefined
           }
         : undefined
     });
@@ -382,6 +394,23 @@ export function GenerationForm() {
                       <small>{useLocal ? "Disabled in local mode." : "Optional artwork for the finished song."}</small>
                     </span>
                   </label>
+
+                  <div className={`generation-field ${useLocal || !generateCoverArt ? "is-disabled" : ""}`}>
+                    <label className="generation-label" htmlFor="album-art-aspect-ratio">Cover Art Ratio</label>
+                    <select
+                      id="album-art-aspect-ratio"
+                      value={albumArtAspectRatio}
+                      onChange={(event) => setAlbumArtAspectRatio(event.target.value as AlbumArtAspectRatio)}
+                      disabled={useLocal || !generateCoverArt}
+                      className="generation-input"
+                    >
+                      {ALBUM_ART_ASPECT_RATIO_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
                   <label className="generation-check">
                     <input

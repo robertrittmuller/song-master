@@ -1,8 +1,10 @@
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
+
+AlbumArtAspectRatio = Literal["1:1", "4:5", "3:4", "4:3", "16:9", "9:16"]
 
 
 class SongCreate(BaseModel):
@@ -38,6 +40,17 @@ class SongUpdate(BaseModel):
 
 class SongLyricsUpdate(BaseModel):
     lyrics: str
+
+
+class SongLiveFeedbackDemoTrackRequest(BaseModel):
+    file_path: str = Field(..., description="Song-owned demo track file path")
+
+
+class SongRegenerateArtRequest(BaseModel):
+    aspect_ratio: Optional[AlbumArtAspectRatio] = Field(
+        default=None,
+        description="Requested album art aspect ratio",
+    )
 
 
 class SongRegenerateLyricsRequest(BaseModel):

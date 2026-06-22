@@ -12,13 +12,53 @@ import { DemoTrackCard } from "../features/songViewer/DemoTrackCard";
 import { LyricsSectionView } from "../features/songViewer/LyricsSectionView";
 import { LyricVersionTabs } from "../features/songViewer/LyricVersionTabs";
 import { LyricDiffView } from "../features/songViewer/LyricDiffView";
-import { API_BASE, createDemoTrack, deleteSong, fetchSong, fetchSettings, regenerateAlbumArt, fetchAlbums, updateSong, updateSongLyrics, regenerateLyrics, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
+import { API_BASE, createDemoTrack, deleteSong, fetchSong, fetchSettings, regenerateAlbumArt, fetchAlbums, updateSong, updateSongLyrics, regenerateLyrics, submitDemoTrackLiveFeedback, uploadLiveFeedback, fetchPersonas, uploadSongArt } from "../services/api";
 import { copyTextToClipboard } from "../services/clipboard";
-import type { SongFile } from "../types/api";
+import type { AlbumArtAspectRatio, SongFile } from "../types/api";
+
+type LiveFeedbackSource = "upload" | "demo";
+const ALBUM_ART_ASPECT_RATIO_OPTIONS: { value: AlbumArtAspectRatio; label: string }[] = [
+  { value: "1:1", label: "Square · 1:1" },
+  { value: "4:5", label: "Portrait · 4:5" },
+  { value: "3:4", label: "Portrait · 3:4" },
+  { value: "4:3", label: "Landscape · 4:3" },
+  { value: "16:9", label: "Wide · 16:9" },
+  { value: "9:16", label: "Vertical · 9:16" }
+];
+
+function isAlbumArtAspectRatio(value: unknown): value is AlbumArtAspectRatio {
+  return ALBUM_ART_ASPECT_RATIO_OPTIONS.some((option) => option.value === value);
+}
+
+function parseAlbumArtAspectRatio(generationConfig?: string | null): AlbumArtAspectRatio {
+  if (!generationConfig) {
+    return "3:4";
+  }
+  try {
+    const parsed = JSON.parse(generationConfig);
+    const ratio = parsed?.art_aspect_ratio;
+    return isAlbumArtAspectRatio(ratio) ? ratio : "3:4";
+  } catch {
+    return "3:4";
+  }
+}
 
 function modelDisplayName(modelId?: string | null): string {
   if (!modelId) return "Manual edit";
   return modelId.replace(/^openrouter\//, "");
+}
+
+function getSortedDemoTracks(files?: SongFile[]): SongFile[] {
+  return [...(files ?? [])]
+    .filter((file) => file.file_type === "demo_track" && file.file_path)
+    .sort((a, b) => {
+      const aIsPrimary = a.is_primary ? 1 : 0;
+      const bIsPrimary = b.is_primary ? 1 : 0;
+      if (aIsPrimary !== bIsPrimary) {
+        return bIsPrimary - aIsPrimary;
+      }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 }
 
 export function SongDetailPage() {
@@ -58,7 +98,8 @@ export function SongDetailPage() {
   });
 
   const regenerateArtMutation = useMutation({
-    mutationFn: regenerateAlbumArt,
+    mutationFn: (payload: { songId: number; aspectRatio: AlbumArtAspectRatio }) =>
+      regenerateAlbumArt(payload.songId, { aspect_ratio: payload.aspectRatio }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["song", songId] });
     }
@@ -97,7 +138,10 @@ export function SongDetailPage() {
   const [selectedArtPath, setSelectedArtPath] = useState<string | null>(null);
   const [selectedArtFileName, setSelectedArtFileName] = useState("No file selected");
   const [selectedFeedbackFileName, setSelectedFeedbackFileName] = useState("No file selected");
+  const [liveFeedbackSource, setLiveFeedbackSource] = useState<LiveFeedbackSource>("upload");
+  const [selectedLiveDemoTrackPath, setSelectedLiveDemoTrackPath] = useState<string | null>(null);
   const [regenerateLyricsModel, setRegenerateLyricsModel] = useState("");
+  const [regenerateArtAspectRatio, setRegenerateArtAspectRatio] = useState<AlbumArtAspectRatio>("3:4");
   const editRef = useRef<HTMLDivElement>(null);
   const uploadArtInputRef = useRef<HTMLInputElement>(null);
   const liveFeedbackInputRef = useRef<HTMLInputElement>(null);
@@ -156,6 +200,13 @@ export function SongDetailPage() {
     }
   }, [song]);
 
+  const storedAlbumArtAspectRatio = useMemo(
+    () => parseAlbumArtAspectRatio(song?.generation_config),
+    [song?.generation_config]
+  );
+  const regenerateArtAspectRatioLabel =
+    ALBUM_ART_ASPECT_RATIO_OPTIONS.find((option) => option.value === regenerateArtAspectRatio)?.label || regenerateArtAspectRatio;
+
   const hasAlbumArt = Boolean(song?.album_art);
   const hasDemoTrack = Boolean(song?.files?.some((file) => file.file_type === "demo_track"));
   const artworkHistory = useMemo<SongFile[]>(() => {
@@ -195,6 +246,8 @@ export function SongDetailPage() {
     });
   }, [song]);
   const selectedArtwork = artworkHistory.find((file) => file.file_path === selectedArtPath) ?? artworkHistory[0];
+  const demoTracks = useMemo<SongFile[]>(() => getSortedDemoTracks(song?.files), [song?.files]);
+  const selectedLiveDemoTrack = demoTracks.find((file) => file.file_path === selectedLiveDemoTrackPath) ?? demoTracks[0] ?? null;
   const regenerateModelOptions = (settings?.models || []).filter((model) => model.source === (song?.use_local ? "local" : "remote"));
   const regenerateFallbackModel = song?.lyrics_model || (song?.use_local ? settings?.local_model : settings?.regenerate_model || settings?.model);
 
@@ -205,6 +258,23 @@ export function SongDetailPage() {
   useEffect(() => {
     setRegenerateLyricsModel(regenerateFallbackModel || "");
   }, [regenerateFallbackModel, songId]);
+
+  useEffect(() => {
+    setRegenerateArtAspectRatio(storedAlbumArtAspectRatio);
+  }, [storedAlbumArtAspectRatio, songId]);
+
+  useEffect(() => {
+    setSelectedLiveDemoTrackPath((current) => {
+      if (current && demoTracks.some((file) => file.file_path === current)) {
+        return current;
+      }
+      return demoTracks[0]?.file_path ?? null;
+    });
+
+    if (demoTracks.length === 0) {
+      setLiveFeedbackSource("upload");
+    }
+  }, [demoTracks, songId]);
 
   useEffect(() => {
     if (song && !isEditing) {
@@ -273,6 +343,8 @@ export function SongDetailPage() {
     setIsDiffMode(false);
     setConfirmDialog({ isOpen: false, type: null });
     setPendingLiveFeedbackFile(null);
+    setLiveFeedbackSource("upload");
+    setSelectedLiveDemoTrackPath(null);
     setDemoTrackResponse({ isOpen: false, title: "", message: "", variant: "primary" });
     setRegenerateLyricsModel("");
   }, [songId]);
@@ -286,13 +358,15 @@ export function SongDetailPage() {
     if (!confirmDialog.type || !song) return;
 
     if (confirmDialog.type === "regenerate_art") {
-      regenerateArtMutation.mutate(song.id);
+      regenerateArtMutation.mutate({ songId: song.id, aspectRatio: regenerateArtAspectRatio });
     } else if (confirmDialog.type === "regenerate_lyrics") {
       regenerateLyricsMutation.mutate({ songId: song.id, lyrics_model: regenerateLyricsModel || regenerateFallbackModel || undefined });
     } else if (confirmDialog.type === "delete_song") {
       deleteMutation.mutate(song.id);
     } else if (confirmDialog.type === "live_listen") {
-      if (pendingLiveFeedbackFile) {
+      if (liveFeedbackSource === "demo" && selectedLiveDemoTrack) {
+        void submitLiveFeedbackFromDemo(selectedLiveDemoTrack);
+      } else if (pendingLiveFeedbackFile) {
         void submitLiveFeedback(pendingLiveFeedbackFile);
       }
     } else if (confirmDialog.type === "create_demo_track") {
@@ -309,6 +383,31 @@ export function SongDetailPage() {
       });
     }
     closeConfirmDialog();
+  };
+
+  const submitLiveFeedbackFromDemo = async (track: SongFile) => {
+    if (!song) return;
+    setIsLiveFeedbackSubmitting(true);
+    try {
+      await submitDemoTrackLiveFeedback(song.id, track.file_path);
+      queryClient.invalidateQueries({ queryKey: ["song", songId] });
+      setLiveFeedbackResponse({
+        isOpen: true,
+        title: "Live Listen Feedback",
+        message: "Feedback received and lyrics updated!",
+        variant: "ai-glow",
+      });
+    } catch (err: any) {
+      console.error(err);
+      setLiveFeedbackResponse({
+        isOpen: true,
+        title: "Live Listen Feedback",
+        message: "Failed to process demo track: " + (err.response?.data?.detail || err.message),
+        variant: "danger",
+      });
+    } finally {
+      setIsLiveFeedbackSubmitting(false);
+    }
   };
 
   const submitLiveFeedback = async (file: File) => {
@@ -603,14 +702,30 @@ ${cleanLyrics}
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <div className="tag">{song.status}</div>
             {song.status === "completed" && (
-              <Button
-                variant="secondary"
-                size="sm"
-                isLoading={regenerateArtMutation.isPending}
-                onClick={() => setConfirmDialog({ isOpen: true, type: "regenerate_art" })}
-              >
-                {hasAlbumArt ? "Regenerate Art" : "Generate Art"}
-              </Button>
+              <>
+                <select
+                  className="input"
+                  style={{ width: 150, padding: "7px 10px", fontSize: 13 }}
+                  value={regenerateArtAspectRatio}
+                  onChange={(event) => setRegenerateArtAspectRatio(event.target.value as AlbumArtAspectRatio)}
+                  disabled={regenerateArtMutation.isPending}
+                  aria-label="Album art aspect ratio"
+                >
+                  {ALBUM_ART_ASPECT_RATIO_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  isLoading={regenerateArtMutation.isPending}
+                  onClick={() => setConfirmDialog({ isOpen: true, type: "regenerate_art" })}
+                >
+                  {hasAlbumArt ? "Regenerate Art" : "Generate Art"}
+                </Button>
+              </>
             )}
             {song.status === "completed" && (
               <>
@@ -908,13 +1023,47 @@ ${cleanLyrics}
             <Card title="Live Listen Feedback">
                 <div className="stack" style={{ gap: 12 }}>
                   <p style={{ color: "var(--gray-300)", fontSize: 13, margin: 0, lineHeight: 1.4 }}>
-                    Upload an MP3 of your current generated song. The AI will listen and provide feedback to improve the lyrics fit.
+                    Upload an MP3 or choose a saved demo track. The AI will listen and provide feedback to improve the lyrics fit.
                   </p>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+                    <Button
+                      type="button"
+                      variant={liveFeedbackSource === "upload" ? "primary" : "secondary"}
+                      size="sm"
+                      onClick={() => setLiveFeedbackSource("upload")}
+                    >
+                      Upload MP3
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={liveFeedbackSource === "demo" ? "primary" : "secondary"}
+                      size="sm"
+                      disabled={demoTracks.length === 0}
+                      onClick={() => setLiveFeedbackSource("demo")}
+                    >
+                      Demo Track
+                    </Button>
+                  </div>
 
                   <form
                     ref={liveFeedbackFormRef}
                     onSubmit={(e) => {
                       e.preventDefault();
+                      if (liveFeedbackSource === "demo") {
+                        if (!selectedLiveDemoTrack) {
+                          setLiveFeedbackResponse({
+                            isOpen: true,
+                            title: "Live Listen Feedback",
+                            message: "Create a demo track before using one for live listen feedback.",
+                            variant: "danger",
+                          });
+                          return;
+                        }
+                        setConfirmDialog({ isOpen: true, type: "live_listen" });
+                        return;
+                      }
+
                       const form = e.target as HTMLFormElement;
                       const fileInput = form.elements.namedItem("file") as HTMLInputElement;
                       if (!fileInput.files?.length) return;
@@ -923,35 +1072,61 @@ ${cleanLyrics}
                       setConfirmDialog({ isOpen: true, type: "live_listen" });
                     }}
                   >
-                    <div className="file-field" style={{ marginBottom: 12 }}>
-                      <input
-                        ref={liveFeedbackInputRef}
-                        type="file"
-                        name="file"
-                        accept=".mp3,audio/mpeg"
-                        className="file-field__input"
-                        disabled={isLiveFeedbackSubmitting}
-                        required
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          setSelectedFeedbackFileName(file ? file.name : "No file selected");
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="file-field__button"
-                        disabled={isLiveFeedbackSubmitting}
-                        onClick={() => liveFeedbackInputRef.current?.click()}
-                      >
-                        Choose MP3
-                      </Button>
-                      <span className={`file-field__name ${selectedFeedbackFileName === "No file selected" ? "is-empty" : ""}`}>
-                        {selectedFeedbackFileName}
-                      </span>
-                    </div>
-                    <button type="submit" className="btn primary" style={{ width: "100%" }} disabled={isLiveFeedbackSubmitting}>
+                    {liveFeedbackSource === "upload" ? (
+                      <div className="file-field" style={{ marginBottom: 12 }}>
+                        <input
+                          ref={liveFeedbackInputRef}
+                          type="file"
+                          name="file"
+                          accept=".mp3,audio/mpeg"
+                          className="file-field__input"
+                          disabled={isLiveFeedbackSubmitting}
+                          required={liveFeedbackSource === "upload"}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            setSelectedFeedbackFileName(file ? file.name : "No file selected");
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="file-field__button"
+                          disabled={isLiveFeedbackSubmitting}
+                          onClick={() => liveFeedbackInputRef.current?.click()}
+                        >
+                          Choose MP3
+                        </Button>
+                        <span className={`file-field__name ${selectedFeedbackFileName === "No file selected" ? "is-empty" : ""}`}>
+                          {selectedFeedbackFileName}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="stack" style={{ gap: 8, marginBottom: 12 }}>
+                        <select
+                          className="input"
+                          value={selectedLiveDemoTrack?.file_path ?? ""}
+                          disabled={isLiveFeedbackSubmitting || demoTracks.length === 0}
+                          onChange={(event) => setSelectedLiveDemoTrackPath(event.target.value || null)}
+                        >
+                          {demoTracks.length === 0 ? (
+                            <option value="">No demo tracks available</option>
+                          ) : (
+                            demoTracks.map((file, index) => (
+                              <option key={file.file_path} value={file.file_path}>
+                                {file.is_primary ? "Current Demo" : `Demo ${demoTracks.length - index}`} - {new Date(file.created_at).toLocaleString()}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        {selectedLiveDemoTrack && (
+                          <audio controls style={{ width: "100%" }} src={encodeURI(`${API_BASE}/${selectedLiveDemoTrack.file_path}`)}>
+                            Your browser does not support audio playback.
+                          </audio>
+                        )}
+                      </div>
+                    )}
+                    <button type="submit" className="btn primary" style={{ width: "100%" }} disabled={isLiveFeedbackSubmitting || (liveFeedbackSource === "demo" && !selectedLiveDemoTrack)}>
                       {isLiveFeedbackSubmitting ? "Analyzing..." : "Submit for Feedback"}
                     </button>
                   </form>
@@ -1106,10 +1281,10 @@ ${cleanLyrics}
           "Delete Song"
         }
         message={
-          confirmDialog.type === "regenerate_art" ? `Are you sure you want to ${hasAlbumArt ? "regenerate" : "generate"} the cover art for "${song.title}"?` :
+          confirmDialog.type === "regenerate_art" ? `Are you sure you want to ${hasAlbumArt ? "regenerate" : "generate"} the cover art for "${song.title}" as ${regenerateArtAspectRatioLabel}?` :
           confirmDialog.type === "regenerate_lyrics" ? `Are you sure you want to regenerate the lyrics for "${song.title}" with ${modelDisplayName(regenerateLyricsModel || regenerateFallbackModel)}? This will use the original request and keep the current album art.` :
           confirmDialog.type === "create_demo_track" ? `This will send the saved lyrics and metadata for "${song.title}" to the MiniMax Music Generation API. Continue?` :
-          confirmDialog.type === "live_listen" ? "This will submit the audio to an external LLM for analysis and regenerate the lyrics based on feedback. Continue?" :
+          confirmDialog.type === "live_listen" ? `This will submit ${liveFeedbackSource === "demo" ? "the selected demo track" : "the uploaded audio"} to an external LLM for analysis and regenerate the lyrics based on feedback. Continue?` :
           `Are you sure you want to delete "${song.title}"? This action cannot be undone.`
         }
         confirmText={

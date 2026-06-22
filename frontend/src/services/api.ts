@@ -5,6 +5,7 @@ import type {
   AuthUser,
   BackupRestoreResult,
   DemoTrackStatus,
+  AlbumArtAspectRatio,
   Persona,
   Album,
   Settings,
@@ -289,6 +290,7 @@ export async function createSong(payload: {
   generation_config?: {
     auto_select_fields?: string[];
     no_live_performance?: boolean;
+    art_aspect_ratio?: AlbumArtAspectRatio;
   };
 }) {
   const { data } = await client.post<Song>("/api/songs/generate", payload);
@@ -325,8 +327,11 @@ export const websocketUrl = (songId: number) =>
     return url.toString();
   };
 
-export async function regenerateAlbumArt(songId: number): Promise<Song> {
-  const { data } = await client.post<Song>(`/api/songs/${songId}/regenerate-art`);
+export async function regenerateAlbumArt(
+  songId: number,
+  payload: { aspect_ratio?: AlbumArtAspectRatio } = {}
+): Promise<Song> {
+  const { data } = await client.post<Song>(`/api/songs/${songId}/regenerate-art`, payload);
   return data;
 }
 
@@ -354,6 +359,13 @@ export async function uploadLiveFeedback(songId: number, file: File): Promise<So
   formData.append("file", file);
   const { data } = await client.post<Song>(`/api/songs/${songId}/live-feedback`, formData, {
     headers: { "Content-Type": "multipart/form-data" }
+  });
+  return data;
+}
+
+export async function submitDemoTrackLiveFeedback(songId: number, filePath: string): Promise<Song> {
+  const { data } = await client.post<Song>(`/api/songs/${songId}/live-feedback/demo-track`, {
+    file_path: filePath,
   });
   return data;
 }
