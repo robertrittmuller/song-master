@@ -766,6 +766,169 @@ a {
   cursor: grabbing;
 }
 
+.lyric-tag-editor-modal {
+  max-width: min(760px, calc(100vw - 32px));
+}
+
+.lyric-tag-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.lyric-tag-editor__section,
+.lyric-tag-editor__manual {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lyric-tag-editor__label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.lyric-tag-editor__label-row span,
+.lyric-tag-editor__label {
+  color: var(--gray-400);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lyric-tag-editor__selected-list,
+.lyric-tag-editor__option-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lyric-tag-editor__selected-list {
+  min-height: 48px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.lyric-tag-editor__selected-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 6px 7px 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  background: rgba(14, 165, 233, 0.12);
+  color: #d7f3ff;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: grab;
+}
+
+.lyric-tag-editor__selected-tag.is-dragging {
+  opacity: 0.55;
+}
+
+.lyric-tag-editor__selected-tag > span:first-of-type {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lyric-tag-editor__kind {
+  flex-shrink: 0;
+  padding: 2px 5px;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.lyric-tag-editor__kind--tag {
+  background: rgba(14, 165, 233, 0.18);
+  color: #8bd7ff;
+}
+
+.lyric-tag-editor__kind--style {
+  background: rgba(139, 92, 246, 0.18);
+  color: #c4b5fd;
+}
+
+.lyric-tag-editor__remove {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.42);
+  color: var(--gray-300);
+  cursor: pointer;
+}
+
+.lyric-tag-editor__remove:hover {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fecaca;
+}
+
+.lyric-tag-editor__manual-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.lyric-tag-editor__manual-row .btn {
+  min-width: 86px;
+}
+
+.lyric-tag-editor__option-list {
+  max-height: 280px;
+  overflow: auto;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.lyric-tag-editor__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--gray-200);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.lyric-tag-editor__option:hover {
+  border-color: rgba(56, 189, 248, 0.36);
+  background: rgba(14, 165, 233, 0.1);
+  color: var(--gray-50);
+}
+
+.lyric-tag-editor__option span {
+  overflow-wrap: anywhere;
+}
+
+.lyric-tag-editor__empty {
+  width: 100%;
+  padding: 8px;
+  color: var(--gray-500);
+  font-size: 13px;
+  text-align: center;
+}
+
 .lyrics-draft-alert {
   display: flex;
   align-items: center;
@@ -1776,6 +1939,14 @@ h3 {
   .lyrics-draft-alert {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .lyric-tag-editor__manual-row {
+    grid-template-columns: 1fr;
+  }
+
+  .lyric-tag-editor__manual-row .btn {
+    width: 100%;
   }
 }
 

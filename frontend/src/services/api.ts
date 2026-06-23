@@ -190,6 +190,11 @@ export async function fetchInstruments(): Promise<string[]> {
   return data;
 }
 
+export async function fetchLyricTags(): Promise<string[]> {
+  const { data } = await client.get<string[]>("/api/tags");
+  return data;
+}
+
 export async function fetchAlbums(): Promise<Album[]> {
   const { data } = await client.get<Album[]>("/api/albums");
   return data;

@@ -2,6 +2,7 @@ import unittest
 
 from backend.shared.helpers import (
     apply_section_plan_tags_to_lyrics,
+    get_default_lyric_tags,
     normalize_lyrics_section_tags,
     remove_title_from_lyrics,
     strip_style_tags,
@@ -76,6 +77,14 @@ class LyricsTagNormalizationTests(unittest.TestCase):
         stripped = remove_title_from_lyrics(lyrics, "Neon Harbor")
 
         self.assertEqual(stripped, "[Intro] [style: synthpop]\nSynths rise")
+
+    def test_get_default_lyric_tags_returns_bracketless_default_tags(self):
+        tags = get_default_lyric_tags()
+
+        self.assertIn("Intro", tags)
+        self.assertIn("Female Vocal", tags)
+        self.assertIn("Dynamic: Explosive energy", tags)
+        self.assertNotIn("[Intro]", tags)
 
 
 if __name__ == "__main__":

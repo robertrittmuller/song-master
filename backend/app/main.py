@@ -14,6 +14,7 @@ from backend.app.api.routes import (
     song_proposals,
     songs,
     styles,
+    tags,
 )
 from backend.app.core.config import get_settings
 from backend.app.db.database import init_db
@@ -57,6 +58,7 @@ app.include_router(songs.router)
 app.include_router(personas.router)
 app.include_router(settings_routes.router)
 app.include_router(styles.router)
+app.include_router(tags.router)
 app.include_router(instruments.router)
 app.include_router(progress_ws.router)
 

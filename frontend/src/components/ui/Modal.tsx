@@ -7,6 +7,7 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  className?: string;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -15,6 +16,7 @@ export const Modal: React.FC<ModalProps> = ({
   title,
   children,
   footer,
+  className,
 }) => {
   // Close on Escape key
   useEffect(() => {
@@ -37,7 +39,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   return createPortal(
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+      <div className={["modal-container", className].filter(Boolean).join(" ")} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{title}</h3>
         </div>

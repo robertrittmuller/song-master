@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DragEvent } from "react";
 
-import { ArrowDown, ArrowUp, GripVertical, Trash2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowDown, ArrowUp, Edit3, GripVertical, Plus, Trash2, X } from "lucide-react";
 
+import { Modal } from "../../components/ui/Modal";
 import { copyTextToClipboard } from "../../services/clipboard";
+import { fetchLyricTags } from "../../services/api";
 
 
 interface LyricSection {
@@ -11,6 +14,13 @@ interface LyricSection {
     tags: string[];
     styles: string[];
     content: string;
+}
+
+type MetadataKind = "tag" | "style";
+
+interface EditableMetadataTag {
+    value: string;
+    kind: MetadataKind;
 }
 
 interface Props {
@@ -70,6 +80,77 @@ function dedupeMetadata(values: string[]): string[] {
     return deduped;
 }
 
+function isStyleMetadataTag(value: string): boolean {
+    const lowerContent = value.toLowerCase();
+    return lowerContent.includes("style:") ||
+        lowerContent.includes("genre:") ||
+        lowerContent.includes("tempo:") ||
+        lowerContent.includes("instruments:") ||
+        lowerContent.includes("key:") ||
+        lowerContent.includes("mood:") ||
+        lowerContent.includes("dynamic:") ||
+        lowerContent.includes("solo") ||
+        lowerContent.includes("finish") ||
+        lowerContent.includes("instrumental") ||
+        lowerContent.includes("intensity");
+}
+
+function getMetadataKind(value: string): MetadataKind {
+    return isStyleMetadataTag(value) ? "style" : "tag";
+}
+
+function normalizeTagInput(value: string): string {
+    let trimmed = value.trim();
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+        trimmed = trimmed.slice(1, -1).trim();
+    }
+    return trimmed.replace(/\s+/g, " ");
+}
+
+function dedupeEditableTags(items: EditableMetadataTag[]): EditableMetadataTag[] {
+    const deduped: EditableMetadataTag[] = [];
+    const seen = new Set<string>();
+
+    items.forEach((item) => {
+        const value = normalizeTagInput(item.value);
+        const normalized = normalizeMetadataValue(value);
+        if (!normalized || seen.has(normalized)) {
+            return;
+        }
+        seen.add(normalized);
+        deduped.push({ value, kind: item.kind });
+    });
+
+    return deduped;
+}
+
+function getEditableTags(section: LyricSection): EditableMetadataTag[] {
+    return dedupeEditableTags([
+        ...section.tags.map((value) => ({ value, kind: "tag" as const })),
+        ...section.styles.map((value) => ({ value, kind: "style" as const })),
+    ]);
+}
+
+function splitEditableTags(items: EditableMetadataTag[]): Pick<LyricSection, "tags" | "styles"> {
+    const tags: string[] = [];
+    const styles: string[] = [];
+
+    dedupeEditableTags(items).forEach((item) => {
+        const kind = item.kind || getMetadataKind(item.value);
+        if (kind === "style") {
+            styles.push(item.value);
+        } else {
+            tags.push(item.value);
+        }
+    });
+
+    const tagKeys = new Set(tags.map(normalizeMetadataValue));
+    return {
+        tags: dedupeMetadata(tags),
+        styles: dedupeMetadata(styles).filter((style) => !tagKeys.has(normalizeMetadataValue(style))),
+    };
+}
+
 function dedupeSectionMetadata(section: LyricSection): LyricSection {
     const tags = dedupeMetadata(section.tags);
     const tagKeys = new Set(tags.map(normalizeMetadataValue));
@@ -119,19 +200,7 @@ function parseLyrics(lyrics: string): LyricSection[] {
             for (let i = 0; i < bracketMatches.length; i++) {
                 const content = bracketMatches[i][1];
                 const lowerContent = content.toLowerCase();
-
-                const isStyle = lowerContent.includes("style:") ||
-                    lowerContent.includes("genre:") ||
-                    lowerContent.includes("tempo:") ||
-                    lowerContent.includes("instruments:") ||
-                    lowerContent.includes("key:") ||
-                    lowerContent.includes("mood:") ||
-                    lowerContent.includes("dynamic:") ||
-                    lowerContent.includes("solo") ||
-                    lowerContent.includes("finish") ||
-                    lowerContent.includes("instrumental") ||
-                    lowerContent.includes("intensity");
-
+                const isStyle = isStyleMetadataTag(content);
                 const isVocal = lowerContent.includes("vocal") ||
                     lowerContent.includes("voice") ||
                     lowerContent.includes("ad-lib") ||
@@ -272,8 +341,33 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
     const [editedContent, setEditedContent] = useState("");
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [dropIndex, setDropIndex] = useState<number | null>(null);
+    const [tagEditorIndex, setTagEditorIndex] = useState<number | null>(null);
+    const [tagDraftItems, setTagDraftItems] = useState<EditableMetadataTag[]>([]);
+    const [tagSearch, setTagSearch] = useState("");
+    const [manualTag, setManualTag] = useState("");
+    const [draggedTagIndex, setDraggedTagIndex] = useState<number | null>(null);
     const sections = useMemo(() => parseLyrics(lyrics), [lyrics]);
     const canEdit = editable && !!onDraftChange;
+    const { data: defaultLyricTags = [], isLoading: isLoadingDefaultLyricTags } = useQuery({
+        queryKey: ["lyric-tags"],
+        queryFn: fetchLyricTags,
+        enabled: canEdit,
+    });
+
+    const filteredDefaultLyricTags = useMemo(() => {
+        const selectedTagKeys = new Set(tagDraftItems.map((item) => normalizeMetadataValue(item.value)));
+        const query = normalizeMetadataValue(tagSearch);
+        return defaultLyricTags
+            .map(normalizeTagInput)
+            .filter((tag) => {
+                const normalized = normalizeMetadataValue(tag);
+                if (!normalized || selectedTagKeys.has(normalized)) {
+                    return false;
+                }
+                return !query || normalized.includes(query);
+            })
+            .slice(0, 80);
+    }, [defaultLyricTags, tagDraftItems, tagSearch]);
 
     const updateDraftSections = (updatedSections: LyricSection[]) => {
         if (!onDraftChange) {
@@ -282,6 +376,77 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
         onDraftChange(buildLyricsFromSections(updatedSections));
         setEditingIndex(null);
         setEditedContent("");
+    };
+
+    const openTagEditor = (sectionIndex: number) => {
+        if (!canEdit || sectionIndex < 0 || sectionIndex >= sections.length) {
+            return;
+        }
+
+        setEditingIndex(null);
+        setEditedContent("");
+        setTagEditorIndex(sectionIndex);
+        setTagDraftItems(getEditableTags(sections[sectionIndex]));
+        setTagSearch("");
+        setManualTag("");
+        setDraggedTagIndex(null);
+    };
+
+    const closeTagEditor = () => {
+        setTagEditorIndex(null);
+        setTagDraftItems([]);
+        setTagSearch("");
+        setManualTag("");
+        setDraggedTagIndex(null);
+    };
+
+    const addTagToDraft = (rawValue: string) => {
+        const value = normalizeTagInput(rawValue);
+        if (!value || value.includes("[") || value.includes("]")) {
+            return;
+        }
+
+        setTagDraftItems((current) => dedupeEditableTags([
+            ...current,
+            { value, kind: getMetadataKind(value) },
+        ]));
+    };
+
+    const removeTagFromDraft = (tagIndex: number) => {
+        setTagDraftItems((current) => current.filter((_, index) => index !== tagIndex));
+    };
+
+    const moveTagInDraft = (fromIndex: number, toIndex: number) => {
+        setTagDraftItems((current) => {
+            if (fromIndex < 0 || fromIndex >= current.length || toIndex < 0 || toIndex >= current.length || fromIndex === toIndex) {
+                return current;
+            }
+
+            const updated = [...current];
+            const [item] = updated.splice(fromIndex, 1);
+            updated.splice(toIndex, 0, item);
+            return updated;
+        });
+    };
+
+    const saveTagEditor = () => {
+        if (!canEdit || tagEditorIndex === null || tagEditorIndex < 0 || tagEditorIndex >= sections.length) {
+            return;
+        }
+
+        const metadata = splitEditableTags(tagDraftItems);
+        const updatedSections = sections.map((section, index) => (
+            index === tagEditorIndex
+                ? { ...section, ...metadata }
+                : section
+        ));
+        updateDraftSections(updatedSections);
+        closeTagEditor();
+    };
+
+    const addManualTag = () => {
+        addTagToDraft(manualTag);
+        setManualTag("");
     };
 
     const moveSection = (fromIndex: number, toIndex: number) => {
@@ -350,6 +515,22 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
         setDropIndex(null);
     };
 
+    const handleTagDragStart = (event: DragEvent<HTMLDivElement>, index: number) => {
+        setDraggedTagIndex(index);
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", String(index));
+    };
+
+    const handleTagDrop = (event: DragEvent<HTMLDivElement>, index: number) => {
+        event.preventDefault();
+        if (draggedTagIndex === null) {
+            return;
+        }
+
+        moveTagInDraft(draggedTagIndex, index);
+        setDraggedTagIndex(null);
+    };
+
     const getSectionClassName = (index: number): string => {
         const classNames = ["glass", "lyric-section-card"];
         if (draggedIndex === index) {
@@ -392,11 +573,14 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
         }
     };
 
+    const tagEditorSection = tagEditorIndex === null ? null : sections[tagEditorIndex] ?? null;
+
     useEffect(() => {
         setEditingIndex(null);
         setEditedContent("");
         setDraggedIndex(null);
         setDropIndex(null);
+        closeTagEditor();
     }, [lyrics]);
 
     if (sections.length === 0) {
@@ -475,48 +659,61 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
                             {section.type}
                         </div>
 
-                        {canEdit && sections.length > 1 && (
+                        {canEdit && (
                             <div className="lyric-section-card__controls" onClick={(event) => event.stopPropagation()}>
                                 <button
                                     type="button"
                                     className="lyric-section-card__icon-button"
-                                    aria-label={`Move ${section.type} up`}
-                                    title="Move up"
-                                    disabled={index === 0}
-                                    onClick={() => moveSection(index, index - 1)}
+                                    aria-label={`Edit tags for ${section.type}`}
+                                    title="Edit tags"
+                                    onClick={() => openTagEditor(index)}
                                 >
-                                    <ArrowUp size={14} />
+                                    <Edit3 size={14} />
                                 </button>
-                                <button
-                                    type="button"
-                                    className="lyric-section-card__icon-button"
-                                    aria-label={`Move ${section.type} down`}
-                                    title="Move down"
-                                    disabled={index === sections.length - 1}
-                                    onClick={() => moveSection(index, index + 2)}
-                                >
-                                    <ArrowDown size={14} />
-                                </button>
-                                <button
-                                    type="button"
-                                    className="lyric-section-card__drag-handle"
-                                    aria-label={`Drag ${section.type}`}
-                                    title="Drag to reorder"
-                                    draggable
-                                    onDragStart={(event) => handleDragStart(event, index)}
-                                    onDragEnd={handleDragEnd}
-                                >
-                                    <GripVertical size={16} />
-                                </button>
-                                <button
-                                    type="button"
-                                    className="lyric-section-card__icon-button lyric-section-card__icon-button--danger"
-                                    aria-label={`Delete ${section.type}`}
-                                    title="Delete block"
-                                    onClick={() => deleteSection(index)}
-                                >
-                                    <Trash2 size={14} />
-                                </button>
+                                {sections.length > 1 && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            className="lyric-section-card__icon-button"
+                                            aria-label={`Move ${section.type} up`}
+                                            title="Move up"
+                                            disabled={index === 0}
+                                            onClick={() => moveSection(index, index - 1)}
+                                        >
+                                            <ArrowUp size={14} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="lyric-section-card__icon-button"
+                                            aria-label={`Move ${section.type} down`}
+                                            title="Move down"
+                                            disabled={index === sections.length - 1}
+                                            onClick={() => moveSection(index, index + 2)}
+                                        >
+                                            <ArrowDown size={14} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="lyric-section-card__drag-handle"
+                                            aria-label={`Drag ${section.type}`}
+                                            title="Drag to reorder"
+                                            draggable
+                                            onDragStart={(event) => handleDragStart(event, index)}
+                                            onDragEnd={handleDragEnd}
+                                        >
+                                            <GripVertical size={16} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="lyric-section-card__icon-button lyric-section-card__icon-button--danger"
+                                            aria-label={`Delete ${section.type}`}
+                                            title="Delete block"
+                                            onClick={() => deleteSection(index)}
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>
@@ -634,6 +831,124 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
                     )}
                 </div>
             ))}
+
+            <Modal
+                isOpen={!!tagEditorSection}
+                onClose={closeTagEditor}
+                title={tagEditorSection ? `Edit ${tagEditorSection.type} Tags` : "Edit Tags"}
+                className="lyric-tag-editor-modal"
+                footer={
+                    <>
+                        <button type="button" className="btn ghost" onClick={closeTagEditor}>
+                            Cancel
+                        </button>
+                        <button type="button" className="btn primary" onClick={saveTagEditor}>
+                            Save Tags
+                        </button>
+                    </>
+                }
+            >
+                <div className="lyric-tag-editor">
+                    <div className="lyric-tag-editor__section">
+                        <div className="lyric-tag-editor__label">Selected tags</div>
+                        <div className="lyric-tag-editor__selected-list">
+                            {tagDraftItems.length === 0 ? (
+                                <div className="lyric-tag-editor__empty">No tags selected.</div>
+                            ) : (
+                                tagDraftItems.map((item, index) => (
+                                    <div
+                                        key={`${item.value}-${index}`}
+                                        className={`lyric-tag-editor__selected-tag ${draggedTagIndex === index ? "is-dragging" : ""}`}
+                                        draggable
+                                        onDragStart={(event) => handleTagDragStart(event, index)}
+                                        onDragOver={(event) => event.preventDefault()}
+                                        onDrop={(event) => handleTagDrop(event, index)}
+                                        onDragEnd={() => setDraggedTagIndex(null)}
+                                        title="Drag to reorder"
+                                    >
+                                        <GripVertical size={14} />
+                                        <span>{item.value}</span>
+                                        <span className={`lyric-tag-editor__kind lyric-tag-editor__kind--${item.kind}`}>
+                                            {item.kind}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            className="lyric-tag-editor__remove"
+                                            aria-label={`Remove ${item.value}`}
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                removeTagFromDraft(index);
+                                            }}
+                                        >
+                                            <X size={13} />
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    <form
+                        className="lyric-tag-editor__manual"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            addManualTag();
+                        }}
+                    >
+                        <label className="lyric-tag-editor__label" htmlFor="manual-lyric-tag">
+                            Manual tag
+                        </label>
+                        <div className="lyric-tag-editor__manual-row">
+                            <input
+                                id="manual-lyric-tag"
+                                className="input"
+                                value={manualTag}
+                                onChange={(event) => setManualTag(event.target.value)}
+                                placeholder="Female Vocal or [Dynamic: Climactic]"
+                            />
+                            <button type="submit" className="btn secondary" disabled={!normalizeTagInput(manualTag)}>
+                                <Plus size={14} />
+                                Add
+                            </button>
+                        </div>
+                    </form>
+
+                    <div className="lyric-tag-editor__section">
+                        <div className="lyric-tag-editor__label-row">
+                            <label className="lyric-tag-editor__label" htmlFor="lyric-tag-search">
+                                Default tags
+                            </label>
+                            <span>{filteredDefaultLyricTags.length} shown</span>
+                        </div>
+                        <input
+                            id="lyric-tag-search"
+                            className="input"
+                            value={tagSearch}
+                            onChange={(event) => setTagSearch(event.target.value)}
+                            placeholder="Search default tags"
+                        />
+                        <div className="lyric-tag-editor__option-list">
+                            {isLoadingDefaultLyricTags ? (
+                                <div className="lyric-tag-editor__empty">Loading default tags...</div>
+                            ) : filteredDefaultLyricTags.length === 0 ? (
+                                <div className="lyric-tag-editor__empty">No matching default tags.</div>
+                            ) : (
+                                filteredDefaultLyricTags.map((tag) => (
+                                    <button
+                                        key={tag}
+                                        type="button"
+                                        className="lyric-tag-editor__option"
+                                        onClick={() => addTagToDraft(tag)}
+                                    >
+                                        <Plus size={13} />
+                                        <span>{tag}</span>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

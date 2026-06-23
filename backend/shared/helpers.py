@@ -1855,6 +1855,31 @@ def get_instrument_tags() -> List[str]:
     return sorted(list(set(valid_instruments)))
 
 
+def get_default_lyric_tags() -> List[str]:
+    """Parse tags/default-tags.txt and return unique bracket tag values."""
+    path = Path(get_repo_root()) / "tags" / "default-tags.txt"
+    if not path.exists():
+        return []
+
+    tags: List[str] = []
+    seen = set()
+    with path.open("r") as f:
+        for line in f:
+            raw_tag = line.split("#", 1)[0].strip()
+            if not raw_tag.startswith("[") or not raw_tag.endswith("]"):
+                continue
+
+            tag = raw_tag[1:-1].strip()
+            normalized = tag.lower()
+            if not tag or normalized in seen:
+                continue
+
+            seen.add(normalized)
+            tags.append(tag)
+
+    return tags
+
+
 class SongState(TypedDict, total=False):
     user_input: str
     prompt_user_input: str
