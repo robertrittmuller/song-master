@@ -26,6 +26,7 @@ class SettingsResponse(BaseModel):
     regenerate_model: Optional[str] = None
     temperature: float = 0.6
     max_tokens: int = 4096
+    request_timeout_seconds: float = 1200.0
     use_local: bool = False
     local_url: Optional[str] = None
     recommended_models: List[str] = Field(default_factory=list)

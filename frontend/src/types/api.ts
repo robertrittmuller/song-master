@@ -115,6 +115,7 @@ export type Settings = {
   regenerate_model?: string | null;
   temperature: number;
   max_tokens: number;
+  request_timeout_seconds: number;
   use_local: boolean;
   local_url?: string | null;
   recommended_models: string[];

@@ -1,6 +1,7 @@
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -10,6 +11,79 @@ import litellm
 from litellm import completion
 
 load_dotenv()
+
+
+DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS = 1200.0
+DEFAULT_THINKING_MODEL_MAX_TOKENS = 16384
+DEFAULT_THINKING_MODEL_PATTERNS = (
+    "thinking",
+    "reasoning",
+    "deepseek-r1",
+    "qwen3",
+    "qwq",
+    "gpt-5",
+    "o1",
+    "o3",
+    "o4",
+)
+
+
+@dataclass(frozen=True)
+class LLMRuntimeConfig:
+    """Runtime controls shared by every text-generation client."""
+
+    temperature: float
+    max_tokens: int
+    request_timeout: float
+
+
+def _float_env(name: str, default: float) -> float:
+    raw_value = os.getenv(name)
+    if raw_value is None or not raw_value.strip():
+        return default
+    try:
+        parsed = float(raw_value)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _int_env(name: str, default: int) -> int:
+    raw_value = os.getenv(name)
+    if raw_value is None or not raw_value.strip():
+        return default
+    try:
+        parsed = int(raw_value)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _split_env_list(name: str, default: tuple[str, ...]) -> List[str]:
+    raw_value = os.getenv(name)
+    if not raw_value:
+        return list(default)
+    return [item.strip().lower() for item in raw_value.replace("\n", ",").split(",") if item.strip()]
+
+
+def _is_thinking_model(model: Optional[str]) -> bool:
+    """Return True for model ids that commonly spend output budget on reasoning."""
+    normalized_model = (model or "").lower()
+    patterns = _split_env_list("LLM_THINKING_MODEL_PATTERNS", DEFAULT_THINKING_MODEL_PATTERNS)
+    return any(pattern in normalized_model for pattern in patterns)
+
+
+def _get_llm_runtime_config(model: Optional[str]) -> LLMRuntimeConfig:
+    temperature = _float_env("LITELLM_TEMPERATURE", _float_env("LLM_TEMPERATURE", 0.7))
+    max_tokens = _int_env("LLM_MAX_TOKENS", 4096)
+    if _is_thinking_model(model):
+        thinking_max_tokens = _int_env("LLM_THINKING_MAX_TOKENS", DEFAULT_THINKING_MODEL_MAX_TOKENS)
+        max_tokens = max(max_tokens, thinking_max_tokens)
+    return LLMRuntimeConfig(
+        temperature=temperature,
+        max_tokens=max_tokens,
+        request_timeout=_float_env("LLM_REQUEST_TIMEOUT_SECONDS", DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS),
+    )
 
 
 def _is_truthy_env(value: Optional[str]) -> bool:
@@ -155,11 +229,20 @@ _configure_langfuse()
 
 
 class LMStudioLLM:
-    def __init__(self, model: str, temperature: float, max_tokens: int, api_key: str, base_url: str):
+    def __init__(
+        self,
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        api_key: str,
+        base_url: str,
+        request_timeout: float,
+    ):
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.client = openai.OpenAI(api_key=api_key, base_url=base_url)
+        self.request_timeout = request_timeout
+        self.client = openai.OpenAI(api_key=api_key, base_url=base_url, timeout=request_timeout)
 
     def invoke(self, prompt: str) -> str:
         try:
@@ -187,11 +270,20 @@ class LMStudioLLM:
 
 
 class OpenRouterLLM:
-    def __init__(self, model: str, temperature: float, max_tokens: int, api_key: str, base_url: str):
+    def __init__(
+        self,
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        api_key: str,
+        base_url: str,
+        request_timeout: float,
+    ):
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.client = openai.OpenAI(api_key=api_key, base_url=base_url)
+        self.request_timeout = request_timeout
+        self.client = openai.OpenAI(api_key=api_key, base_url=base_url, timeout=request_timeout)
 
     def invoke(self, prompt: str) -> str:
         comp = self.client.completions.create(
@@ -205,10 +297,19 @@ class OpenRouterLLM:
 
 class LiteLLMWrapper:
     """Wrapper for LiteLLM API calls."""
-    def __init__(self, model: str, temperature: float, max_tokens: int, api_key: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(
+        self,
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        request_timeout: float,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ):
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.request_timeout = request_timeout
         self.api_key = api_key
         self.base_url = base_url
 
@@ -218,6 +319,7 @@ class LiteLLMWrapper:
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
+            "timeout": self.request_timeout,
             "extra_headers": _get_litellm_extra_headers(self.model, self.base_url),
         }
         if self.api_key and self.api_key != "your_openrouter_api_key_here":
@@ -234,21 +336,21 @@ class LiteLLMWrapper:
 
 def get_llm(use_local: bool = False, model_override: Optional[str] = None):
 
-    temperature = float(os.getenv("LLM_TEMPERATURE", "0.7"))
-    max_tokens = int(os.getenv("LLM_MAX_TOKENS", "4096"))
     selected_model = model_override.strip() if model_override else None
 
     if use_local:
         lmstudio_api_key = os.getenv("LMSTUDIO_API_KEY", "lm-studio")
         lmstudio_base_url = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
         lmstudio_model = selected_model or os.getenv("LMSTUDIO_LLM_MODEL", "local-model")
+        runtime_config = _get_llm_runtime_config(lmstudio_model)
 
         return LMStudioLLM(
             model=lmstudio_model,
-            temperature=temperature,
-            max_tokens=max_tokens,
+            temperature=runtime_config.temperature,
+            max_tokens=runtime_config.max_tokens,
             api_key=lmstudio_api_key,
             base_url=lmstudio_base_url,
+            request_timeout=runtime_config.request_timeout,
         )
 
     litellm_model = selected_model or os.getenv("LITELLM_MODEL")
@@ -256,25 +358,29 @@ def get_llm(use_local: bool = False, model_override: Optional[str] = None):
     litellm_base_url = os.getenv("LITELLM_API_BASE")
 
     if litellm_model:
+        runtime_config = _get_llm_runtime_config(litellm_model)
         return LiteLLMWrapper(
             model=litellm_model,
-            temperature=temperature,
-            max_tokens=max_tokens,
+            temperature=runtime_config.temperature,
+            max_tokens=runtime_config.max_tokens,
+            request_timeout=runtime_config.request_timeout,
             api_key=litellm_api_key,
             base_url=litellm_base_url,
         )
 
     model = selected_model or os.getenv("LLM_MODEL", "openai/gpt-3.5-turbo")
+    runtime_config = _get_llm_runtime_config(model)
     openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
     openrouter_base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
     if openrouter_api_key and openrouter_api_key != "your_openrouter_api_key_here":
         return OpenRouterLLM(
             model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
+            temperature=runtime_config.temperature,
+            max_tokens=runtime_config.max_tokens,
             api_key=openrouter_api_key,
             base_url=openrouter_base_url,
+            request_timeout=runtime_config.request_timeout,
         )
 
     openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -283,9 +389,10 @@ def get_llm(use_local: bool = False, model_override: Optional[str] = None):
 
     langfuse_handler = _get_langfuse_langchain_handler()
     return OpenAI(
-        temperature=temperature,
+        temperature=runtime_config.temperature,
         model=model,
-        max_tokens=max_tokens,
+        max_tokens=runtime_config.max_tokens,
+        timeout=runtime_config.request_timeout,
         openai_api_key=openai_api_key,
         callbacks=[langfuse_handler] if langfuse_handler else None,
     )

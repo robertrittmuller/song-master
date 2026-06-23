@@ -183,6 +183,7 @@ def get_settings_payload() -> SettingsResponse:
     regenerate_model = os.getenv("REGENERATE_LYRICS_MODEL") or model
     temperature = float(os.getenv("LITELLM_TEMPERATURE") or os.getenv("LLM_TEMPERATURE", "0.7"))
     max_tokens = int(os.getenv("LLM_MAX_TOKENS", "4096"))
+    request_timeout_seconds = float(os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "1200"))
     use_local = os.getenv("USE_LOCAL_LLM", "false").lower() == "true"
     local_url = os.getenv("LMSTUDIO_BASE_URL") or None
     theme = os.getenv("UI_THEME", "dark")
@@ -199,6 +200,7 @@ def get_settings_payload() -> SettingsResponse:
         regenerate_model=regenerate_model,
         temperature=temperature,
         max_tokens=max_tokens,
+        request_timeout_seconds=request_timeout_seconds,
         recommended_models=recommended_models,
         recommended_local_models=recommended_local_models,
         models=_build_model_options(
