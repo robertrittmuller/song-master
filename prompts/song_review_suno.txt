@@ -5,6 +5,7 @@ Focus on:
 - Missing, conflicting, or unclear vocal tags.
 - Style, genre, or production instructions leaking into sung lyric lines.
 - Tag placement issues that should be fixed at the section-header level.
+- Missing planned `style_tags` such as `[style: ...]`, `[Dynamic: ...]`, or `[Instruments: ...]` on section header lines.
 - Whether the locked section plan is still being followed exactly.
 - Whether required quoted lines and must-include prompt constraints are present in the right place.
 - Whether the tags and section plan still match the creative brief and user request.

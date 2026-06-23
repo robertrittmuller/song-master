@@ -637,11 +637,16 @@ def _normalize_section_plan_payload(raw_sections: Any) -> List[Dict[str, Any]]:
     return section_plan
 
 
-def _normalize_brief_payload(raw_payload: Any) -> Dict[str, Any]:
+def _normalize_brief_payload(
+    raw_payload: Any,
+    default_params: Optional[Dict[str, Optional[str]]] = None,
+) -> Dict[str, Any]:
+    from backend.shared.helpers import ensure_section_plan_style_tags
+
     if not isinstance(raw_payload, dict):
         raise ValueError("The model did not return a usable creative brief.")
 
-    return {
+    normalized = {
         "theme": str(raw_payload.get("theme") or "").strip(),
         "point_of_view": str(raw_payload.get("point_of_view") or "").strip(),
         "emotional_arc": str(raw_payload.get("emotional_arc") or "").strip(),
@@ -653,6 +658,12 @@ def _normalize_brief_payload(raw_payload: Any) -> Dict[str, Any]:
         "suno_style_tokens": _coerce_string_list(raw_payload.get("suno_style_tokens"), "suno_style_tokens"),
         "section_plan": _normalize_section_plan_payload(raw_payload.get("section_plan")),
     }
+    normalized["section_plan"] = ensure_section_plan_style_tags(
+        normalized["section_plan"],
+        normalized,
+        default_params or {},
+    )
+    return normalized
 
 
 def build_song_brief(
@@ -674,7 +685,7 @@ def build_song_brief(
     )
     raw_response = get_llm(use_local, model).invoke(formatted_prompt)
     parsed = _load_json_response(raw_response)
-    return _normalize_brief_payload(parsed)
+    return _normalize_brief_payload(parsed, default_params)
 
 
 def plan_song_structure(
@@ -687,7 +698,7 @@ def plan_song_structure(
     use_local: bool,
     model: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    from backend.shared.helpers import get_allowed_structure_names
+    from backend.shared.helpers import ensure_section_plan_style_tags, get_allowed_structure_names
 
     allowed_section_names = get_allowed_structure_names(user_input, brief)
     formatted_prompt = prompt_template.format(
@@ -701,7 +712,8 @@ def plan_song_structure(
     parsed = _load_json_response(get_llm(use_local, model).invoke(formatted_prompt))
     if not isinstance(parsed, dict):
         raise ValueError("The model did not return a usable song structure.")
-    return _normalize_section_plan_payload(parsed.get("sections") or parsed.get("section_plan"))
+    section_plan = _normalize_section_plan_payload(parsed.get("sections") or parsed.get("section_plan"))
+    return ensure_section_plan_style_tags(section_plan, brief, default_params)
 
 
 def draft_song(

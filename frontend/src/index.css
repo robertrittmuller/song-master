@@ -743,6 +743,16 @@ a {
   color: var(--gray-50);
 }
 
+.lyric-section-card__icon-button--danger {
+  color: #fca5a5;
+}
+
+.lyric-section-card__icon-button--danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fee2e2;
+}
+
 .lyric-section-card__icon-button:disabled {
   opacity: 0.35;
   cursor: not-allowed;
@@ -754,6 +764,62 @@ a {
 
 .lyric-section-card__drag-handle:active {
   cursor: grabbing;
+}
+
+.lyrics-draft-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.42);
+  background:
+    linear-gradient(90deg, rgba(245, 158, 11, 0.22), rgba(245, 158, 11, 0.08)),
+    rgba(15, 23, 42, 0.82);
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.08), 0 12px 28px rgba(0, 0, 0, 0.22);
+}
+
+.lyrics-draft-alert__content {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #fbbf24;
+}
+
+.lyrics-draft-alert__content svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.lyrics-draft-alert__title {
+  color: #fde68a;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.lyrics-draft-alert__message {
+  margin-top: 3px;
+  color: var(--gray-200);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.btn.lyric-draft-save {
+  background: linear-gradient(135deg, var(--warning-dark) 0%, var(--warning) 100%);
+  border-color: rgba(251, 191, 36, 0.45);
+  color: #111827;
+  text-shadow: none;
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.18), 0 8px 20px rgba(245, 158, 11, 0.24);
+}
+
+.btn.lyric-draft-save:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--warning) 0%, #fbbf24 100%);
+  border-color: rgba(251, 191, 36, 0.7);
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.24), 0 10px 26px rgba(245, 158, 11, 0.32);
 }
 
 .animate-spin {
@@ -1705,6 +1771,11 @@ h3 {
   .file-field__name {
     width: 100%;
     text-align: center;
+  }
+
+  .lyrics-draft-alert {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

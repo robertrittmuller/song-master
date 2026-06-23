@@ -17,6 +17,7 @@ from backend.shared.ai_functions import (
 )
 from backend.shared.helpers import (
     SongState,
+    apply_section_plan_tags_to_lyrics,
     build_compact_style_context,
     build_compact_tag_context,
     build_structure_guidance,
@@ -270,9 +271,13 @@ def generate_song_pipeline(
 
         # Extract title and clean lyrics
         title = extract_title(raw_lyrics, state.get("song_name"))
-        clean_lyrics = remove_title_from_lyrics(raw_lyrics).strip()
+        clean_lyrics = remove_title_from_lyrics(raw_lyrics, title).strip()
         if is_invalid_lyrics_output(clean_lyrics):
             clean_lyrics = raw_lyrics
+        clean_lyrics = apply_section_plan_tags_to_lyrics(
+            clean_lyrics,
+            state.get("structure_plan") or state.get("brief", {}).get("section_plan", []),
+        )
         return {"lyrics": clean_lyrics, "song_name": title}
 
     def review_node(state: SongState):
@@ -339,6 +344,10 @@ def generate_song_pipeline(
                 model=state.get("lyrics_model"),
             ),
             fallback=state["lyrics"],
+        )
+        revised = apply_section_plan_tags_to_lyrics(
+            revised,
+            state.get("structure_plan") or state.get("brief", {}).get("section_plan", []),
         )
         notify("Applied targeted lyric fixes", 55)
         return {"lyrics": revised, "feedback": feedback, "round": state["round"] + 1}

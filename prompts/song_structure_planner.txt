@@ -19,6 +19,7 @@ Rules:
 - Treat the creative brief's section plan as provisional guidance. You are responsible for locking the final section order and section header details here.
 - Keep the structure compact. Do not add optional sections just because they exist in the tag context.
 - For each section, return the exact header tags the drafter should use. `tags` should include the structural tag plus vocal tags or any other non-style tags needed for that section. `style_tags` should include only section-specific arrangement metadata such as `[style: ...]`, `[Dynamic: ...]`, or `[Instruments: ...]`.
+- Every section must include at least one `style_tags` entry. For sung sections, one entry must be a `[style: ...]` tag grounded in the creative brief, user request, defaults, or persona. Do not leave `style_tags` empty even if the model is uncertain.
 - If you include internal section names such as `Solo 1` or `Solo 2`, the corresponding `tags` must still use the visible lyric header `[Solo]` or a specific instrumental tag such as `[Guitar Solo]`. Never emit numbered solo tags such as `[Solo 1]` or `[Solo 2]` inside `tags`.
 - Keep `style_tags` grounded in the brief and request. Do not repeat one canned style bundle across the whole song unless the song truly calls for that.
 - Do not rely on downstream code to repair your plan. The returned section list is the canonical structure for the draft step.

@@ -103,6 +103,39 @@ class SongPromptFlowTests(unittest.TestCase):
 
         self.assertEqual([section["name"] for section in section_plan], ["Chorus", "Verse 1"])
 
+    def test_plan_song_structure_fills_missing_style_tags(self):
+        payload = {
+            "sections": [
+                {
+                    "name": "Verse 1",
+                    "goal": "Open close to the narrator.",
+                    "tags": ["[Verse 1]"],
+                    "style_tags": [],
+                },
+                {
+                    "name": "Chorus",
+                    "goal": "Lift into the hook.",
+                    "tags": ["[Chorus]"],
+                },
+            ]
+        }
+
+        with patch("backend.shared.ai_functions.get_llm", return_value=_StubLLM([json.dumps(payload)])):
+            section_plan = plan_song_structure(
+                PromptTemplate.from_template("{brief}"),
+                "Write a cinematic synthpop song",
+                {"suno_style_tokens": ["cinematic synthpop"], "section_plan": []},
+                "guidance",
+                "tag context",
+                {"genre": "pop", "vocal_gender": "Female", "mood": "urgent"},
+                use_local=False,
+            )
+
+        self.assertEqual([section["name"] for section in section_plan], ["Verse 1", "Chorus"])
+        self.assertIn("[Female Vocal]", section_plan[0]["tags"])
+        self.assertTrue(section_plan[0]["style_tags"][0].startswith("[style: cinematic synthpop"))
+        self.assertTrue(section_plan[1]["style_tags"][0].startswith("[style: cinematic synthpop"))
+
     def test_run_specialized_reviews_merges_prompt_feedback_only(self):
         review_prompts = {
             "theme": PromptTemplate.from_template("theme {lyrics}"),

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DragEvent } from "react";
 
-import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical, Trash2 } from "lucide-react";
 
 import { copyTextToClipboard } from "../../services/clipboard";
 
@@ -301,6 +301,15 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
         updateDraftSections(updatedSections);
     };
 
+    const deleteSection = (sectionIndex: number) => {
+        if (!canEdit || sections.length <= 1 || sectionIndex < 0 || sectionIndex >= sections.length) {
+            return;
+        }
+
+        const updatedSections = sections.filter((_, index) => index !== sectionIndex);
+        updateDraftSections(updatedSections);
+    };
+
     const handleDragStart = (event: DragEvent<HTMLButtonElement>, index: number) => {
         if (!canEdit) {
             event.preventDefault();
@@ -498,6 +507,15 @@ export function LyricsSectionView({ lyrics, editable = false, onDraftChange }: P
                                     onDragEnd={handleDragEnd}
                                 >
                                     <GripVertical size={16} />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="lyric-section-card__icon-button lyric-section-card__icon-button--danger"
+                                    aria-label={`Delete ${section.type}`}
+                                    title="Delete block"
+                                    onClick={() => deleteSection(index)}
+                                >
+                                    <Trash2 size={14} />
                                 </button>
                             </div>
                         )}

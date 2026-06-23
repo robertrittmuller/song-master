@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Check, Download, Pencil } from "lucide-react";
+import { AlertTriangle, Copy, Check, Download, Pencil } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
@@ -809,7 +809,7 @@ ${cleanLyrics}
             action={
               <div style={{ display: "flex", gap: 8 }}>
                 <button
-                  className="btn ghost"
+                  className={hasLyricsDraft ? "btn lyric-draft-save" : "btn ghost"}
                   style={{ padding: "4px 8px", fontSize: 12, height: "auto", minHeight: 0 }}
                   onClick={() => updateLyricsMutation.mutate(editedLyrics || "")}
                   disabled={!canEditLyrics || !canSaveLyrics || updateLyricsMutation.isPending}
@@ -847,12 +847,17 @@ ${cleanLyrics}
             </div>
 
             {hasLyricsDraft && (
-              <div className="glass" style={{ padding: 10, marginBottom: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <div style={{ fontSize: 12, color: "var(--gray-300)" }}>
-                    Draft changes are ready. Create a new version when you are done.
+              <div className="lyrics-draft-alert">
+                <div className="lyrics-draft-alert__content">
+                  <AlertTriangle size={18} />
+                  <div>
+                    <div className="lyrics-draft-alert__title">Unsaved lyric changes</div>
+                    <div className="lyrics-draft-alert__message">
+                      Create a new version to keep these edits, or discard the draft.
+                    </div>
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
                     <button
                       className="btn ghost"
                       style={{ padding: "2px 8px", fontSize: 11, height: "auto", minHeight: 0 }}
@@ -860,7 +865,6 @@ ${cleanLyrics}
                     >
                       Discard
                     </button>
-                  </div>
                 </div>
               </div>
             )}

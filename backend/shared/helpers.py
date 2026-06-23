@@ -566,6 +566,119 @@ def _style_metadata_category(tag: str) -> str:
     return lowered
 
 
+def _normalize_style_metadata_tag(tag: str) -> Optional[str]:
+    stripped = _strip_tag_wrapper(str(tag or "")).strip()
+    if not stripped:
+        return None
+    if _is_style_metadata_tag(stripped):
+        return f"[{stripped}]"
+    return f"[style: {stripped}]"
+
+
+def _visible_structure_tag_for_section(name: str) -> str:
+    normalized = _normalize_section_name(name)
+    if normalized.startswith("solo"):
+        return "[Solo]"
+    if normalized:
+        return f"[{str(name).strip()}]"
+    return "[Verse 1]"
+
+
+def _is_sung_section_name(name: str) -> bool:
+    family = _section_family(name)
+    return family not in {"solo", "instrumental"}
+
+
+def _fallback_section_style_tag(
+    section_name: str,
+    brief: Dict[str, Any],
+    default_params: Dict[str, Optional[str]],
+) -> str:
+    raw_tokens = brief.get("suno_style_tokens", []) if isinstance(brief, dict) else []
+    if isinstance(raw_tokens, str):
+        tokens = [token.strip() for token in raw_tokens.split(",") if token.strip()]
+    elif isinstance(raw_tokens, list):
+        tokens = [str(token).strip() for token in raw_tokens if str(token).strip()]
+    else:
+        tokens = []
+
+    for field in ("genre", "mood", "instruments"):
+        value = default_params.get(field)
+        if value:
+            tokens.append(str(value).strip())
+
+    deduped_tokens: List[str] = []
+    seen = set()
+    for token in tokens:
+        normalized = _normalize_compare_text(token)
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped_tokens.append(token)
+
+    family_descriptors = {
+        "verse": "focused",
+        "pre-chorus": "building",
+        "chorus": "hook-forward",
+        "post-chorus": "released",
+        "bridge": "contrasting",
+        "breakdown": "stripped-back",
+        "outro": "resolving",
+        "intro": "opening",
+        "solo": "instrumental feature",
+        "instrumental": "instrumental feature",
+    }
+    descriptor = family_descriptors.get(_section_family(section_name))
+    if descriptor:
+        deduped_tokens.append(descriptor)
+
+    return f"[style: {', '.join(deduped_tokens[:4] or ['song arrangement'])}]"
+
+
+def ensure_section_plan_style_tags(
+    section_plan: List[Dict[str, Any]],
+    brief: Optional[Dict[str, Any]],
+    default_params: Dict[str, Optional[str]],
+) -> List[Dict[str, Any]]:
+    """Return a section plan with structural, vocal, and style metadata tags present."""
+    enriched: List[Dict[str, Any]] = []
+    brief = brief or {}
+
+    for section in section_plan:
+        item = dict(section)
+        name = str(item.get("name") or "").strip()
+
+        raw_tags = item.get("tags", [])
+        if isinstance(raw_tags, str):
+            raw_tags = [raw_tags]
+        tags = _dedupe_tags([str(tag).strip() for tag in raw_tags if str(tag).strip()])
+        if not any(_section_family(tag) == _section_family(name) for tag in tags):
+            tags.insert(0, _visible_structure_tag_for_section(name))
+
+        vocal_tag = _choose_vocal_tag(default_params.get("vocal_gender"))
+        if vocal_tag and _is_sung_section_name(name):
+            vocal_normalized = _normalize_section_name(vocal_tag)
+            if not any(_normalize_section_name(tag) == vocal_normalized for tag in tags):
+                tags.append(vocal_tag)
+
+        raw_style_tags = item.get("style_tags", [])
+        if isinstance(raw_style_tags, str):
+            raw_style_tags = [raw_style_tags]
+        style_tags = [
+            normalized
+            for normalized in (_normalize_style_metadata_tag(str(tag).strip()) for tag in raw_style_tags)
+            if normalized
+        ]
+        categories = {_style_metadata_category(tag) for tag in style_tags}
+        if "style" not in categories:
+            style_tags.insert(0, _fallback_section_style_tag(name, brief, default_params))
+        item["tags"] = _dedupe_tags(tags)
+        item["style_tags"] = _dedupe_tags(style_tags)
+        enriched.append(item)
+
+    return enriched
+
+
 def contains_live_performance_terms(text: Optional[str]) -> bool:
     lowered = (text or "").strip().lower()
     return bool(lowered) and any(term in lowered for term in _LIVE_PERFORMANCE_TERMS)
@@ -1157,7 +1270,13 @@ def extract_title(lyrics: str, provided_title: Optional[str]) -> str:
     return "Unknown Song"
 
 
-def remove_title_from_lyrics(lyrics: str) -> str:
+def _is_matching_title_line(line: str, title: Optional[str]) -> bool:
+    if not title or title == "Unknown Song":
+        return False
+    return _normalize_compare_text(line) == _normalize_compare_text(title)
+
+
+def remove_title_from_lyrics(lyrics: str, title: Optional[str] = None) -> str:
     """Strip the title block from the beginning of the LLM output and remove thinking tokens."""
     lyrics = remove_thinking_tags(lyrics)
     lines = lyrics.splitlines()
@@ -1168,6 +1287,8 @@ def remove_title_from_lyrics(lyrics: str) -> str:
     new_lines = []
     skip_next = False
     found_title = False
+    can_strip_bare_title = bool(title)
+    seen_lyric_content = False
     
     for i, line in enumerate(lines):
         if skip_next:
@@ -1188,6 +1309,14 @@ def remove_title_from_lyrics(lyrics: str) -> str:
                 if trimmed == marker_found and i + 1 < len(lines):
                     skip_next = True
                 continue
+
+        if can_strip_bare_title and not seen_lyric_content and _is_matching_title_line(trimmed, title):
+            found_title = True
+            can_strip_bare_title = False
+            continue
+
+        if trimmed and not (trimmed.startswith("[") and trimmed.endswith("]")):
+            seen_lyric_content = True
         
         new_lines.append(line)
         
@@ -1203,6 +1332,79 @@ def normalize_lyrics_section_tags(lyrics: str) -> str:
     normalized = lyrics or ""
     normalized = re.sub(r"\[(solo)\s+\d+\]", r"[\1]", normalized, flags=re.IGNORECASE)
     return normalized
+
+
+def _extract_bracket_tags(line: str) -> List[str]:
+    return re.findall(r"\[[^\]\n]+\]", line or "")
+
+
+def _accepted_section_names(section: Dict[str, Any]) -> set[str]:
+    section_name = str(section.get("name") or "").strip()
+    accepted_names = {_normalize_section_name(section_name)}
+    for tag in section.get("tags", []):
+        if not _is_style_metadata_tag(str(tag)):
+            accepted_names.add(_normalize_section_name(str(tag)))
+    return {name for name in accepted_names if name}
+
+
+def _plain_section_header_name(line: str) -> str:
+    stripped = (line or "").strip().lstrip("#").strip().rstrip(":").strip()
+    if not stripped or "[" in stripped or len(stripped) > 40 or len(stripped.split()) > 4:
+        return ""
+    return _normalize_section_name(stripped)
+
+
+def _line_matches_section(line: str, section: Dict[str, Any]) -> bool:
+    accepted_names = _accepted_section_names(section)
+    line_tags = _extract_bracket_tags(line)
+    if not line_tags:
+        return _plain_section_header_name(line) in accepted_names
+
+    line_names = {_normalize_section_name(tag) for tag in line_tags if not _is_style_metadata_tag(tag)}
+    if accepted_names & line_names:
+        return True
+
+    section_family = _section_family(section_name)
+    return section_family in {"chorus", "solo"} and any(_section_family(tag) == section_family for tag in line_tags)
+
+
+def _line_has_equivalent_tag(line_tags: List[str], required_tag: str) -> bool:
+    if _is_style_metadata_tag(required_tag):
+        required_category = _style_metadata_category(required_tag)
+        return any(_is_style_metadata_tag(tag) and _style_metadata_category(tag) == required_category for tag in line_tags)
+
+    required_normalized = _normalize_section_name(required_tag)
+    return any(_normalize_section_name(tag) == required_normalized for tag in line_tags)
+
+
+def apply_section_plan_tags_to_lyrics(lyrics: str, section_plan: List[Dict[str, Any]]) -> str:
+    """Attach missing planned section tags to generated lyric headers without rewriting lyric lines."""
+    normalized = normalize_lyrics_section_tags(lyrics)
+    if not normalized.strip() or not section_plan:
+        return normalized
+
+    lines = normalized.splitlines()
+    search_start = 0
+    for section in section_plan:
+        for line_index in range(search_start, len(lines)):
+            if not _line_matches_section(lines[line_index], section):
+                continue
+
+            line_tags = _extract_bracket_tags(lines[line_index])
+            required_tags = list(section.get("tags", [])) + list(section.get("style_tags", []))
+            if not line_tags and required_tags:
+                lines[line_index] = " ".join(str(tag) for tag in required_tags if tag)
+                search_start = line_index + 1
+                break
+            missing_tags = [
+                tag for tag in required_tags if tag and not _line_has_equivalent_tag(line_tags, str(tag))
+            ]
+            if missing_tags:
+                lines[line_index] = f"{lines[line_index].rstrip()} {' '.join(missing_tags)}"
+            search_start = line_index + 1
+            break
+
+    return "\n".join(lines)
 
 
 def get_repo_root() -> str:

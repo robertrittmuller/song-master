@@ -24,6 +24,7 @@ Important rules:
 - Priority order: user requirements first, then the locked song structure plan, then the broader creative brief.
 - Follow the locked song structure plan and use the brief for content goals, emotional arc, imagery, and hook strategy.
 - Use concise but meaningful Suno-ready header tags. At minimum, include the structural tag, vocal tag, and the planned section-specific `[style: ...]` tag on every sung section.
+- If the song structure plan has `style_tags`, copy those planned style tags into the matching section header line. Do not omit them because the model, provider, or local runtime prefers simpler lyric formatting.
 - Let section headers evolve with the song. Verse tags, chorus tags, bridge tags, and outro tags should feel intentionally chosen for that section rather than copied mechanically from one section to the next.
 - Use section tags to guide flow and arrangement within the song: build-ups, drop-outs, widened choruses, instrumental tension before solos, stripped-back breakdowns, and release into the outro.
 - If the prompt asks for a specific arrangement event such as guitar solos, string builds, or instrumental transitions, render those moments explicitly in the structure with matching section headers and setup tags.
